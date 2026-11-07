@@ -227,11 +227,11 @@ fn status_within(
 
 /// Prepare the currently selected provider session without selecting an identity or
 /// rewriting accounts.json. A concurrent UI switch cannot be undone by a late refresh.
-#[cfg(any(target_os = "android", test))]
+#[cfg(any(target_os = "android", target_os = "ios", test))]
 pub fn selected_session(client_id: &str) -> Result<Option<(Account, Secrets)>, String> {
     selected_session_with(&Endpoints::live(), client_id, store(), &Accounts::path())
 }
-#[cfg(any(target_os = "android", test))]
+#[cfg(any(target_os = "android", target_os = "ios", test))]
 pub(super) fn selected_session_with(
     ep: &Endpoints,
     client_id: &str,

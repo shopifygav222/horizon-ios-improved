@@ -6,7 +6,7 @@
 //! the shared game code.
 use std::{
     fs::{self, File},
-    io::{self, ErrorKind},
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 

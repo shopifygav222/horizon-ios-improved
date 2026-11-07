@@ -45,7 +45,8 @@ pub fn open_folder(dir: &Path) {
             let id =
                 crate::document_store::folder_id(crate::document_store::profile(&home), folder);
             if !crate::platform::open_documents(&id) {
-                log::warn!("Open Files, then choose Horizon Android / {folder}");
+                let app = if cfg!(target_os = "ios") { "iOS" } else { "Android" };
+                log::warn!("Open Files, then choose Horizon {app} / {folder}");
             }
         }
     }
@@ -71,7 +72,7 @@ pub fn open_uri(uri: &str) {
     if let Err(error) = open::that_detached(uri) {
         log::warn!("Horizon: could not open URI {uri}: {error}");
     }
-    #[cfg(not(any(windows, target_os = "android")))]
+    #[cfg(not(any(windows, target_os = "android", target_os = "ios")))]
     open_folder(Path::new(uri));
 }
 /// The resource root to load from, given the vanilla root, the selection and
