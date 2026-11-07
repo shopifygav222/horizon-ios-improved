@@ -32,7 +32,7 @@ pub fn packs_dir() -> PathBuf {
 }
 /// `Util.getPlatform().openPath`: the system file manager on the folder.
 pub fn open_folder(dir: &Path) {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         let folder = match dir.file_name().and_then(|s| s.to_str()) {
             Some("resourcepacks") => Some("packs"),
@@ -49,7 +49,7 @@ pub fn open_folder(dir: &Path) {
             }
         }
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let program = if cfg!(target_os = "windows") {
             "explorer"
@@ -65,7 +65,7 @@ pub fn open_folder(dir: &Path) {
 }
 /// `Util.getPlatform().openUri`: the system browser on the link.
 pub fn open_uri(uri: &str) {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     crate::platform::open_url(uri);
     #[cfg(windows)]
     if let Err(error) = open::that_detached(uri) {

@@ -71,9 +71,9 @@ impl SpriteCache {
     /// `None` when the textures cannot be fingerprinted (no caching then).
     pub fn open(root: &Path) -> Option<Self> {
         let fingerprint = fingerprint(root)?;
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let path = root.join(FILE);
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let path = {
             // Reconstructible decoded pixels belong to Android's clearable
             // cache, rather than the player's prepared-resource directory.

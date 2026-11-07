@@ -347,7 +347,7 @@ impl Game<'_> {
             .as_ref()
             .is_some_and(|r| r.shader_pack_dimension() != Some(dimension))
         {
-            if cfg!(target_os = "android") {
+            if cfg!(any(target_os = "android", target_os = "ios")) {
                 let mut cpu_finished = None;
                 let mut gpu_finished = None;
                 {

@@ -685,7 +685,7 @@ impl H {
                 // Android selects the backend before creating the renderer in
                 // launcher Settings. Stale/programmatic menu actions must not
                 // save a competing backend preference for the next launch.
-                if !cfg!(target_os = "android") {
+                if !cfg!(any(target_os = "android", target_os = "ios")) {
                     g.api = step(GraphicsApi::choices(), g.api, back);
                 }
             }

@@ -782,7 +782,7 @@ impl PackScreen {
             self.filter(None);
         }
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub fn android_edit_value(&mut self, measure: &Measure) -> String {
         self.search
             .move_cursor_to(measure, self.search.value.chars().count(), false);

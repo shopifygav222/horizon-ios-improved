@@ -34,6 +34,14 @@
 /debug/
 /horizon-touch.json
 /horizon-touch.json.tmp
+# iOS build outputs and Xcode artifacts.
+*.ipa
+*.xcodeproj
+build-ios/
+packaging/ios/Preview/PreviewApp.xcodeproj/
+xcuserdata/
+*.xcworkspace
+
 # Android build outputs, signing material and local account/session state.
 **/.gradle/
 **/node_modules/

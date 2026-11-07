@@ -1490,7 +1490,7 @@ impl Game<'_> {
     }
     /// Digits typed into the port field (the keyboard, or a controller's
     /// on-screen keyboard), and its backspace.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn world_options_edit_value(&mut self) -> String {
         let Some(o) = self.world_options.as_mut() else {
             return String::new();

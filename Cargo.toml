@@ -2,6 +2,10 @@
 exclude = ["launcher", "crates/horizon-telemetry-server", "crates/horizon-mod-registry", "third_party/wgpu-hal", "third_party/winit", "third_party/naga"]
 members = [
     "crates/horizon-android",
+    "crates/horizon-ios",
+    "crates/horizon-ios-game",
+    "crates/horizon-gamecontroller",
+    "crates/horizon-ios-launcher",
     "crates/horizon-core",
     "crates/horizon-dualsense",
     "crates/horizon-narrator",

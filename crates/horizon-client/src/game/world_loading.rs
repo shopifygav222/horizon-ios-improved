@@ -696,9 +696,9 @@ pub(super) fn make_streaming(
             }
         }
     });
-    let worker_threads = if cfg!(target_os = "android") && !options.execution_role.is_client() {
+    let worker_threads = if cfg!(any(target_os = "android", target_os = "ios")) && !options.execution_role.is_client() {
         (res.threads() / 2).max(2)
-    } else if cfg!(target_os = "android") {
+    } else if cfg!(any(target_os = "android", target_os = "ios")) {
         res.threads().min(4)
     } else {
         res.threads()

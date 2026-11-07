@@ -140,7 +140,7 @@ pub fn chosen_present_mode(
     // A Mailbox present can block for seconds in Android's GLES/Vulkan
     // drivers (seen on Mali) and ANR the activity during loading. The
     // Android surface stays on vsync; desktop keeps the setting.
-    if cfg!(target_os = "android") {
+    if cfg!(any(target_os = "android", target_os = "ios")) {
         return [PresentMode::Fifo, PresentMode::Immediate]
             .into_iter()
             .find(|mode| supported.contains(mode));

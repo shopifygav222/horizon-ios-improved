@@ -60,9 +60,9 @@ const MODEL_PART_KEYS: [&str; 7] = [
 pub(crate) const ACCESSIBILITY_OPTIONS: &[Opt] = &[
     Opt::Narrator,
     Opt::ShowSubtitles,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     Opt::TouchHorizontalMargin,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     Opt::TouchVerticalMargin,
     Opt::HighContrast,
     Opt::MenuBlur,
@@ -93,7 +93,7 @@ pub(crate) const ACCESSIBILITY_OPTIONS: &[Opt] = &[
 /// other platforms just as `InputQuirks.EMULATE_RIGHT_CLICK_WITH_CTRL_KEY`
 /// does in Java.
 pub(crate) fn vanilla_control_options() -> Vec<Opt> {
-    if cfg!(target_os = "android") {
+    if cfg!(any(target_os = "android", target_os = "ios")) {
         return vec![Opt::ToggleCrouch, Opt::ToggleSprint, Opt::AutoJump];
     }
     let mut options = vec![
@@ -125,7 +125,7 @@ pub(crate) const MOUSE_OPTIONS: &[Opt] = &[
 impl Opt {
     /// Keep controls visible while their underlying systems are still missing.
     pub(crate) fn available(self) -> bool {
-        if cfg!(target_os = "android") && self == Opt::GraphicsBackend {
+        if cfg!(any(target_os = "android", target_os = "ios")) && self == Opt::GraphicsBackend {
             return false;
         }
         !matches!(
@@ -868,7 +868,7 @@ impl Opt {
                 "options.textureFiltering.anisotropic",
             ][s.file.int("textureFiltering").clamp(0, 2) as usize]),
             Opt::GraphicsBackend => tr(
-                match if cfg!(target_os = "android") {
+                match if cfg!(any(target_os = "android", target_os = "ios")) {
                     crate::android_runtime::graphics_api()
                 } else {
                     s.horizon.api
@@ -1444,7 +1444,7 @@ fn set_filtering(s: &mut Settings, anisotropy_bit: i32, filtering: i32) {
 /// `Options.preferredGraphicsBackend`'s tooltip: the restart note once the choice differs from
 /// the startup one, the description, and Vulkan's warning.
 fn graphics_api_tooltip(s: &Settings) -> Text {
-    if cfg!(target_os = "android") {
+    if cfg!(any(target_os = "android", target_os = "ios")) {
         return Text::literal("Selected in Horizon Android launcher > Setup.");
     }
     let line = |key: &str| lang::get_or(key, key);
@@ -1554,7 +1554,7 @@ enum Act {
     /// Credits & Attribution's Credits button (WinScreen without the poem).
     Credits,
     CopyAgentDetails,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     TouchControls,
 }
 enum WKind {
@@ -1686,7 +1686,7 @@ pub enum Event {
     Credits,
     /// Copy how an agent connects (the AI Agent page).
     CopyAgentDetails,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     TouchControls,
     /// The narrator option changed (after its `Changed`): the option's
     /// `onValueUpdate`, `GameNarrator.updateNarratorStatus`.
@@ -2248,7 +2248,7 @@ impl OptionsUi {
         self.settings_search.focused
             && matches!(self.page(), Page::Video | Page::Controls | Page::KeyBinds)
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub fn android_edit_value(&mut self, atlas: &HudAtlas) -> String {
         if self.page() == Page::Packs
             && let Some(pack) = &mut self.pack_screen
@@ -2744,10 +2744,10 @@ impl OptionsUi {
                         Act::Push(Page::KeyBinds),
                     )),
                 )];
-                #[cfg(target_os = "android")]
+                #[cfg(any(target_os = "android", target_os = "ios"))]
                 rows.insert(0, Row::Big(Opt::AndroidInputMode));
                 let controls = vanilla_control_options();
-                #[cfg(target_os = "android")]
+                #[cfg(any(target_os = "android", target_os = "ios"))]
                 let controls = {
                     let mut controls = controls;
                     controls.push(Opt::TouchAutoSprint);
@@ -2758,7 +2758,7 @@ impl OptionsUi {
                     button(
                         0.0,
                         0.0,
-                        if cfg!(target_os = "android") {
+                        if cfg!(any(target_os = "android", target_os = "ios")) {
                             150.0
                         } else {
                             310.0
@@ -2767,7 +2767,7 @@ impl OptionsUi {
                         Act::Push(Page::Controller),
                     ),
                     {
-                        #[cfg(target_os = "android")]
+                        #[cfg(any(target_os = "android", target_os = "ios"))]
                         {
                             Some(button(
                                 0.0,
@@ -2777,7 +2777,7 @@ impl OptionsUi {
                                 Act::Push(Page::Touch),
                             ))
                         }
-                        #[cfg(not(target_os = "android"))]
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
                         {
                             None
                         }
@@ -2825,7 +2825,7 @@ impl OptionsUi {
                     Opt::AndroidGyroscope,
                     Opt::AndroidGyroSensitivity,
                 ]));
-                #[cfg(target_os = "android")]
+                #[cfg(any(target_os = "android", target_os = "ios"))]
                 rows.push(Row::Buttons(
                     button(
                         0.0,
@@ -3114,7 +3114,7 @@ impl OptionsUi {
                     row: 0,
                 });
                 let keypad = s.keypad.enabled;
-                if cfg!(target_os = "android") || keypad {
+                if cfg!(any(target_os = "android", target_os = "ios")) || keypad {
                     top = 64.0;
                     out.push(button(
                         cx - 150.0,
@@ -4413,7 +4413,7 @@ impl OptionsUi {
                         }
                         Act::Credits => events.push(Event::Credits),
                         Act::CopyAgentDetails => events.push(Event::CopyAgentDetails),
-                        #[cfg(target_os = "android")]
+                        #[cfg(any(target_os = "android", target_os = "ios"))]
                         Act::TouchControls => events.push(Event::TouchControls),
                         Act::None => {}
                     }
@@ -5363,7 +5363,7 @@ impl OptionsUi {
                             self.selected_key = None;
                             events.push(Event::Changed);
                         }
-                        #[cfg(target_os = "android")]
+                        #[cfg(any(target_os = "android", target_os = "ios"))]
                         Act::TouchControls => events.push(Event::TouchControls),
                         Act::Credits => events.push(Event::Credits),
                         Act::CopyAgentDetails => events.push(Event::CopyAgentDetails),

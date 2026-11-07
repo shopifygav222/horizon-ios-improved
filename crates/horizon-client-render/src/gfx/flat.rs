@@ -119,7 +119,7 @@ pub struct Flat {
 /// sides it shows the eye (`mesher::Sides`), so it counts sections.
 // Android's explicit Vulkan batching path also benefits at medium distances;
 // small views keep the ordinary draw path. Desktop retains its measured bar.
-pub const MIN_SECTIONS: usize = if cfg!(target_os = "android") {
+pub const MIN_SECTIONS: usize = if cfg!(any(target_os = "android", target_os = "ios")) {
     512
 } else {
     1600
@@ -131,7 +131,7 @@ pub const MIN_SECTIONS: usize = if cfg!(target_os = "android") {
 /// frames without one draw flat only where `for_vanilla` says.
 /// `HORIZON_FLAT_DRAWS=1` draws every frame flat, `0` none.
 pub fn wanted(adapter: &wgpu::Adapter, device: &wgpu::Device) -> bool {
-    if !cfg!(target_os = "android") {
+    if !cfg!(any(target_os = "android", target_os = "ios")) {
         return std::env::var("HORIZON_FLAT_DRAWS").as_deref() != Ok("0")
             && supported(adapter, device);
     }
@@ -143,7 +143,7 @@ pub fn wanted(adapter: &wgpu::Adapter, device: &wgpu::Device) -> bool {
     let info = adapter.get_info();
     (info.backend == wgpu::Backend::Metal
         || is_broken_intel_vulkan(&info)
-        || (cfg!(target_os = "android")
+        || (cfg!(any(target_os = "android", target_os = "ios"))
             && info.backend == wgpu::Backend::Vulkan
             && std::env::var("HORIZON_FLAT_DRAWS").as_deref() == Ok("1")))
         && supported(adapter, device)

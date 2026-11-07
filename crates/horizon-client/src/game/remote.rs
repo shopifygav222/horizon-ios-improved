@@ -847,9 +847,9 @@ impl Game<'_> {
             }
         };
         let player_type = super::perspective::player_type(&root);
-        let streaming_threads = if cfg!(target_os = "android") && self.integrated.is_some() {
+        let streaming_threads = if cfg!(any(target_os = "android", target_os = "ios")) && self.integrated.is_some() {
             (self.res.threads() / 2).max(2)
-        } else if cfg!(target_os = "android") {
+        } else if cfg!(any(target_os = "android", target_os = "ios")) {
             self.res.threads().min(4)
         } else {
             self.res.threads()
@@ -1629,7 +1629,7 @@ impl Game<'_> {
         )
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn touch_mining_progress(&self) -> f32 {
         self.remote
             .as_ref()
@@ -1722,8 +1722,8 @@ impl Game<'_> {
         // A mobile frame must not drain an arbitrarily large overdue burst:
         // a decoder that needed >50 ms otherwise turns its whole queue into
         // one long main-thread stall. Boost progress without changing order.
-        let bounded = cfg!(target_os = "android") || !overdue;
-        let chunk_budget = if cfg!(target_os = "android") {
+        let bounded = cfg!(any(target_os = "android", target_os = "ios")) || !overdue;
+        let chunk_budget = if cfg!(any(target_os = "android", target_os = "ios")) {
             if overdue {
                 Duration::from_millis(2)
             } else {
@@ -2049,9 +2049,9 @@ impl Game<'_> {
         if !same {
             // A new ClientLevel: Minecraft.setLevel stops every sound.
             self.stop_sounds_for_new_level();
-            let streaming_threads = if cfg!(target_os = "android") && self.integrated.is_some() {
+            let streaming_threads = if cfg!(any(target_os = "android", target_os = "ios")) && self.integrated.is_some() {
                 (self.res.threads() / 2).max(2)
-            } else if cfg!(target_os = "android") {
+            } else if cfg!(any(target_os = "android", target_os = "ios")) {
                 self.res.threads().min(4)
             } else {
                 self.res.threads()
@@ -5342,7 +5342,7 @@ impl Game<'_> {
                 self.player = Some(player);
                 // Loading can exceed the AFK timeout on phones. A newly
                 // spawned player must not inherit that loading-time idle cap.
-                #[cfg(target_os = "android")]
+                #[cfg(any(target_os = "android", target_os = "ios"))]
                 {
                     self.last_input = Instant::now();
                 }
@@ -7752,7 +7752,7 @@ impl Game<'_> {
     /// the main hand's item, then the off hand's turn (its block, its item).
     /// The server does each packet's part with that packet's hand only.
     fn remote_use_hands(&mut self) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.pad.touch_shield {
             let hand = if self
                 .offhand
@@ -9534,14 +9534,14 @@ struct RemoteUseWorld<'g, 'a>(&'g mut Game<'a>);
 
 impl horizon_client::interaction_input::TargetUseWorld for RemoteUseWorld<'_, '_> {
     fn use_entity(&mut self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.0.pad.touch_shield {
             return false;
         }
         self.0.remote_use_entity(Hand::Main)
     }
     fn use_block(&mut self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             let main_hand_transformer = self
                 .0

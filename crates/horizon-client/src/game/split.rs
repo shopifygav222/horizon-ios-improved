@@ -517,7 +517,7 @@ impl<'a> Split<'a> {
 }
 
 impl ApplicationHandler for Split<'_> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
         self.host.suspended(event_loop);
     }

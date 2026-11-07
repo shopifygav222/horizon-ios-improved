@@ -538,7 +538,7 @@ impl Hdr {
         target: &wgpu::Texture,
         presentation: bool,
     ) {
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let _ = presentation;
         let view = target.create_view(&Default::default());
         let attachments = [Some(wgpu::RenderPassColorAttachment {
@@ -555,7 +555,7 @@ impl Hdr {
             color_attachments: &attachments,
             ..Default::default()
         });
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if presentation {
             let [x, y, w, h] =
                 winit::platform::android::native_content_rect([target.width(), target.height()]);

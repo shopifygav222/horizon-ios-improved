@@ -262,7 +262,7 @@ impl Post {
     /// The world's rendered size and the size it is shown at (TAA's history).
     fn sizes(&self, window: [u32; 2]) -> ([u32; 2], [u32; 2]) {
         let effective_scale =
-            if cfg!(target_os = "android") && self.pack_active && self.scale > 0.99 {
+            if cfg!(any(target_os = "android", target_os = "ios")) && self.pack_active && self.scale > 0.99 {
                 0.75
             } else {
                 self.scale

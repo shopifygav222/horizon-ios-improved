@@ -40,14 +40,14 @@ impl Game<'_> {
     pub(super) fn sync_ime(&mut self) {
         // Android's focused Rust/JNI editor owns showing/hiding the keyboard.
         // NativeActivity's separate winit IME calls must not steal that focus.
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let want = crate::platform::active();
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let want = self.text_field_focused();
         if want != self.ime_allowed
             && let Some(_window) = &self.window
         {
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             _window.set_ime_allowed(want);
             self.ime_allowed = want;
             // The field lost the focus (or a new one took it): the composition

@@ -26,24 +26,24 @@ pub(super) const HELP: &[&str] = &[
 /// The controllers and the state the game last acted on.
 #[derive(Default)]
 pub(super) struct Pads {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) custom_keys: std::collections::HashSet<KeyCode>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) custom_pressed_at: std::collections::HashMap<String, u64>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) late_custom_releases: Vec<String>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) hardware_keys: std::collections::HashSet<KeyCode>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     last_input_mode: Option<horizon_client::android_gamepad::InputMode>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) touch_shield: bool,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) touch: horizon_client::touch::TouchControls,
     /// Keep a released tap's ray until the tick consumed its queued click.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) touch_aim: Option<[f32; 2]>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) touch_ui: horizon_client::touch_ui::TouchUi,
     /// Splitscreen: this player's pad, read by `PadRouter` for every game, instead of the pads.
     pub(super) feed: Option<PadState>,
@@ -101,10 +101,10 @@ mod hardware {
 
     impl Pads {
         pub(super) fn read(&mut self) -> PadState {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             return horizon_client::android_runtime::keypad_state()
                 .merge(&horizon_client::android_runtime::gamepad_state());
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             PadState::default()
         }
         pub(in crate::game) fn release_hardware(&mut self) {}
@@ -138,11 +138,11 @@ mod hardware {
 
     impl Game<'_> {
         pub(super) fn pad_output_off(&mut self) {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             crate::platform::cancel_vibration();
         }
         pub(super) fn pad_output_frame(&mut self) {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             if !self.settings.controller.vibration || !self.pad.touch.settings.vibrate {
                 crate::platform::cancel_vibration();
             }
@@ -151,13 +151,13 @@ mod hardware {
             self.pad_output_off();
         }
         pub(super) fn pad_vibrate(&mut self, _: Rumble, pulse: Pulse) {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             crate::platform::vibrate(pulse);
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             let _ = pulse;
         }
         pub(super) fn pad_devices_status(&self) -> Value {
-            json!({ "backend": cfg!(target_os = "android"), "controllers": [], "android_native_input": cfg!(target_os = "android") })
+            json!({ "backend": cfg!(any(target_os = "android", target_os = "ios")), "controllers": [], "android_native_input": cfg!(any(target_os = "android", target_os = "ios")) })
         }
     }
 }
@@ -165,7 +165,7 @@ mod hardware {
 impl Pads {
     /// Include releases delayed until the next simulation tick, plus Android custom touch holds/latches.
     pub(super) fn holds_action(&self, settings: &gamepad::PadSettings, action: &str) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             let custom_held = match action {
                 "key.sneak" => {
@@ -219,27 +219,27 @@ impl Pads {
 }
 
 impl Game<'_> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn touch_shield_available(&self) -> bool {
         self.held()
             .into_iter()
             .chain(self.offhand.as_ref())
             .any(|s| self.blocks_attacks(s).is_some())
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn android_inventory_controls(&self) -> bool {
         self.settings.touch.inventory_controls
             && matches!(self.screen, Screen::Inventory | Screen::Creative)
     }
     /// Once per loop iteration: read the pads and act on button changes.
     pub(super) fn poll_pads(&mut self, event_loop: &dyn EventLoopCtl) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if !matches!(self.screen, Screen::Playing | Screen::Options)
             && self.pad.touch.editor.is_some()
         {
             self.pad.touch.cancel_editor();
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             crate::performance::configure_gpu_profile(
                 crate::device_runtime::preferences().gpu_profile,
@@ -274,7 +274,7 @@ impl Game<'_> {
             self.android_custom_events();
         }
         let settings = &self.settings.controller;
-        if !settings.enabled && !cfg!(target_os = "android") {
+        if !settings.enabled && !cfg!(any(target_os = "android", target_os = "ios")) {
             self.pad_output_off();
             if self.pad.state != PadState::default() {
                 self.pad.state = PadState::default();
@@ -286,7 +286,7 @@ impl Game<'_> {
             self.pad_menu_frame(event_loop);
             return;
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             crate::platform::poll_gamepad_connections();
             if !self.settings.controller.enabled || !self.focused {
@@ -301,7 +301,7 @@ impl Game<'_> {
         };
         self.ui.options.pad_style = self.settings.controller.glyphs.resolve(self.pad.style);
         let state = hardware.merge(&self.pad.injected);
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let state = {
             self.pad.touch.shield_available = self.touch_shield_available();
             // #71: a crouch toggled on land would keep sinking, descending or
@@ -385,7 +385,7 @@ impl Game<'_> {
                 self.pad.late_releases.push(button);
             }
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         for token in std::mem::take(&mut self.pad.late_custom_releases) {
             if !ticking || self.pad.custom_pressed_at.get(&token) != Some(&self.ticks) {
                 self.android_dispatch_custom_token(&token, false);
@@ -397,7 +397,7 @@ impl Game<'_> {
             self.pad_edge(event_loop, button, down);
         }
         self.pad_menu_frame(event_loop);
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if state.triggers == [0.0; 2] && self.pad.late_releases.is_empty() {
             self.pad.touch_aim = None;
         }
@@ -451,13 +451,13 @@ impl Game<'_> {
                 return Ok(());
             }
         } else if button == Button::Start {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             if down {
                 self.audio.play_button_click();
             }
             return if down { self.pad_back() } else { Ok(()) };
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if down && playing && button == Button::North {
             self.audio.play_button_click();
         }
@@ -469,7 +469,7 @@ impl Game<'_> {
         Ok(())
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn touch_entity_accepts_use(&self) -> bool {
         if [
             self.boat_hit().map(|h| h.1),
@@ -491,7 +491,7 @@ impl Game<'_> {
             })
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn touch_context_use(&self) -> bool {
         if self.touch_entity_accepts_use()
             || [
@@ -569,7 +569,7 @@ impl Game<'_> {
     /// is toggled. Any water counts, not only the sprint-swim pose: a toggled
     /// crouch there sinks the player (#71).
     pub(super) fn android_touch_descending(&self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             self.pad.touch.vertical_movement
                 || self.pad.touch.swimming
@@ -579,7 +579,7 @@ impl Game<'_> {
                     .as_ref()
                     .is_some_and(|p| p.fluids.was_touching_water)
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {
             false
         }
@@ -596,7 +596,7 @@ impl Game<'_> {
                 }
                 Ok(())
             }
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             "key.sprint" => {
                 // The touch button must always land, screen or not.
                 self.hold_toggle(1, down)?;
@@ -612,11 +612,11 @@ impl Game<'_> {
             "key.sneak"
                 if self.settings.controller.toggle_sneak
                     && {
-                        #[cfg(target_os = "android")]
+                        #[cfg(any(target_os = "android", target_os = "ios"))]
                         {
                             !crate::touch_visible()
                         }
-                        #[cfg(not(target_os = "android"))]
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
                         {
                             true
                         }
@@ -681,13 +681,13 @@ impl Game<'_> {
     /// The left stick as the move vector, while playing.
     pub(super) fn pad_move(&self) -> Option<[f32; 2]> {
         let settings = &self.settings.controller;
-        if (!settings.enabled && !cfg!(target_os = "android"))
+        if (!settings.enabled && !cfg!(any(target_os = "android", target_os = "ios")))
             || self.pad_in_menu()
             || !self.pad_focused()
         {
             return None;
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             if horizon_client::android_runtime::active_input()
                 == horizon_client::android_gamepad::InputMode::Controller
@@ -699,7 +699,7 @@ impl Game<'_> {
                 gamepad::java_move_vector(self.pad.state.left, settings.move_deadzone)
             }
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {
             gamepad::move_vector(self.pad.state.left, settings.move_deadzone)
         }
@@ -707,7 +707,7 @@ impl Game<'_> {
 
     /// The right stick turns the view, once per frame (`Entity.turn`).
     pub(super) fn pad_look(&mut self, seconds: f32) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             let enabled = self.settings.touch.gyroscope
                 && !self.pad_in_menu()
@@ -752,11 +752,11 @@ impl Game<'_> {
     /// playing (a pad lying idle while the mouse plays stays still).
     pub(super) fn pad_rumble(&mut self, rumble: Rumble) {
         let settings = &self.settings.controller;
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if !self.pad.touch.settings.vibrate {
             return;
         }
-        if (!settings.enabled && !cfg!(target_os = "android"))
+        if (!settings.enabled && !cfg!(any(target_os = "android", target_os = "ios")))
             || !settings.vibration
             || !self.pad.in_use
         {

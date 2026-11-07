@@ -253,7 +253,7 @@ impl Game<'_> {
         let map = self.minimap_shown();
         let visible = |corner| !(self.debug && corner == Corner::TopLeft);
         let mut corners = Corners::new(batch.width, batch.height, self.effect_rows_height());
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         corners.reserve(Corner::TopLeft, 26.0);
         let atlas = &self.gui.atlas;
         if let Some((map_corner, map_size, view)) = map

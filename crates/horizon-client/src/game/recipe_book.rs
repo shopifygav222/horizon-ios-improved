@@ -167,7 +167,7 @@ impl Game<'_> {
             s.reset_blink();
         }
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn recipe_search_value(&mut self) -> String {
         if let Some(edit) = self.recipe_ui.search.as_mut() {
             edit.move_cursor_to_end(false);

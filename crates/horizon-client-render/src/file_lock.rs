@@ -2,11 +2,11 @@
 use std::{fs::File, io};
 
 pub fn exclusive(file: &File) -> io::Result<()> {
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         file.lock()
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         loop {
             // The persistent inode is unlocked when File is dropped.

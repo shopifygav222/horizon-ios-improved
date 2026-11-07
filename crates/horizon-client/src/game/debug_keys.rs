@@ -298,9 +298,9 @@ impl Game<'_> {
             return;
         }
         let framebuffer = size.map(|v| v as i32);
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let scale_debug = debug_overlay::touch_scale;
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let scale_debug = debug_overlay::scale;
         let (scale, [width, height]) = scale_debug(
             framebuffer,

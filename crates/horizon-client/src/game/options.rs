@@ -312,7 +312,7 @@ impl Game<'_> {
     pub(super) fn handle_option_events(&mut self, events: Vec<Event>) -> Result<()> {
         for e in events {
             match e {
-                #[cfg(target_os = "android")]
+                #[cfg(any(target_os = "android", target_os = "ios"))]
                 Event::TouchControls => {
                     self.android_release_touch_keys(true);
                     self.pad.touch.open_editor();
@@ -320,7 +320,7 @@ impl Game<'_> {
                 }
                 Event::ButtonClick => self.audio.play_button_click(),
                 Event::Changed => {
-                    #[cfg(target_os = "android")]
+                    #[cfg(any(target_os = "android", target_os = "ios"))]
                     crate::save_input_mode();
                     self.settings.save(&Self::options_path());
                     self.apply_settings();

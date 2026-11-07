@@ -196,7 +196,7 @@ impl MenuBlur {
         }
         self.size = size;
         self.cached_valid = false;
-        let downscaled = if cfg!(target_os = "android") {
+        let downscaled = if cfg!(any(target_os = "android", target_os = "ios")) {
             [(size[0] / 3).max(1), (size[1] / 3).max(1)]
         } else {
             size
@@ -281,23 +281,23 @@ impl MenuBlur {
             self.cached_radius = 0;
             return;
         }
-        let active_passes = if cfg!(target_os = "android") {
+        let active_passes = if cfg!(any(target_os = "android", target_os = "ios")) {
             &PASSES[..2]
         } else {
             &PASSES[..]
         };
-        let down_size = if cfg!(target_os = "android") {
+        let down_size = if cfg!(any(target_os = "android", target_os = "ios")) {
             [(copy_size[0] / 3).max(1), (copy_size[1] / 3).max(1)]
         } else {
             copy_size
         };
         for (i, dir) in active_passes.iter().enumerate() {
-            let src_size = if cfg!(target_os = "android") && i > 0 {
+            let src_size = if cfg!(any(target_os = "android", target_os = "ios")) && i > 0 {
                 down_size
             } else {
                 copy_size
             };
-            let pass_radius = if cfg!(target_os = "android") && i > 0 {
+            let pass_radius = if cfg!(any(target_os = "android", target_os = "ios")) && i > 0 {
                 (radius * 0.45).max(1.0)
             } else {
                 radius

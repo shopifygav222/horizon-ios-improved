@@ -9,7 +9,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use std::sync::OnceLock;
 
 /// MinecraftServicesEnvironment.PROD.
@@ -109,33 +109,33 @@ impl AuthSession {
     }
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 static CURRENT: OnceLock<Arc<AuthSession>> = OnceLock::new();
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 static CURRENT: std::sync::RwLock<Option<Arc<AuthSession>>> = std::sync::RwLock::new(None);
 
 /// The account this game was started with. Android can launch another game in
 /// the same process, so it replaces the previous game's session.
 pub fn set_current(session: AuthSession) {
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let _ = CURRENT.set(Arc::new(session));
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         *CURRENT.write().unwrap() = Some(Arc::new(session));
     }
 }
 pub fn current() -> Option<Arc<AuthSession>> {
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         CURRENT.get().cloned()
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         CURRENT.read().unwrap().clone()
     }
 }
 /// End the previous Android game's identity before parsing a new launch.
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub fn clear_current() {
     *CURRENT.write().unwrap() = None;
 }

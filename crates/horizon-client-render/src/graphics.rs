@@ -495,14 +495,14 @@ impl Graphics {
                 }
                 "farDetail" => g.far_detail = FarDetail::parse(value),
                 "caveCulling" => {
-                    g.cave_culling = if cfg!(target_os = "android") {
+                    g.cave_culling = if cfg!(any(target_os = "android", target_os = "ios")) {
                         true
                     } else {
                         flag(g.cave_culling)
                     }
                 }
                 "entityCulling" => {
-                    g.entity_culling = if cfg!(target_os = "android") {
+                    g.entity_culling = if cfg!(any(target_os = "android", target_os = "ios")) {
                         true
                     } else {
                         flag(g.entity_culling)
@@ -644,9 +644,9 @@ impl Graphics {
     /// Worker threads for chunk generation and meshing.
     pub fn worker_threads(&self) -> usize {
         let requested = self.requested_worker_threads();
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         return crate::android_runtime::limit_workers(requested);
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         requested
     }
     fn requested_worker_threads(&self) -> usize {
@@ -663,7 +663,7 @@ impl Graphics {
         // raises its server thread). Leaving two idled a core of a 4-thread
         // laptop while a world loaded: a teleport there took ~15% longer.
         let cores = std::thread::available_parallelism().map_or(2, |n| n.get());
-        let auto = if cfg!(target_os = "android") {
+        let auto = if cfg!(any(target_os = "android", target_os = "ios")) {
             // Mobile big.LITTLE SoCs (e.g. 2x Cortex-A75 + 6x Cortex-A55 on Helio G85)
             // need 4 cores free for android_main, integrated Server, Audio, and Vulkan driver.
             cores.saturating_sub(2).clamp(1, 4)
@@ -902,7 +902,7 @@ mod tests {
         assert_eq!(
             g.worker_threads(),
             cores
-                .saturating_sub(if cfg!(target_os = "android") { 2 } else { 1 })
+                .saturating_sub(if cfg!(any(target_os = "android", target_os = "ios")) { 2 } else { 1 })
                 .max(1)
         );
         // A manual count is the player's own choice, kept as asked.

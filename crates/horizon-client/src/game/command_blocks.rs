@@ -849,7 +849,7 @@ impl Game<'_> {
         }
     }
     /// Characters typed into the command box (`StringUtil.isAllowedChatCharacter`).
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn command_block_edit_value(&mut self) -> String {
         self.command_block_screen
             .as_mut()

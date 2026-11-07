@@ -22,7 +22,7 @@ impl Faces {
                 pixels: [96, 110, 111, 255].repeat(6),
             }
         });
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let faces =
             if crate::android_runtime::graphics_api() == crate::graphics::GraphicsApi::OpenGl {
                 faces.reduced(256)

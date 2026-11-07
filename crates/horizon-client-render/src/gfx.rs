@@ -210,7 +210,7 @@ pub mod compositor;
 mod cull;
 mod end_sky;
 mod flat;
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 mod frame_scale;
 mod frame_timing;
 
@@ -891,11 +891,11 @@ pub struct Renderer {
     layout: crate::chunk::ColumnLayout,
     /// Resolution scale, FXAA and TAA (Horizon settings).
     world_post: world_post::Post,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     frame_scale: Option<frame_scale::FrameScale>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     opaque_output: Option<opaque_output::OpaqueOutput>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     startup: Option<crate::android_runtime::graphics_startup::Startup>,
     /// HDR output (Horizon setting): `Some` while the swapchain is HDR.
     hdr: Option<hdr::Hdr>,
@@ -1583,7 +1583,7 @@ async fn open_backend(
     // stand-in neither clamps nor drops NaN. Subgroups: shader packs' compute programs
     // (`MC_GL_KHR_shader_subgroup_*`); storage buffers in vertex shaders, clearing and
     // atomics on images: their buffers and images.
-    let mobile = cfg!(target_os = "android");
+    let mobile = cfg!(any(target_os = "android", target_os = "ios"));
     let compatibility = crate::android_runtime::compatibility();
     let features = timing::GpuTimer::features(&adapter)
         | if compatibility || mobile {
@@ -1625,7 +1625,7 @@ async fn open_backend(
         // Mobile drivers can spend hundreds of milliseconds reserving a new
         // 128-256 MiB pool block. This changes allocation granularity, not
         // resource limits, shader features, texture quality or geometry.
-        memory_hints: if cfg!(target_os = "android") {
+        memory_hints: if cfg!(any(target_os = "android", target_os = "ios")) {
             wgpu::MemoryHints::MemoryUsage
         } else {
             wgpu::MemoryHints::Performance
@@ -1799,7 +1799,7 @@ impl Renderer {
         mut previous: Option<ReplacementContext>,
         api: GraphicsApi,
     ) -> Result<Self> {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let startup = (!offscreen && api != GraphicsApi::OpenGl)
             .then(crate::android_runtime::graphics_startup::begin)
             .flatten();
@@ -1843,7 +1843,7 @@ impl Renderer {
         if split < sprite_split() {
             log::info!("Horizon: {split} block textures per array (the GPU's limit)");
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         crate::android_runtime::configure_atlas_limit(device.limits().max_texture_dimension_2d);
         let info = adapter.get_info();
         crate::graphics::suggest_reduced_far_detail(crate::graphics::lod_capped(&info));
@@ -1858,7 +1858,7 @@ impl Renderer {
                 )
                 .ok_or("surface has no supported configuration")?;
             let caps = surface.get_capabilities(&adapter);
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::Opaque) {
                 config.alpha_mode = wgpu::CompositeAlphaMode::Opaque;
             }
@@ -1891,7 +1891,7 @@ impl Renderer {
                 ));
             }
             let presentation = config.clone();
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             let presentation = {
                 let mut presentation = presentation;
                 let physical = window.outer_size();
@@ -2174,7 +2174,7 @@ impl Renderer {
             None,
         );
         // Keep opaque terrain free of discard so mobile hidden-surface removal can reject occluded pixels.
-        let opaque_terrain = (cfg!(target_os = "android")
+        let opaque_terrain = (cfg!(any(target_os = "android", target_os = "ios"))
             && adapter.get_info().backend == wgpu::Backend::Vulkan)
             .then(|| {
                 let checks = GpuChecks::push(&device);
@@ -3594,7 +3594,7 @@ impl Renderer {
             .get_downlevel_capabilities()
             .flags
             .contains(wgpu::DownlevelFlags::BASE_VERTEX);
-        let multi_draw = !cfg!(target_os = "android")
+        let multi_draw = !cfg!(any(target_os = "android", target_os = "ios"))
             && device
                 .features()
                 .contains(wgpu::Features::INDIRECT_FIRST_INSTANCE)
@@ -3622,7 +3622,7 @@ impl Renderer {
         let cull_env = std::env::var("HORIZON_GPU_CULL");
         let adapter_info = adapter.get_info();
         let cull = cull::Cull::supported(&adapter, &device)
-            .filter(|_| !cfg!(target_os = "android"))
+            .filter(|_| !cfg!(any(target_os = "android", target_os = "ios")))
             .filter(|_| !crate::android_runtime::compatibility())
             .filter(|_| gpu_culling_requested(&adapter_info, cull_env.as_deref().ok()))
             .map(|depth_test| match cull_env.as_deref() {
@@ -3670,12 +3670,12 @@ impl Renderer {
             ));
         }
         let surface_extent = {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             {
                 let p = window.outer_size();
                 (u64::from(p.width.max(1)) << 32) | u64::from(p.height.max(1))
             }
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             {
                 (u64::from(config.width) << 32) | u64::from(config.height)
             }
@@ -3844,11 +3844,11 @@ impl Renderer {
             occlusion: occlusion::Occlusion::new(crate::chunk::MIN_Y, crate::chunk::HEIGHT / 16),
             layout: crate::chunk::ColumnLayout::VANILLA,
             world_post,
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             frame_scale: None,
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             opaque_output: None,
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             startup,
             hdr: None,
             emission_stats,
@@ -3986,7 +3986,7 @@ impl Renderer {
     }
     /// Android destroys the native window when backgrounded. Its surface may
     /// be reused for an in-process renderer handoff, but never after suspension.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub fn suspend_surface(&mut self) {
         self.suspended = true;
         self.surface = None;
@@ -4009,7 +4009,7 @@ impl Renderer {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take();
         self.surface = None;
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let spare = {
             drop(spare);
             None
@@ -4520,7 +4520,7 @@ impl Renderer {
     /// Follows the window to `width` x `height`. A size the swapchain can't take
     /// ([`drawable_size`]) keeps the last one and draws nothing until the next.
     pub fn resize(&mut self, width: u32, height: u32) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.surface.is_none() && self.offscreen.is_none() {
             // A resize can precede Resumed. Keep the windowed renderer suspended
             // until its new ANativeWindow exists; absence is not offscreen intent.
@@ -4540,7 +4540,7 @@ impl Renderer {
         self.config.width = width;
         self.config.height = height;
         if self.surface.is_some() {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             let need_surface = {
                 let p = self.window.outer_size();
                 let extent = (u64::from(p.width.max(1)) << 32) | u64::from(p.height.max(1));
@@ -4550,7 +4550,7 @@ impl Renderer {
                         .load(std::sync::atomic::Ordering::Relaxed)
                         != extent
             };
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             let need_surface = size_changed;
             if need_surface {
                 self.configure_surface();
@@ -5238,7 +5238,7 @@ impl Renderer {
     /// HDR10 or scRGB while HDR output is on.
     fn surface_config(&self) -> wgpu::SurfaceConfiguration {
         let mut config = self.config.clone();
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.offscreen.is_none() {
             let physical = self.window.outer_size();
             config.width = physical.width.max(1);
@@ -5657,7 +5657,7 @@ impl Renderer {
     pub fn set_texture_filtering(&mut self, filtering: i32, bit: i32) {
         // Mobile TBDR GPUs (e.g. Mali-G52) stall heavily on 9-tap RGSS across
         // overlapping foliage layers; use standard mipmapped sampling there.
-        let filtering = if cfg!(target_os = "android") && filtering == 1 {
+        let filtering = if cfg!(any(target_os = "android", target_os = "ios")) && filtering == 1 {
             0
         } else {
             filtering.clamp(0, 2) as u32
@@ -5954,12 +5954,12 @@ impl Renderer {
             None => (None, false),
             Some(wgpu::CurrentSurfaceTexture::Success(f)) => (Some(f), false),
             Some(wgpu::CurrentSurfaceTexture::Suboptimal(f)) => {
-                #[cfg(target_os = "android")]
+                #[cfg(any(target_os = "android", target_os = "ios"))]
                 let reconfigure = {
                     let p = self.window.outer_size();
                     [f.texture.width(), f.texture.height()] != [p.width.max(1), p.height.max(1)]
                 };
-                #[cfg(not(target_os = "android"))]
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
                 let reconfigure = true;
                 (Some(f), reconfigure)
             }
@@ -5995,14 +5995,14 @@ impl Renderer {
             self.acquire_validation_failures = 0;
         }
         let size = [self.config.width, self.config.height];
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let scaled_presentation = surface_frame.as_ref().is_some_and(|f| {
             let physical = [f.texture.width(), f.texture.height()];
             physical != size
                 || winit::platform::android::native_content_rect(physical)
                     != [0, 0, physical[0], physical[1]]
         });
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let scaled_presentation = false;
         let target_texture = match (&surface_frame, &mut self.hdr) {
             (Some(_), Some(hdr)) => hdr.frame(&self.device, size),
@@ -6018,7 +6018,7 @@ impl Renderer {
                 .unwrap_or_else(|| f.texture.clone()),
             (None, _) => self.offscreen.clone().ok_or("no offscreen target")?,
         };
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let target_texture = if self.hdr.is_none() && scaled_presentation {
             self.frame_scale
                 .get_or_insert_with(|| {
@@ -6089,11 +6089,11 @@ impl Renderer {
             if let (Some(hdr), Some(f)) = (&self.hdr, &surface_frame) {
                 hdr.present(&self.queue, &mut encoder, &f.texture, !frame.title);
             }
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             if let (Some(scale), Some(frame)) = (&self.frame_scale, &surface_frame) {
                 scale.present(&mut encoder, &frame.texture);
             }
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             if self.config.alpha_mode != wgpu::CompositeAlphaMode::Opaque
                 && let Some(surface) = &surface_frame
             {
@@ -6127,7 +6127,7 @@ impl Renderer {
             self.last_encode = started.elapsed().saturating_sub(self.last_wait);
             return Ok(true);
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if let Some(timer) = &mut self.gpu_timer {
             timer.begin(&mut encoder);
         }
@@ -7210,7 +7210,7 @@ impl Renderer {
                     && !self.draws.is_empty()
                     // Preserve Android packs' existing terrain/material path.
                     // Classic terrain/shadow programs explicitly require flat inputs.
-                    && (!cfg!(target_os = "android")
+                    && (!cfg!(any(target_os = "android", target_os = "ios"))
                         || (self.native.is_none()
                             && (self.pack_post.is_none()
                                 || pack_terrain
@@ -7278,7 +7278,7 @@ impl Renderer {
             format: Some(self.config.format.remove_srgb_suffix()),
             ..Default::default()
         });
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         if let Some(timer) = &mut self.gpu_timer {
             timer.begin(&mut encoder);
         }
@@ -8734,11 +8734,11 @@ impl Renderer {
         if let (Some(hdr), Some(f)) = (&self.hdr, &surface_frame) {
             hdr.present(&self.queue, &mut encoder, &f.texture, !frame.title);
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if let (Some(scale), Some(frame)) = (&self.frame_scale, &surface_frame) {
             scale.present(&mut encoder, &frame.texture);
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.config.alpha_mode != wgpu::CompositeAlphaMode::Opaque
             && let Some(surface) = &surface_frame
         {
@@ -8770,7 +8770,7 @@ impl Renderer {
             self.first_frame = FirstFrame::Drawn;
         }
         let submission = crate::spans::time("submit", || self.queue.submit([commands]));
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         // Reused devices start with FirstFrame::Drawn too; their new renderer
         // still has a startup marker that must complete after its first submit.
         if let Some(startup) = self.startup.take() {

@@ -592,7 +592,7 @@ impl Game<'_> {
                 .is_some_and(|s| s.focus.is_some())
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn block_editor_edit_value(&mut self) -> Option<String> {
         let screen = self.block_editor.as_mut()?;
         let focus = screen.focus?;

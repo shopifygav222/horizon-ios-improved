@@ -98,7 +98,7 @@ impl ModList {
                 .collect()
         };
         let (enabled, disabled) = (ids("true"), ids("false"));
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let disabled = {
             let mut disabled = disabled;
             for (id, _, _) in ANDROID_BUNDLED {

@@ -694,7 +694,7 @@ mod tests {
     }
 }
 
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 impl Game<'_> {
     pub(super) fn mod_browser_edit_value(&self) -> String {
         self.panel

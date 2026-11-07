@@ -87,7 +87,7 @@ fn view_pages(data: Option<&StackData>) -> Vec<Text> {
         .collect()
 }
 impl Game<'_> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn book_edit_value(&mut self) -> Option<String> {
         match self.book.as_mut() {
             Some(BookScreen::Edit {

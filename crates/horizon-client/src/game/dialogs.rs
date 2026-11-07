@@ -107,7 +107,7 @@ fn warning_texts() -> (Text, Text, [Text; 2]) {
 }
 
 impl Game<'_> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn dialog_edit_value(&mut self) -> String {
         self.dialogs
             .open

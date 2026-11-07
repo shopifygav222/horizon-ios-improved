@@ -801,11 +801,11 @@ impl HudAtlas {
                 .collect();
             images.push((MISSING_SPRITE.into(), 16, 16, missing));
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let atlas_limit = crate::android_runtime::atlas_limit().min(MAX_ATLAS_SIZE);
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let atlas_limit = MAX_ATLAS_SIZE;
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if atlas_limit < MAX_ATLAS_SIZE {
             Self::fit_mobile_atlas(&mut images, &mut gui_sizes, &flags, atlas_limit)?;
         }

@@ -645,7 +645,7 @@ impl Settings {
         Ok(Self {
             keypad: self.keypad.clone(),
             horizon: self.horizon.clone(),
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             touch: self.touch.clone(),
             controller: self.controller.clone(),
             extras: self.extras.clone(),
@@ -665,7 +665,7 @@ impl Settings {
             self.horizon.save(dir);
             self.controller.save(dir);
             let _ = self.keypad.save(&dir.join("horizon-keypad.json"));
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             let _ = self.touch.save_to(&dir.join("horizon-touch.json"));
             self.extras.save(dir);
             self.mods.save(dir);

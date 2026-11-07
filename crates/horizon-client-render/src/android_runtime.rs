@@ -3,13 +3,13 @@
 pub mod graphics_startup;
 use crate::android_gamepad::{Devices, InputMode};
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 static CACHE_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub fn configure_cache_dir(path: std::path::PathBuf) {
     let _ = CACHE_DIR.set(path);
 }
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub(crate) fn cache_dir() -> Option<&'static std::path::Path> {
     CACHE_DIR.get().map(std::path::PathBuf::as_path)
 }
@@ -173,7 +173,7 @@ pub fn gpu_batching() -> bool {
     GPU_BATCHING.load(Ordering::Relaxed)
 }
 pub fn compatibility() -> bool {
-    cfg!(target_os = "android") && !GPU_BATCHING.load(Ordering::Relaxed)
+    cfg!(any(target_os = "android", target_os = "ios")) && !GPU_BATCHING.load(Ordering::Relaxed)
 }
 
 pub use crate::clipboard::{ClipboardHooks, clipboard_get, clipboard_set, install_clipboard};

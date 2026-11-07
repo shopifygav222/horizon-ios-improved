@@ -83,7 +83,7 @@ impl ShadowTargets {
         colors: u16,
         depth1: bool,
     ) -> Self {
-        let max_shadow = if cfg!(target_os = "android") {
+        let max_shadow = if cfg!(any(target_os = "android", target_os = "ios")) {
             device.limits().max_texture_dimension_2d.min(4096)
         } else {
             device.limits().max_texture_dimension_2d

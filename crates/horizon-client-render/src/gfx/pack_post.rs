@@ -828,7 +828,7 @@ fn sampler(
 /// naga's backends turn a module they cannot write into a panic as the driver gets the pipeline
 /// (#3525), which a pack's program must not turn into a crash.
 fn checked<T>(device: &wgpu::Device, create: impl FnOnce() -> T) -> Result<T, String> {
-    if cfg!(target_os = "android") {
+    if cfg!(any(target_os = "android", target_os = "ios")) {
         // Yield briefly between pipeline compilations on Android so Mali's internal
         // shader compiler mutex never starves the main render thread's frame submission.
         std::thread::sleep(std::time::Duration::from_millis(2));
@@ -1874,7 +1874,7 @@ impl PackPost {
         let features = device.features();
         let mut formats: [wgpu::TextureFormat; BUFFERS] =
             std::array::from_fn(|i| texture_format(post.config.buffers[i].format, features));
-        if cfg!(target_os = "android") {
+        if cfg!(any(target_os = "android", target_os = "ios")) {
             for f in &mut formats {
                 if *f == wgpu::TextureFormat::Rgba32Float {
                     *f = wgpu::TextureFormat::Rgba16Float;

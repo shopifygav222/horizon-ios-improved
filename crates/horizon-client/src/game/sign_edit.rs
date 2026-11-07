@@ -333,7 +333,7 @@ impl Game<'_> {
         self.keys.clear();
         self.right = false;
         self.capture(false);
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.window.is_some() && !crate::keyboard_mouse_input() {
             self.android_show_keyboard();
         }
@@ -363,7 +363,7 @@ impl Game<'_> {
     /// and sends it to its guests (`sendBlockUpdated`).
     pub(super) fn close_sign_editor(&mut self) {
         if let Some(edit) = self.sign_edit.take() {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             crate::platform::hide();
             if self.remote.is_some() {
                 self.send(S::SignUpdate(play::SignUpdate {

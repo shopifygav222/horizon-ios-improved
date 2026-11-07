@@ -16,10 +16,10 @@ pub(super) trait EventLoopCtl {
 
 /// A loop that cannot be asked anything: a synthetic event (touch or keypad) that arrives
 /// outside a loop step has no `ActiveEventLoop` to hand to `handle_window_event`.
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub(super) struct Noop;
 
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 impl EventLoopCtl for Noop {
     fn exit(&self) {}
     fn set_control_flow(&self, _flow: ControlFlow) {}

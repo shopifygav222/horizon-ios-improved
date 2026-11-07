@@ -77,11 +77,15 @@ fs4 = { version = "1.1.0", default-features = false, features = ["sync"] }
 # The server thread's CPU time per tick (`HORIZON_SPIKES`, spans.rs).
 rustix = { version = "1", default-features = false, features = ["std", "time", "process", "fs"] }
 
-[target.'cfg(not(target_os = "android"))'.dependencies]
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "fs"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+horizon-gamecontroller = { path = "../horizon-gamecontroller" }
+horizon-ios-launcher = { path = "../horizon-ios-launcher" }
 
 [target.'cfg(windows)'.dependencies]
 # Use the registered URI handler without routing links through Explorer/cmd.

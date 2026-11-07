@@ -162,13 +162,13 @@ impl SoundCache {
         if let Some((old, _)) = self.entries.insert(key, (samples, self.clock)) {
             self.bytes -= Self::size(&old);
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let budget = crate::android_runtime::sound_cache_budget();
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let budget = CACHE_BYTES;
         // Playing channels own their Arc; eviction never interrupts a sound.
         let strict =
-            cfg!(target_os = "android") && crate::android_runtime::cache_budget_overridden();
+            cfg!(any(target_os = "android", target_os = "ios")) && crate::android_runtime::cache_budget_overridden();
         while self.bytes > budget
             && (self.entries.len() > 1 || (strict && !self.entries.is_empty()))
         {
@@ -1207,7 +1207,7 @@ impl Audio {
                 }
             }
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         if self._stream.is_some()
             && self.device_probe.is_none()
             && self.device_probe_started.elapsed() >= std::time::Duration::from_secs(1)

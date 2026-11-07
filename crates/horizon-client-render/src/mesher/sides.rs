@@ -55,7 +55,7 @@ enum Bucket {
 
 /// Whether meshes sorted from now on put every bucket's opaque quads before
 /// any cutout ones: set by the renderer when it draws them in two passes.
-static GROUPED: AtomicBool = AtomicBool::new(cfg!(all(target_os = "android", not(test))));
+static GROUPED: AtomicBool = AtomicBool::new(cfg!(all(any(target_os = "android", target_os = "ios"), not(test))));
 
 /// Sorts later meshes for two solid passes (`true`) or one.
 pub fn group_parts(on: bool) {

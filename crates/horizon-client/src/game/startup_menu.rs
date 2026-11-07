@@ -12,21 +12,21 @@ use winit::{event::KeyEvent, keyboard::ModifiersState};
 
 #[derive(Default)]
 pub(super) struct StartupMenu {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     touch: horizon_client::touch_ui::TouchUi,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     keyboard_focus: Option<horizon_client::widgets::Target>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     keyboard_navigation: bool,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     controller_edges: horizon_client::gamepad::Edges,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     controls: horizon_client::touch::TouchControls,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) audio: Option<horizon_client::audio::Audio>,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     music: horizon_client::music::MusicManager,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     audio_tick: Option<Instant>,
     pub(super) frame_graph: horizon_client::perf_overlay::FrameGraph,
     pub(super) last_frame: Option<Instant>,
@@ -98,7 +98,7 @@ impl StartupMenu {
             pending,
             ..Default::default()
         };
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             menu.controls.settings = horizon_client::touch::Settings::load();
             horizon_client::ui_theme::motion::set_game_animations_disabled(
@@ -126,7 +126,7 @@ impl StartupMenu {
         sounds: Option<horizon_client::sound_events::SoundRegistry>,
     ) {
         self.root = root;
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.audio.is_none() {
             self.audio = Some(match sounds {
                 Some(registry) => horizon_client::audio::Audio::with_registry(
@@ -139,7 +139,7 @@ impl StartupMenu {
                 }
             });
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let _ = sounds;
         if self.title.is_none() {
             let mut title = Title::new(
@@ -157,7 +157,7 @@ impl StartupMenu {
     }
 
     pub(super) fn handoff(&mut self, game: &mut Game<'_>) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             game.pad.touch = std::mem::take(&mut self.controls);
             horizon_client::ui_theme::motion::set_game_animations_disabled(
@@ -174,7 +174,7 @@ impl StartupMenu {
             game.pad.touch_ui.cursor_initialized = self.touch.cursor_initialized;
             game.pad.touch_ui.last_viewport = self.touch.last_viewport;
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             self.audio = None;
             game.music = std::mem::take(&mut self.music);
@@ -185,7 +185,7 @@ impl StartupMenu {
             .take()
             .map(|title| title.with_user(|| game.options.player_name()));
         game.pending_entry = self.pending.take();
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.keyboard_navigation {
             game.pad.in_use = true;
             game.pad.menu.keyboard_focus = true;
@@ -266,7 +266,7 @@ impl StartupMenu {
         true
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     fn click_sound(&mut self, volumes: [f32; 11]) {
         let audio = self
             .audio
@@ -491,7 +491,7 @@ impl Loading {
         self.restart_menu_resources()
     }
     pub(super) fn apply_menu_settings(&mut self) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             self.menu.controls.settings = self.settings.touch.clone();
         }
@@ -534,7 +534,7 @@ impl Loading {
 
     fn update_menu_cursor(&mut self) {
         let batch = HudBatch::new(self.menu_size());
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.menu.pointer == (0.0, 0.0) || !self.menu.touch.cursor_initialized {
             self.menu
                 .touch
@@ -549,7 +549,7 @@ impl Loading {
             self.menu.pointer.0 as f32 / batch.scale,
             self.menu.pointer.1 as f32 / batch.scale,
         );
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         self.menu
             .touch
             .sync_viewport_cursor(&mut self.menu.cursor, [batch.width, batch.height]);
@@ -606,7 +606,7 @@ impl Loading {
     fn menu_option_events(&mut self, events: Vec<Event>) {
         for event in events {
             match event {
-                #[cfg(target_os = "android")]
+                #[cfg(any(target_os = "android", target_os = "ios"))]
                 Event::TouchControls => {
                     let size = self.menu_size();
                     self.menu.controls.viewport(size[0], size[1]);
@@ -706,7 +706,7 @@ impl Loading {
                 Event::ModSettings(_) | Event::NativeSettings(_) | Event::NativeButton(..) => {}
                 // The startup menu runs before the game opens a control socket.
                 Event::ButtonClick => {
-                    #[cfg(target_os = "android")]
+                    #[cfg(any(target_os = "android", target_os = "ios"))]
                     self.menu.click_sound(self.settings.volumes);
                 }
                 Event::CopyAgentDetails | Event::Volume(..) => {}
@@ -773,7 +773,7 @@ impl Loading {
     }
 
     fn menu_action(&mut self, event_loop: &dyn EventLoopCtl, action: Action) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if !matches!(action, Action::None) {
             self.menu.click_sound(self.settings.volumes);
         }
@@ -805,7 +805,7 @@ impl Loading {
         self.save_menu_address();
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn menu_android_keyboard(&mut self) {
         use horizon_client::osk::Output;
         if let Some(ed) = self.menu.controls.editor.as_mut()
@@ -910,7 +910,7 @@ impl Loading {
             self.save_menu_address();
         }
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     fn startup_navigation(&mut self, events: &dyn EventLoopCtl, event: &KeyEvent) -> Result<bool> {
         let Some(key) = horizon_client::keypad::resolve_key(event.physical_key, &event.logical_key)
         else {
@@ -918,7 +918,7 @@ impl Loading {
         };
         self.startup_navigation_key(events, key)
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     fn startup_navigation_key(&mut self, events: &dyn EventLoopCtl, key: KeyCode) -> Result<bool> {
         use horizon_client::{
             gamepad::{self, Button},
@@ -983,7 +983,7 @@ impl Loading {
         Ok(false)
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn menu_gamepad_frame(&mut self, events: &dyn EventLoopCtl) -> Result<()> {
         use horizon_client::gamepad::Button;
         crate::platform::poll_gamepad_connections();
@@ -1013,7 +1013,7 @@ impl Loading {
         Ok(())
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     fn startup_mouse_button(
         &mut self,
         events: &dyn EventLoopCtl,
@@ -1038,7 +1038,7 @@ impl Loading {
         )
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     fn startup_dispatch_custom_token(
         &mut self,
         event_loop: &dyn EventLoopCtl,
@@ -1323,7 +1323,7 @@ impl Loading {
         event_loop: &dyn EventLoopCtl,
         event: WindowEvent,
     ) -> Result<()> {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         match &event {
             WindowEvent::Touch(_) => crate::touch_input(true),
             WindowEvent::CursorMoved { device_id, .. }
@@ -1346,14 +1346,14 @@ impl Loading {
             }
             _ => {}
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if let WindowEvent::KeyboardInput { event, .. } = &event
             && event.state == ElementState::Pressed
             && self.startup_navigation(event_loop, event)?
         {
             return Ok(());
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if matches!(event, WindowEvent::Focused(false)) {
             self.menu.touch.cancel();
             for right in self.menu.touch.release_all_mouse() {
@@ -1361,7 +1361,7 @@ impl Loading {
             }
             self.menu.dragging = false;
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.menu.controls.editor.is_some() {
             if matches!(&event, WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed && (event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::BrowserBack) || event.physical_key == PhysicalKey::Code(KeyCode::Escape)))
             {
@@ -1468,7 +1468,7 @@ impl Loading {
                 return Ok(());
             }
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if let WindowEvent::KeyboardInput { event, .. } = &event
             && event.state == ElementState::Pressed
             && self.menu.touch.custom_input_picker != horizon_client::touch::PickerStep::None
@@ -1490,7 +1490,7 @@ impl Loading {
                 return Ok(());
             }
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if let WindowEvent::KeyboardInput { event, .. } = &event
             && event.state == ElementState::Pressed
             && self.menu.touch.preset_dialog.is_some()
@@ -1524,7 +1524,7 @@ impl Loading {
                 return Ok(());
             }
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if matches!(&event,WindowEvent::KeyboardInput {event,..} if event.state==ElementState::Pressed && event.logical_key==winit::keyboard::Key::Named(winit::keyboard::NamedKey::BrowserBack))
         {
             if crate::platform::active() {
@@ -1547,7 +1547,7 @@ impl Loading {
             }
             return Ok(());
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if let WindowEvent::Touch(touch) = &event {
             self.menu.keyboard_navigation = false;
             self.menu.keyboard_focus = None;
@@ -2227,7 +2227,7 @@ impl Loading {
                 self.menu.pointer = (position.x, position.y);
                 let (_, _, scale) = self.ui_scale();
                 self.menu.cursor = (position.x as f32 / scale, position.y as f32 / scale);
-                #[cfg(target_os = "android")]
+                #[cfg(any(target_os = "android", target_os = "ios"))]
                 {
                     self.menu.touch.cursor_initialized = true;
                 }
@@ -2358,7 +2358,7 @@ impl Loading {
             horizon_client::ui_theme::draw_boot(&self.boot, batch, &logs);
             return;
         };
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.menu.keyboard_navigation
             && self.menu.keyboard_focus.is_none()
             && let Some(t) = horizon_client::widgets::navigation_targets()
@@ -2368,7 +2368,7 @@ impl Loading {
             self.menu.keyboard_focus = Some(t);
             self.menu.cursor = t.center();
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.menu.controls.editor.is_some() {
             let profile_name = self.menu.controls.settings.preset_name.clone();
             horizon_client::touch_ui::draw_hud_editor(
@@ -2380,19 +2380,19 @@ impl Loading {
             );
             return;
         }
-        #[cfg(target_os = "android")]
-        let android_boot_loading = cfg!(target_os = "android")
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        let android_boot_loading = cfg!(any(target_os = "android", target_os = "ios"))
             && self.window.is_some()
             && self.loaded.is_none()
             && !self.menu.options_open
             && self.menu.controls.editor.is_none();
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let android_boot_loading = false;
         if self.menu.pending.is_some() || android_boot_loading {
             horizon_client::level_loading::draw_loading_overlay(
                 batch,
                 &gui.atlas,
-                if cfg!(target_os = "android")
+                if cfg!(any(target_os = "android", target_os = "ios"))
                     && self
                         .renderer
                         .as_ref()
@@ -2462,7 +2462,7 @@ impl Loading {
             batch,
             false,
         );
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             let size = self.menu_size();
             self.menu.controls.viewport(size[0], size[1]);
@@ -2521,11 +2521,11 @@ impl Loading {
         self.menu
             .frame_graph
             .draw(self.settings.horizon.overlay, batch, &gui.atlas);
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         crate::documents::draw(batch, &gui.atlas);
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn tick_menu_audio(&mut self) {
         let now = Instant::now();
         let last = self.menu.audio_tick.get_or_insert(now);

@@ -304,9 +304,9 @@ impl MeshPool {
     /// A rejected mesh is dropped by the caller, after releasing the lock.
     fn put(&mut self, mut mesh: SectionMesh) -> Option<SectionMesh> {
         let bytes = mesh.capacity_bytes();
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let budget = crate::android_runtime::mesh_cache_budget();
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let budget: usize = 16 << 20;
         if bytes == 0
             || self.meshes.len() == Self::COUNT

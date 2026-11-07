@@ -1,0 +1,121 @@
+name: ios
+# The game for iPhone and iPad: the Rust game cross-compiled for aarch64-apple-ios, wrapped by
+# packaging/ios/project.yml's HorizonGame target, and uploaded as an unsigned .ipa.
+# The .ipa is then posted to Discord when the repository secret DISCORD_IPA_WEBHOOK is set.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.sha }}
+  cancel-in-progress: false
+env:
+  HORIZON_TELEMETRY_URL: "off"
+  IOS_TARGET: aarch64-apple-ios
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+  CARGO_PROFILE_RELEASE_LTO: "false"
+  CARGO_INCREMENTAL: "0"
+  IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+
+jobs:
+  ipa:
+    runs-on: ${{ github.event_name == 'pull_request' && 'macos-26' || vars.MAC_RUNNER || 'macos-26' }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check the Apple toolchain
+        run: bash tools/ci/ios-toolchain.sh
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.IOS_TARGET }}
+      - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
+        with:
+          shared-key: ios-${{ env.IOS_TARGET }}
+      - name: Build the game
+        env:
+          HORIZON_MSA_CLIENT_ID: ${{ vars.HORIZON_MSA_CLIENT_ID }}
+        run: cargo build --release --locked --target "$IOS_TARGET" -p horizon-client --no-default-features --features audio
+      - name: Bundle it
+        env:
+          HORIZON_MSA_CLIENT_ID: ${{ vars.HORIZON_MSA_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          command -v xcodegen >/dev/null || brew install xcodegen
+          ( cd packaging/ios && xcodegen generate )
+          HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/HorizonIOS.xcodeproj \
+            -target HorizonGame -configuration Release -sdk iphoneos -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO \
+            DEBUG_INFORMATION_FORMAT=dwarf \
+            CONFIGURATION_BUILD_DIR="$PWD/build-ios" \
+            build > xcode-game-build.log 2>&1 || { tail -60 xcode-game-build.log; exit 1; }
+          python3 - <<'PYCONFIG'
+          import os, plistlib
+          path = 'build-ios/HorizonGame.app/Info.plist'
+          with open(path, 'rb') as file:
+              info = plistlib.load(file)
+          info['HorizonMSAClientID'] = os.environ.get('HORIZON_MSA_CLIENT_ID', '')
+          with open(path, 'wb') as file:
+              plistlib.dump(info, file)
+          PYCONFIG
+          rm -rf game-xcode && mkdir -p game-xcode/Payload
+          cp -a build-ios/HorizonGame.app game-xcode/Payload/
+          ( cd game-xcode && zip -qry ../Horizon-game-unsigned.ipa Payload )
+      - name: Preserve the Xcode failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcode-failure-log
+          path: xcode-game-build.log
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Check the distributable contains no prepared assets
+        run: |
+          python3 - <<'PYASSETS'
+          import zipfile
+          with zipfile.ZipFile('Horizon-game-unsigned.ipa') as ipa:
+              if any('horizon-resources.json' in name for name in ipa.namelist()):
+                  raise SystemExit('::error::the .ipa carries prepared vanilla assets; refusing to publish it')
+          PYASSETS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: horizon-ios-game
+          path: Horizon-game-unsigned.ipa
+          retention-days: 7
+          if-no-files-found: error
+      - name: Send the .ipa to Discord
+        continue-on-error: true
+        if: github.event_name != 'pull_request' && env.DISCORD_IPA_WEBHOOK != ''
+        env:
+          DISCORD_IPA_WEBHOOK: ${{ secrets.DISCORD_IPA_WEBHOOK }}
+        run: |
+          set -uo pipefail
+          content=$(printf '%s\n' \
+            "**Horizon for iPhone and iPad, run #${GITHUB_RUN_NUMBER}**" \
+            "\`${GITHUB_REF_NAME}@${GITHUB_SHA::7}\`: an unsigned .ipa, with no assets" \
+            "🤖 Posted by \`.github/workflows/ios.yml\`, not by a person.")
+          response=$(mktemp)
+          trap 'rm -f "$response"' EXIT
+          if ! code=$(curl --connect-timeout 15 --max-time 120 -sS -o "$response" -w '%{http_code}' -X POST "$DISCORD_IPA_WEBHOOK" \
+            -F "content=$content" -F "file=@Horizon-game-unsigned.ipa;type=application/octet-stream"); then
+            echo "::warning::Could not reach Discord. The IPA is available in this run's artifacts."
+            exit 0
+          fi
+          case "$code" in
+            2*) echo "Posted the .ipa to Discord (HTTP $code)." ;;
+            404)
+              echo "::warning::Discord webhook no longer exists (HTTP 404). Replace the DISCORD_IPA_WEBHOOK repository secret. Download the IPA from this run's artifacts."
+              ;;
+            *)
+              echo "::warning::Discord delivery failed (HTTP $code). The IPA is available in this run's artifacts."
+              ;;
+          esac

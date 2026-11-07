@@ -147,11 +147,11 @@ impl Arena {
             bytes = bytes.min(limits.max_storage_buffer_binding_size);
         }
         let page_limit = (bytes / stride) / GRAIN * GRAIN;
-        let growth_limit = if cfg!(all(target_os = "android", target_pointer_width = "64")) {
+        let growth_limit = if cfg!(all(any(target_os = "android", target_os = "ios"), target_pointer_width = "64")) {
             ((32 * 1024 * 1024 / stride) / GRAIN * GRAIN)
                 .max(GRAIN)
                 .min(page_limit)
-        } else if cfg!(target_os = "android") {
+        } else if cfg!(any(target_os = "android", target_os = "ios")) {
             ((8 * 1024 * 1024 / stride) / GRAIN * GRAIN)
                 .max(GRAIN)
                 .min(page_limit)

@@ -1112,14 +1112,14 @@ impl Game<'_> {
     /// is closed or floating, it is the full batch height, so nothing moves.
     /// `viewport_bottom()` enqueues a fresh bounds read when none is pending,
     /// so calling this every frame while chat is open keeps the value fresh.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     fn visible_chat_height(batch: &HudBatch) -> f32 {
         let Some(bottom) = crate::native_ime::viewport_bottom() else {
             return batch.height;
         };
         clamp_gui_height(batch.height, bottom, batch.scale)
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn visible_chat_height(batch: &HudBatch) -> f32 {
         batch.height
     }
@@ -1512,7 +1512,7 @@ impl Game<'_> {
         let Some(path) = self.ui.screenshot_message.take() else {
             return;
         };
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if result.is_ok() {
             if let Err(error) = crate::gallery::save(&path) {
                 self.system_message(Text::literal(error));
