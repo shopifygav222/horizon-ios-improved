@@ -22,6 +22,22 @@ const BUNDLE_LIMIT: usize = 4 * 1024 * 1024;
 static DROPPED_LOGS: AtomicU64 = AtomicU64::new(0);
 static STATE: Mutex<Option<State>> = Mutex::new(None);
 static EARLY: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
+// iOS shares this module; these name the platform.
+const PLATFORM: &str = if cfg!(target_os = "ios") {
+    "iOS"
+} else {
+    "Android"
+};
+const EXITS: &str = if cfg!(target_os = "ios") {
+    "ios-exits.json"
+} else {
+    "android-exits.json"
+};
+const SOURCE_COMMIT: Option<&str> = if cfg!(target_os = "ios") {
+    option_env!("HORIZON_IOS_BUILD_COMMIT")
+} else {
+    option_env!("HORIZON_ANDROID_BUILD_COMMIT")
+};
 struct State {
     sender: mpsc::SyncSender<Event>,
     session: Value,
@@ -248,8 +264,8 @@ pub fn summary(home: &Path) -> String {
         .ok()
         .and_then(|b| serde_json::from_slice::<Value>(&b).ok());
     match previous {
-        Some(v) if v["clean_exit"] != true => format!("Previous session ended without a clean exit; last phase: {}. This may be a crash or an Android process kill. Export diagnostics before reporting.", v["phase"].as_str().unwrap_or("unknown")),
-        _ => "Export one diagnostic ZIP to send with your report. It includes local logs, Android exit history and retained performance recordings. Review before sharing.".into(),
+        Some(v) if v["clean_exit"] != true => format!("Previous session ended without a clean exit; last phase: {}. This may be a crash or an {PLATFORM} process kill. Export diagnostics before reporting.", v["phase"].as_str().unwrap_or("unknown")),
+        _ => format!("Export one diagnostic ZIP to send with your report. It includes local logs, {PLATFORM} exit history and retained performance recordings. Review before sharing."),
     }
 }
 /// Best-effort redaction, not a promise that arbitrary third-party text is public.
@@ -322,7 +338,7 @@ pub fn export(home: &Path) -> Result<PathBuf, String> {
                             || name.starts_with("crash-")
                             || matches!(
                                 name.as_str(),
-                                "android-exits.json"
+                                EXITS
                                     | "current-session.json"
                                     | "previous-session.json"
                                     | "last-rust-panic.txt"
@@ -387,7 +403,7 @@ pub fn export(home: &Path) -> Result<PathBuf, String> {
             included.push(name);
         }
         archive.start_file("manifest.json", options)?;
-        archive.write_all(&serde_json::to_vec_pretty(&json!({"schema":1,"version":crate::backend::VERSION,"source_commit":option_env!("HORIZON_ANDROID_BUILD_COMMIT"),"included":included,"files":details,"omitted":omitted,"note":"Logs are bounded tails with best-effort redaction. Review before sharing. Binary Android tombstones contribute a bounded crashed-thread summary; original memory/register dumps are excluded and remain private on device. No account files, worlds or configuration are included."}))?)?;
+        archive.write_all(&serde_json::to_vec_pretty(&json!({"schema":1,"version":crate::backend::VERSION,"source_commit":SOURCE_COMMIT,"included":included,"files":details,"omitted":omitted,"note":"Logs are bounded tails with best-effort redaction. Review before sharing. Binary Android tombstones contribute a bounded crashed-thread summary; original memory/register dumps are excluded and remain private on device. No account files, worlds or configuration are included."}))?)?;
         archive.finish()?;
         fs::rename(&stage, &path)?;
         Ok(())

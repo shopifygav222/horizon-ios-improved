@@ -421,6 +421,7 @@ features = [
     "block2",
     "dispatch",
     "NSArray",
+    "NSBundle",
     "NSEnumerator",
     "NSGeometry",
     "NSObjCRuntime",
@@ -439,6 +440,12 @@ features = [
     "UIEvent",
     "UIGeometry",
     "UIGestureRecognizer",
+    "UIHoverGestureRecognizer",
+    "UIKey",
+    "UIKeyConstants",
+    "UICommand",
+    "UIPress",
+    "UIPressesEvent",
     "UITextInput",
     "UITextInputTraits",
     "UIOrientation",
@@ -454,6 +461,10 @@ features = [
     "UIView",
     "UIViewController",
     "UIWindow",
+    "UIWindowScene",
+    "UIScene",
+    "UISceneSession",
+    "UISceneOptions",
 ]
 
 [target.'cfg(target_os = "macos")'.dependencies.core-graphics]

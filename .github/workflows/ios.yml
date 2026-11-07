@@ -1,7 +1,8 @@
 name: ios
-# The game for iPhone and iPad: the Rust game cross-compiled for aarch64-apple-ios, wrapped by
-# packaging/ios/project.yml's HorizonGame target, and uploaded as an unsigned .ipa.
-# The .ipa is then posted to Discord when the repository secret DISCORD_IPA_WEBHOOK is set.
+run-name: iOS · ${{ github.sha }}
+# The game for iPhone and iPad: `horizon-ios-game` (Android's launcher and game, drawn with Metal)
+# cross-compiled for aarch64-apple-ios, wrapped by packaging/ios/project.yml's HorizonGame target with
+# the generated engine tables Android's APK carries, and uploaded as an unsigned .ipa.
 on:
   push:
     branches: [main]
@@ -11,20 +12,23 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ios-${{ github.sha }}
-  cancel-in-progress: false
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
 env:
   HORIZON_TELEMETRY_URL: "off"
   IOS_TARGET: aarch64-apple-ios
+  # Release with fewer codegen passes: the release profile's single unit and LTO cost minutes, and
+  # the unsigned bundle is a test build.
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
   CARGO_PROFILE_RELEASE_LTO: "false"
   CARGO_INCREMENTAL: "0"
+  # The app's own minimum (project.yml); rustc and cc read it, and the Xcode step's Cargo phase sees the same.
   IPHONEOS_DEPLOYMENT_TARGET: "16.0"
 
 jobs:
   ipa:
-    runs-on: ${{ github.event_name == 'pull_request' && 'macos-26' || vars.MAC_RUNNER || 'macos-26' }}
-    timeout-minutes: 90
+    runs-on: macos-26
+    timeout-minutes: 150
     defaults:
       run:
         shell: bash
@@ -34,22 +38,36 @@ jobs:
           persist-credentials: false
       - name: Check the Apple toolchain
         run: bash tools/ci/ios-toolchain.sh
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios
-      - name: Ensure iOS target
-        run: rustup target add aarch64-apple-ios
+      - name: Install Rust and its iOS standard library
+        # rust-toolchain.toml pins the compiler; the target must go to that toolchain, not to `stable`.
+        run: |
+          rustup show
+          rustup target add "$IOS_TARGET"
+          rustc --version
       - uses: Swatinem/rust-cache@v2
-        if: runner.environment == 'github-hosted'
         with:
           shared-key: ios-${{ env.IOS_TARGET }}
+          # Keep what compiled even when the game itself did not, so the next run starts from there.
+          cache-on-failure: true
       - name: Build the game
         env:
+          HORIZON_IOS_PUBLIC: "1"
+          # The Microsoft sign-in app (account.rs): a repository variable, else the built-in one.
           HORIZON_MSA_CLIENT_ID: ${{ vars.HORIZON_MSA_CLIENT_ID }}
-        run: cargo build --release --target "$IOS_TARGET" -p horizon-client --no-default-features --features audio
+        # --keep-going: every crate that can be built is, so one run reports every error.
+        run: |
+          export HORIZON_IOS_BUILD_COMMIT="$GITHUB_SHA"
+          cargo build --release --keep-going --target "$IOS_TARGET" -p horizon-ios-game --no-default-features --features audio
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Prepare engine tables from official downloads
+        # As Android's dev builds: Mojang's files, checked against their hashes, never redistributed.
+        run: python3 tools/android_prepare.py --java-home "$JAVA_HOME"
+      - name: Package the generated engine tables
+        run: python3 tools/ios_engine_data.py
       - name: Bundle it
-        env:
-          HORIZON_MSA_CLIENT_ID: ${{ vars.HORIZON_MSA_CLIENT_ID }}
         run: |
           set -euo pipefail
           command -v xcodegen >/dev/null || brew install xcodegen
@@ -60,64 +78,36 @@ jobs:
             DEBUG_INFORMATION_FORMAT=dwarf \
             CONFIGURATION_BUILD_DIR="$PWD/build-ios" \
             build > xcode-game-build.log 2>&1 || { tail -60 xcode-game-build.log; exit 1; }
-          python3 - <<'PYCONFIG'
-          import os, plistlib
-          path = 'build-ios/HorizonGame.app/Info.plist'
-          with open(path, 'rb') as file:
-              info = plistlib.load(file)
-          info['HorizonMSAClientID'] = os.environ.get('HORIZON_MSA_CLIENT_ID', '')
-          with open(path, 'wb') as file:
-              plistlib.dump(info, file)
-          PYCONFIG
-          rm -rf game-xcode && mkdir -p game-xcode/Payload
-          cp -a build-ios/HorizonGame.app game-xcode/Payload/
-          ( cd game-xcode && zip -qry ../Horizon-game-unsigned.ipa Payload )
-      - name: Preserve the Xcode failure log
+          app=build-ios/HorizonGame.app
+          test -f "$app/engine-data.zip" || { echo '::error::the app has no engine-data.zip'; exit 1; }
+          cmp -s "$app/Horizon" "target/$IOS_TARGET/release/horizon-ios-game" \
+            || { echo '::error::the app does not contain the Rust game'; exit 1; }
+          rm -rf game && mkdir -p game/Payload
+          cp -a "$app" game/Payload/
+          ( cd game && zip -qry ../Horizon-iOS-unsigned.ipa Payload )
+          ls -l Horizon-iOS-unsigned.ipa
+      - name: Preserve the Xcode log
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-xcode-failure-log
+          name: ios-xcode-log
           path: xcode-game-build.log
           retention-days: 7
           if-no-files-found: ignore
-      - name: Check the distributable contains no prepared assets
+      - name: Check the distributable carries no Mojang files
         run: |
-          python3 - <<'PYASSETS'
+          python3 - <<'PY'
           import zipfile
-          with zipfile.ZipFile('Horizon-game-unsigned.ipa') as ipa:
-              if any('horizon-resources.json' in name for name in ipa.namelist()):
-                  raise SystemExit('::error::the .ipa carries prepared vanilla assets; refusing to publish it')
-          PYASSETS
+          with zipfile.ZipFile('Horizon-iOS-unsigned.ipa') as ipa:
+              names = ipa.namelist()
+          bad = [n for n in names if n.endswith(('.jar', '.ogg')) or '/minecraft/' in n or n.endswith('asset-index.json')]
+          if bad:
+              raise SystemExit(f'::error::the .ipa carries game files: {bad[:5]}')
+          print(f'{len(names)} entries, none of them Mojang files')
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: horizon-ios-game
-          path: Horizon-game-unsigned.ipa
-          retention-days: 7
+          name: horizon-ios-${{ github.run_number }}
+          path: Horizon-iOS-unsigned.ipa
+          retention-days: 14
           if-no-files-found: error
-      - name: Send the .ipa to Discord
-        continue-on-error: true
-        if: github.event_name != 'pull_request' && env.DISCORD_IPA_WEBHOOK != ''
-        env:
-          DISCORD_IPA_WEBHOOK: ${{ secrets.DISCORD_IPA_WEBHOOK }}
-        run: |
-          set -uo pipefail
-          content=$(printf '%s\n' \
-            "**Horizon for iPhone and iPad, run #${GITHUB_RUN_NUMBER}**" \
-            "\`${GITHUB_REF_NAME}@${GITHUB_SHA::7}\`: an unsigned .ipa, with no assets" \
-            "🤖 Posted by \`.github/workflows/ios.yml\`, not by a person.")
-          response=$(mktemp)
-          trap 'rm -f "$response"' EXIT
-          if ! code=$(curl --connect-timeout 15 --max-time 120 -sS -o "$response" -w '%{http_code}' -X POST "$DISCORD_IPA_WEBHOOK" \
-            -F "content=$content" -F "file=@Horizon-game-unsigned.ipa;type=application/octet-stream"); then
-            echo "::warning::Could not reach Discord. The IPA is available in this run's artifacts."
-            exit 0
-          fi
-          case "$code" in
-            2*) echo "Posted the .ipa to Discord (HTTP $code)." ;;
-            404)
-              echo "::warning::Discord webhook no longer exists (HTTP 404). Replace the DISCORD_IPA_WEBHOOK repository secret. Download the IPA from this run's artifacts."
-              ;;
-            *)
-              echo "::warning::Discord delivery failed (HTTP $code). The IPA is available in this run's artifacts."
-              ;;
-          esac

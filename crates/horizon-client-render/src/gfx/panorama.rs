@@ -32,7 +32,7 @@ impl Faces {
         faces
     }
 
-    #[cfg(any(target_os = "android", test))]
+    #[cfg(any(target_os = "android", target_os = "ios", test))]
     fn reduced(mut self, maximum: u32) -> Self {
         let side = self.size.min(maximum.max(1));
         if side == self.size {

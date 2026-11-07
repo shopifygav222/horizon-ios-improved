@@ -1,39 +1,13 @@
-//! iOS Keychain secure storage for account tokens.
+//! Account secrets in the iOS Keychain: Horizon's alone, kept on this device only, readable after
+//! its first unlock (Android encrypts them with a Keystore key). Never in the Documents folder,
+//! which the Files app shows.
 use crate::account::SecretStore;
-use std::path::PathBuf;
+use std::sync::Mutex;
 
-pub fn initialize() {}
+static LOCK: Mutex<()> = Mutex::new(());
+const SERVICE: &str = "dev.horizon.game.accounts";
 
-pub struct IosStore;
-
-fn keychain_service() -> &'static str {
-    "dev.horizon.ios.accounts.v1"
-}
-
-impl SecretStore for IosStore {
-    fn read(&self, key: &str) -> Result<Vec<u8>, String> {
-        let path = secret_path(key)?;
-        std::fs::read(&path).map_err(|e| format!("Reading account secret: {e}"))
-    }
-
-    fn write(&self, key: &str, data: &[u8]) -> Result<(), String> {
-        let path = secret_path(key)?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        std::fs::write(&path, data).map_err(|e| format!("Writing account secret: {e}"))
-    }
-
-    fn delete(&self, key: &str) -> Result<(), String> {
-        let path = secret_path(key)?;
-        if path.exists() {
-            std::fs::remove_file(&path).map_err(|e| format!("Deleting account secret: {e}"))?;
-        }
-        Ok(())
-    }
-}
-
-fn secret_path(key: &str) -> Result<PathBuf, String> {
+fn account(key: &str) -> Result<&str, String> {
     if key.is_empty()
         || !key
             .strip_prefix("ely-")
@@ -43,15 +17,39 @@ fn secret_path(key: &str) -> Result<PathBuf, String> {
     {
         return Err("Invalid account key".into());
     }
-    Ok(crate::backend::data_dir()
-        .join("account-secrets")
-        .join(format!("{key}.dat")))
+    Ok(key)
 }
 
-pub fn secret_store() -> Box<dyn SecretStore> {
-    Box::new(IosStore)
+pub struct IosStore;
+
+impl SecretStore for IosStore {
+    fn get(&self, key: &str) -> Result<Option<String>, String> {
+        let _guard = LOCK.lock().map_err(|_| "Account storage unavailable")?;
+        match horizon_gamecontroller::keychain_get(SERVICE, account(key)?) {
+            Ok(Some(bytes)) => String::from_utf8(bytes)
+                .map(Some)
+                .map_err(|_| "Invalid saved account".into()),
+            Ok(None) => Ok(None),
+            Err(status) => Err(format!("Cannot read saved account (Keychain {status})")),
+        }
+    }
+    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+        let _guard = LOCK.lock().map_err(|_| "Account storage unavailable")?;
+        horizon_gamecontroller::keychain_set(SERVICE, account(key)?, secret.as_bytes())
+            .map_err(|status| format!("Cannot save account (Keychain {status})"))
+    }
+    fn delete(&self, key: &str) -> Result<(), String> {
+        let _guard = LOCK.lock().map_err(|_| "Account storage unavailable")?;
+        horizon_gamecontroller::keychain_delete(SERVICE, account(key)?)
+            .map_err(|status| format!("Cannot remove saved account (Keychain {status})"))
+    }
+    fn persistent(&self) -> bool {
+        true
+    }
 }
 
+/// Android's development probe exercises its Keystore across two launches; the Keychain needs no
+/// such check, so a development build starts normally.
 #[cfg(debug_assertions)]
 pub fn development_probe() -> bool {
     false

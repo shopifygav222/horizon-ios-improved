@@ -83,9 +83,33 @@ pub fn active_gamepad_id() -> Option<i32> {
 }
 pub fn gamepad_state() -> crate::gamepad::PadState {
     if active_input() == InputMode::Controller {
+        if let Some(state) = *EXTERNAL_GAMEPAD
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        {
+            return state;
+        }
         GAMEPADS.lock().unwrap().poll()
     } else {
         crate::gamepad::PadState::default()
+    }
+}
+/// A pad the platform reads itself rather than through winit's device events (iOS's
+/// GameController), set every frame; `None` while none is connected.
+static EXTERNAL_GAMEPAD: std::sync::Mutex<Option<crate::gamepad::PadState>> =
+    std::sync::Mutex::new(None);
+pub fn set_external_gamepad(state: Option<crate::gamepad::PadState>) {
+    // As `gamepad_event`: a pressed button or a stick or trigger pushed past half switches Auto to it.
+    let active = state.is_some_and(|s| {
+        s.buttons != 0
+            || s.left.iter().chain(&s.right).any(|v| v.abs() > 0.5)
+            || s.triggers.iter().any(|v| *v > 0.5)
+    });
+    *EXTERNAL_GAMEPAD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = state;
+    if active {
+        note_input(InputMode::Controller);
     }
 }
 static ATLAS_LIMIT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(16384);
@@ -160,7 +184,10 @@ pub fn configure_graphics(open_gl: bool) {
     OPEN_GL.store(open_gl, Ordering::Relaxed);
 }
 pub fn graphics_api() -> crate::graphics::GraphicsApi {
-    if OPEN_GL.load(Ordering::Relaxed) {
+    // iOS has Metal only (`gfx::backend_order`); the launcher's choice keeps its batching.
+    if cfg!(target_os = "ios") {
+        crate::graphics::GraphicsApi::Auto
+    } else if OPEN_GL.load(Ordering::Relaxed) {
         crate::graphics::GraphicsApi::OpenGl
     } else {
         crate::graphics::GraphicsApi::Vulkan
@@ -177,6 +204,24 @@ pub fn compatibility() -> bool {
 }
 
 pub use crate::clipboard::{ClipboardHooks, clipboard_get, clipboard_set, install_clipboard};
+
+// The patched winit's Android input devices and content rectangle. iOS reads pads, keyboards and
+// mice through GameController, so its events carry no Android device ID, and its drawable fills
+// the whole view.
+#[cfg(target_os = "android")]
+pub use winit::platform::android::{native_content_rect, native_device_id, native_pointer_device};
+#[cfg(not(target_os = "android"))]
+pub fn native_device_id(_id: winit::event::DeviceId) -> i32 {
+    0
+}
+#[cfg(not(target_os = "android"))]
+pub fn native_pointer_device(_id: winit::event::DeviceId) -> bool {
+    false
+}
+#[cfg(not(target_os = "android"))]
+pub fn native_content_rect(size: [u32; 2]) -> [u32; 4] {
+    [0, 0, size[0], size[1]]
+}
 
 static RETURN_TO_LAUNCHER: AtomicBool = AtomicBool::new(false);
 pub fn return_to_launcher() {

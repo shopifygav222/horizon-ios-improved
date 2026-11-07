@@ -177,13 +177,15 @@ impl<T: 'static> EventLoop<T> {
         setup_control_flow_observers();
 
         let center = unsafe { NSNotificationCenter::defaultCenter() };
+        let scene_lifecycle = super::scene::enabled();
+        super::scene::register();
 
         let _did_finish_launching_observer = create_observer(
             &center,
             // `application:didFinishLaunchingWithOptions:`
             unsafe { UIApplicationDidFinishLaunchingNotification },
             move |_| {
-                app_state::did_finish_launching(mtm);
+                if !scene_lifecycle { app_state::did_finish_launching(mtm); }
             },
         );
         let _did_become_active_observer = create_observer(
@@ -191,7 +193,7 @@ impl<T: 'static> EventLoop<T> {
             // `applicationDidBecomeActive:`
             unsafe { UIApplicationDidBecomeActiveNotification },
             move |_| {
-                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed));
+                if !scene_lifecycle { app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed)); }
             },
         );
         let _will_resign_active_observer = create_observer(
@@ -199,7 +201,7 @@ impl<T: 'static> EventLoop<T> {
             // `applicationWillResignActive:`
             unsafe { UIApplicationWillResignActiveNotification },
             move |_| {
-                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended));
+                if !scene_lifecycle { app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended)); }
             },
         );
         let _will_enter_foreground_observer = create_observer(
@@ -207,6 +209,7 @@ impl<T: 'static> EventLoop<T> {
             // `applicationWillEnterForeground:`
             unsafe { UIApplicationWillEnterForegroundNotification },
             move |notification| {
+                if scene_lifecycle { return; }
                 let app = unsafe { notification.object() }.expect(
                     "UIApplicationWillEnterForegroundNotification to have application object",
                 );
@@ -221,6 +224,7 @@ impl<T: 'static> EventLoop<T> {
             // `applicationDidEnterBackground:`
             unsafe { UIApplicationDidEnterBackgroundNotification },
             move |notification| {
+                if scene_lifecycle { return; }
                 let app = unsafe { notification.object() }.expect(
                     "UIApplicationDidEnterBackgroundNotification to have application object",
                 );

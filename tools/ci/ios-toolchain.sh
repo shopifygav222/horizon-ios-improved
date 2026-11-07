@@ -1,17 +1,12 @@
 #!/bin/bash
-# Fail before compiling Rust when the selected Xcode cannot build the native launcher.
+# Fail before compiling Rust when the runner's Xcode cannot build for the phone.
 set -euo pipefail
-version=$(xcodebuild -version)
-printf '%s\n' "$version"
-major=$(printf '%s\n' "$version" | sed -nE 's/^Xcode ([0-9]+).*/\1/p')
-if ! [[ "$major" =~ ^[0-9]+$ ]] || (( major < 26 )); then
-  echo '::error::The native iOS launcher requires Xcode 26 or newer for Liquid Glass. Use macos-26, or select Xcode 26+ on the MAC_RUNNER override.' >&2
-  exit 1
-fi
+xcodebuild -version
 sdk=$(xcrun --sdk iphoneos --show-sdk-version)
 printf 'iPhoneOS SDK: %s\n' "$sdk"
 major=${sdk%%.*}
-if ! [[ "$major" =~ ^[0-9]+$ ]] || (( major < 26 )); then
-  echo '::error::The selected iPhoneOS SDK must be 26 or newer. Check DEVELOPER_DIR and xcode-select.' >&2
+# The app's minimum is iOS 16 (packaging/ios/project.yml); an older SDK can't build for it.
+if ! [[ "$major" =~ ^[0-9]+$ ]] || (( major < 16 )); then
+  echo '::error::The selected iPhoneOS SDK must be 16 or newer. Check DEVELOPER_DIR and xcode-select.' >&2
   exit 1
 fi

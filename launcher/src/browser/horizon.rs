@@ -300,8 +300,10 @@ fn project_of(p: &index::Project) -> Option<Project> {
         game_versions,
         loaders: {
             let mut loaders = vec![LOADER.into()];
-            if cfg!(target_os = "android") && p.kind == index::Kind::NativeMod {
-                // Keep source-only mods visible, without implying Android can
+            if cfg!(any(target_os = "android", target_os = "ios"))
+                && p.kind == index::Kind::NativeMod
+            {
+                // Keep source-only mods visible, without implying a phone can
                 // install a source bundle into its already-built game library.
                 loaders.push("hnmod".into());
             }
@@ -696,11 +698,11 @@ fn install_version(
 }
 
 fn native_mods_dir() -> &'static str {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         "horizon-native-mods"
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         crate::native_mods::INSTALLED
     }

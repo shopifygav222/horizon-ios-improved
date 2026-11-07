@@ -2,8 +2,11 @@
 
 mod app_state;
 mod event_loop;
+mod hardware_keyboard;
+mod hardware_mouse;
 mod monitor;
 mod notification_center;
+mod scene;
 mod view;
 mod view_controller;
 mod window;

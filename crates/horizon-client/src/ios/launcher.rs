@@ -143,7 +143,7 @@ impl Launcher {
             if let Err(error) = catalog.config.save(&home) {
                 log::warn!("Could not save graphics recovery choice: {error}");
             }
-            catalog.status = "Previous Vulkan startup was interrupted. Using Vulkan compatibility; you can change Rendering mode in Settings.".into();
+            catalog.status = "Previous Metal startup was interrupted. Using Metal compatibility; you can change Rendering mode in Settings.".into();
         }
         crate::configure_input_mode(catalog.config.input_host);
         crate::device_runtime::configure(catalog.config.device);
@@ -318,7 +318,7 @@ impl Launcher {
     fn open(&mut self, events: &ActiveEventLoop) -> Result<()> {
         crate::platform::set_orientation(self.catalog.config.orientation);
         self.configure_screen();
-        horizon_client::ui_theme::set_android_dpi(crate::platform::display_scale() * 160.0);
+        horizon_client::ui_theme::set_android_dpi(crate::platform::display_density());
         horizon_client::ui_theme::set_ui_scale_percent(self.catalog.config.ui_scale_percent);
         crate::display::set_scale(self.catalog.config.render_scale);
         horizon_client::android_runtime::configure_gpu(false);
@@ -334,6 +334,7 @@ impl Launcher {
         let window = Arc::new(
             events.create_window(Window::default_attributes().with_title("Horizon iOS"))?,
         );
+        crate::platform::attach_window(&window);
         crate::display::prepare(&window)?;
         let vanilla_dir = self
             .home
@@ -631,7 +632,7 @@ impl Launcher {
         } else {
             if !self.home.join("engine-data.zip").is_file() {
                 return Err(
-                    "This APK is missing its engine data. Install a complete build.".into(),
+                    "This app is missing its engine data. Install a complete build.".into(),
                 );
             }
             self.error = None;
@@ -809,7 +810,10 @@ impl ApplicationHandler for Launcher {
         if let Some(game) = &mut self.game {
             game.device_event(events, id, event);
         } else {
-            horizon_client::android_runtime::gamepad_event(0, &event);
+            horizon_client::android_runtime::gamepad_event(
+                horizon_client::android_runtime::native_device_id(id),
+                &event,
+            );
         }
     }
     fn about_to_wait(&mut self, events: &ActiveEventLoop) {

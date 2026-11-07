@@ -1427,7 +1427,7 @@ impl Launcher {
                     my3_text(),
                     "Horizon iOS is becoming Starling",
                 );
-                let notice = "Some Horizon iOS features are still being transferred and merged. Export your worlds through iOS Files (SAF) before moving.";
+                let notice = "Some Horizon iOS features are still being transferred and merged. Export your worlds through the Files app before moving.";
                 let mut line_y = card_y + 108.0;
                 let font_size = 11.5;
                 let mut line = String::new();
@@ -5468,7 +5468,11 @@ impl Launcher {
                 self.catalog.cancel_download();
             }
             Some(Action::ConfirmExit) => {
+                // winit ignores `exit` on iOS: end the session cleanly and quit, as Android's
+                // finish does after the event loop returns.
                 events.exit();
+                crate::diagnostics::finish();
+                crate::platform::finish();
             }
             Some(Action::SettingsCat(cat)) => {
                 self.catalog.settings_category = cat;

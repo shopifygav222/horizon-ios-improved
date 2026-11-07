@@ -16278,6 +16278,8 @@ impl ApplicationHandler for Game<'_> {
             }
         };
         horizon_client::telemetry::note_display(&window);
+        #[cfg(target_os = "ios")]
+        crate::platform::attach_window(&window);
         match self.new_renderer(window.clone()) {
             Ok(r) => {
                 self.renderer = Some(r);
@@ -16318,7 +16320,7 @@ impl ApplicationHandler for Game<'_> {
         if self.focused
             && self.settings.controller.enabled
             && horizon_client::android_runtime::gamepad_event(
-                winit::platform::android::native_device_id(device),
+                horizon_client::android_runtime::native_device_id(device),
                 &event,
             )
         {
@@ -16417,7 +16419,7 @@ impl Game<'_> {
         if let WindowEvent::CursorMoved { device_id, .. }
         | WindowEvent::MouseInput { device_id, .. }
         | WindowEvent::MouseWheel { device_id, .. } = &event
-            && winit::platform::android::native_pointer_device(*device_id)
+            && horizon_client::android_runtime::native_pointer_device(*device_id)
         {
             let accepted = horizon_client::android_runtime::note_input(
                 horizon_client::android_gamepad::InputMode::KeyboardMouse,
@@ -16443,7 +16445,7 @@ impl Game<'_> {
                 event,
                 is_synthetic: false,
             } if event.state == ElementState::Pressed
-                && winit::platform::android::native_device_id(*device_id) > 0 =>
+                && horizon_client::android_runtime::native_device_id(*device_id) > 0 =>
             {
                 crate::touch_input(false);
                 if crate::keyboard_mouse_input() && self.captured && !self.os_mouse_captured {
@@ -20586,6 +20588,8 @@ impl Loading {
             }
         };
         horizon_client::telemetry::note_display(&window);
+        #[cfg(target_os = "ios")]
+        crate::platform::attach_window(&window);
         // The renderer takes seconds to build and winit's window sits white
         // until the first frame presents, so paint the boot screen on it and
         // keep repainting it as the console's lines arrive; the wgpu frames
@@ -21002,7 +21006,7 @@ impl ApplicationHandler for App {
                 #[cfg(any(target_os = "android", target_os = "ios"))]
                 if _loading.settings.controller.enabled {
                     horizon_client::android_runtime::gamepad_event(
-                        winit::platform::android::native_device_id(id),
+                        horizon_client::android_runtime::native_device_id(id),
                         &event,
                     );
                 }
@@ -21197,25 +21201,6 @@ pub(crate) fn android_game(arguments: Vec<String>) -> Result<Box<dyn Application
     if crate::performance::active() {
         options.spikes = Some(50.0);
     }
-    horizon_client::spans::enable(options.spikes.is_some());
-    let settings = Settings::load(&std::env::current_dir()?.join("options.txt"));
-    let root = options.resources.clone();
-    horizon_threads::put_helpers_behind();
-    Behaviours::set_cache_dir(std::env::current_dir()?.join(".horizon-cache"));
-    Ok(Box::new(loading_app(
-        options,
-        settings,
-        root,
-        None,
-        Instant::now(),
-    )?))
-}
-
-#[cfg(target_os = "ios")]
-pub(crate) fn ios_game(arguments: Vec<String>) -> Result<Box<dyn ApplicationHandler>> {
-    horizon_client::auth::clear_current();
-    ensure_factory_touch_layout();
-    let mut options = Options::read_arguments(arguments)?.ok_or("missing iOS options")?;
     horizon_client::spans::enable(options.spikes.is_some());
     let settings = Settings::load(&std::env::current_dir()?.join("options.txt"));
     let root = options.resources.clone();

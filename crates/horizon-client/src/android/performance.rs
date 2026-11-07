@@ -184,7 +184,10 @@ pub fn export(home: &Path) -> std::result::Result<(), String> {
     if crate::platform::open_documents("reports") {
         Ok(())
     } else {
-        Err("Open the system Files app, then Horizon Android / Reports.".into())
+        Err(format!(
+            "Open the system Files app, then Horizon {} / Reports.",
+            if cfg!(target_os = "ios") { "iOS" } else { "Android" }
+        ))
     }
 }
 

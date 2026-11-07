@@ -37,23 +37,22 @@ pub fn truncate_player_name(name: &str) -> String {
     out
 }
 
-/// iOS rendering backend.
+/// Android's rendering paths. iOS draws every one through Metal (`gfx::backend_order`): the
+/// batching path, the compatibility path, and the OpenGL slot as the compatibility path too.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RendererMode {
-    #[default]
-    Metal,
     Vulkan,
     OpenGl,
+    #[default]
     VulkanCompatibility,
 }
 impl RendererMode {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Metal => "Metal",
-            Self::Vulkan => "Vulkan / GPU batching",
-            Self::OpenGl => "OpenGL ES / experimental",
-            Self::VulkanCompatibility => "Vulkan / compatibility",
+            Self::Vulkan => "Metal / GPU batching",
+            Self::OpenGl => "Metal / safe mode",
+            Self::VulkanCompatibility => "Metal / compatibility",
         }
     }
 }

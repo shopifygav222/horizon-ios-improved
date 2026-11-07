@@ -1329,7 +1329,7 @@ impl Loading {
             WindowEvent::CursorMoved { device_id, .. }
             | WindowEvent::MouseInput { device_id, .. }
             | WindowEvent::MouseWheel { device_id, .. }
-                if winit::platform::android::native_pointer_device(*device_id) =>
+                if horizon_client::android_runtime::native_pointer_device(*device_id) =>
             {
                 let _ = horizon_client::android_runtime::note_input(
                     horizon_client::android_gamepad::InputMode::KeyboardMouse,
@@ -1340,7 +1340,7 @@ impl Loading {
                 event,
                 is_synthetic: false,
             } if event.state == ElementState::Pressed
-                && winit::platform::android::native_device_id(*device_id) > 0 =>
+                && horizon_client::android_runtime::native_device_id(*device_id) > 0 =>
             {
                 crate::touch_input(false);
             }

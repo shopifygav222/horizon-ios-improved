@@ -147,7 +147,7 @@ struct SoundCache {
     bytes: usize,
     clock: u64,
 }
-#[cfg(any(test, not(target_os = "android")))]
+#[cfg(any(test, not(any(target_os = "android", target_os = "ios"))))]
 const CACHE_BYTES: usize = 64 << 20;
 impl SoundCache {
     fn get(&mut self, key: &str) -> Option<Samples> {

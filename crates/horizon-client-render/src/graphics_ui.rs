@@ -355,7 +355,7 @@ pub fn rows(level: Level) -> Vec<Row> {
         ],
     };
     // Only Windows and Linux have more than one graphics API.
-    if cfg!(any(target_os = "macos", target_os = "android")) {
+    if cfg!(any(target_os = "macos", target_os = "android", target_os = "ios")) {
         rows.retain(
             |row| !matches!(row, Row::Setting(s) if s.item == Item::Horizon(H::GraphicsApi)),
         );

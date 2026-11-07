@@ -56,9 +56,8 @@ horizon-theme = { path = "../horizon-theme" }
 horizon-telemetry = { path = "../horizon-telemetry", default-features = false, features = ["live"] }
 horizon-bench = { path = "../horizon-bench" }
 zip = { version = "2", default-features = false, features = ["deflate"] }
-objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSString", "NSPathUtilities", "NSFileManager", "NSData", "NSArray"] }
-objc2-ui-kit = { version = "0.3", features = ["UIApplication", "UIDevice", "UIPasteboard", "UIImpactFeedbackGenerator", "UIFeedbackGenerator", "UIViewController", "UIResponder", "UITextInputTraits"] }
+# UIKit, GameController, CoreMotion and the Keychain, the calls the iOS modules make.
+horizon-gamecontroller = { path = "../horizon-gamecontroller" }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "time", "fs"] }

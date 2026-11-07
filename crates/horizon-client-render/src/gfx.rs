@@ -230,7 +230,7 @@ mod native_sky;
 mod occlusion;
 mod oit;
 mod oit_features;
-#[cfg(any(target_os = "android", test))]
+#[cfg(any(target_os = "android", target_os = "ios", test))]
 mod opaque_output;
 mod pack_atlas;
 pub mod pack_draw;
@@ -1332,11 +1332,15 @@ impl wgpu::rwh::HasDisplayHandle for WindowDisplay {
 /// then OpenGL (Windows and Linux) for GPUs with neither driver, each when the one
 /// before has no surface, adapter or device. A native crash in the driver can't be
 /// caught in the game; the launcher switches the setting to DirectX 12 after one at
-/// the renderer's start (#746). macOS has Metal only.
+/// the renderer's start (#746). macOS and iOS have Metal only.
 fn backend_order(api: GraphicsApi, os: &str, wgpu_backend: bool) -> Vec<wgpu::Backends> {
     use wgpu::Backends;
     if os == "macos" || wgpu_backend {
         return vec![Backends::default()];
+    }
+    // Neither Vulkan nor OpenGL has a driver on an iPhone or iPad: the mobile setting is Android's.
+    if os == "ios" {
+        return vec![Backends::METAL];
     }
     let windows = os == "windows";
     match api {
@@ -1352,6 +1356,7 @@ fn backends_name(backends: wgpu::Backends) -> &'static str {
         wgpu::Backends::VULKAN => "Vulkan",
         wgpu::Backends::DX12 => "DirectX 12",
         wgpu::Backends::GL => "OpenGL",
+        wgpu::Backends::METAL => "Metal",
         _ => "graphics",
     }
 }
@@ -1679,9 +1684,9 @@ async fn open_backend(
 const NO_GPU_DRIVER: &str = "No graphics driver with Vulkan, DirectX 12 or OpenGL found: Horizon needs \
      a GPU driver with one of them. Install the latest driver for your NVIDIA, AMD or Intel GPU and \
      start the game again";
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 const NO_GPU_DRIVER: &str = "No Metal graphics device found";
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))]
 const NO_GPU_DRIVER: &str = "No Vulkan or OpenGL graphics driver found: Horizon needs the Vulkan loader \
      (libvulkan.so.1) and a Vulkan driver for your GPU (Mesa's, or NVIDIA's), or OpenGL through EGL";
 /// Logs a step of the renderer's start, for a native crash in the graphics
@@ -5999,7 +6004,7 @@ impl Renderer {
         let scaled_presentation = surface_frame.as_ref().is_some_and(|f| {
             let physical = [f.texture.width(), f.texture.height()];
             physical != size
-                || winit::platform::android::native_content_rect(physical)
+                || crate::android_runtime::native_content_rect(physical)
                     != [0, 0, physical[0], physical[1]]
         });
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -9699,10 +9704,11 @@ mod tests {
         );
         assert_eq!(order(GraphicsApi::Dx12, "linux"), [Backends::VULKAN]);
         assert_eq!(order(GraphicsApi::OpenGl, "linux"), [Backends::GL]);
-        // WGPU_BACKEND picks the backends itself; macOS has Metal only.
+        // WGPU_BACKEND picks the backends itself; macOS and iOS have Metal only.
         for api in GraphicsApi::ALL {
             assert_eq!(backend_order(api, "windows", true), [Backends::default()]);
             assert_eq!(order(api, "macos"), [Backends::default()]);
+            assert_eq!(order(api, "ios"), [Backends::METAL]);
         }
     }
     /// The second try at a backend shows the adapters wgpu hides for reporting

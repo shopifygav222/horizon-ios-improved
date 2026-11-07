@@ -488,7 +488,7 @@ impl HudAtlas {
     /// 32768 rows); vanilla's stitcher fails the reload when its atlases don't
     /// fit, and the packs are then turned off (`Minecraft.clearResourcePacksOnError`).
     fn layout(images: &[PackedImage], max: u32) -> Result<(u32, Vec<(u32, u32)>, u32)> {
-        #[cfg(any(target_os = "android", test))]
+        #[cfg(any(target_os = "android", target_os = "ios", test))]
         if max <= 4096 {
             return Self::mobile_layout(images, max);
         }
@@ -524,7 +524,7 @@ impl HudAtlas {
     }
     /// Pack against a skyline so space below shorter neighbours stays usable.
     /// Pixel UI must not be reduced merely because tall shelves leave gaps.
-    #[cfg(any(target_os = "android", test))]
+    #[cfg(any(target_os = "android", target_os = "ios", test))]
     fn mobile_layout(images: &[PackedImage], maximum: u32) -> Result<(u32, Vec<(u32, u32)>, u32)> {
         let width = maximum.min(4096);
         // [x, occupied height, segment width]. Segments cover the complete width.
@@ -588,7 +588,7 @@ impl HudAtlas {
     }
     /// Fit static sprites to a small adapter without shrinking pixel icons, glyphs or dynamic
     /// map/skin/GUI slots. Terrain uses separate texture arrays and is unchanged.
-    #[cfg(any(target_os = "android", test))]
+    #[cfg(any(target_os = "android", target_os = "ios", test))]
     fn fit_mobile_atlas(
         images: &mut [PackedImage],
         gui_sizes: &mut HashMap<String, (u32, u32)>,

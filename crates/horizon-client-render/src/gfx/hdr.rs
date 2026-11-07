@@ -558,7 +558,7 @@ impl Hdr {
         #[cfg(any(target_os = "android", target_os = "ios"))]
         if presentation {
             let [x, y, w, h] =
-                winit::platform::android::native_content_rect([target.width(), target.height()]);
+                crate::android_runtime::native_content_rect([target.width(), target.height()]);
             pass.set_viewport(x as f32, y as f32, w as f32, h as f32, 0.0, 1.0);
             pass.set_scissor_rect(x, y, w, h);
         }
