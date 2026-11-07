@@ -44,7 +44,7 @@ jobs:
       - name: Build the game
         env:
           HORIZON_MSA_CLIENT_ID: ${{ vars.HORIZON_MSA_CLIENT_ID }}
-        run: cargo build --release --locked --target "$IOS_TARGET" -p horizon-client --no-default-features --features audio
+        run: cargo build --release --target "$IOS_TARGET" -p horizon-client --no-default-features --features audio
       - name: Bundle it
         env:
           HORIZON_MSA_CLIENT_ID: ${{ vars.HORIZON_MSA_CLIENT_ID }}
