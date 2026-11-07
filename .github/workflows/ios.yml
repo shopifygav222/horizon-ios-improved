@@ -36,7 +36,9 @@ jobs:
         run: bash tools/ci/ios-toolchain.sh
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ env.IOS_TARGET }}
+          targets: aarch64-apple-ios
+      - name: Ensure iOS target
+        run: rustup target add aarch64-apple-ios
       - uses: Swatinem/rust-cache@v2
         if: runner.environment == 'github-hosted'
         with:
