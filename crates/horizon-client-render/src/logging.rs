@@ -39,7 +39,8 @@ pub fn data_dir() -> PathBuf {
         if let Some(d) = env("APPDATA") {
             return d;
         }
-    } else if cfg!(target_os = "macos") {
+    } else if cfg!(any(target_os = "macos", target_os = "ios")) {
+        // On iOS the container root is not writable; Library is the app's own.
         if let Some(h) = &home {
             return h.join("Library/Application Support");
         }

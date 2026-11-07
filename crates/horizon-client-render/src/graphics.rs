@@ -726,7 +726,7 @@ mod tests {
         let choices = GraphicsApi::choices();
         if cfg!(windows) {
             assert_eq!(choices, GraphicsApi::ALL);
-        } else if cfg!(target_os = "macos") {
+        } else if cfg!(any(target_os = "macos", target_os = "ios")) {
             assert_eq!(choices, [GraphicsApi::Auto]);
         } else {
             assert_eq!(

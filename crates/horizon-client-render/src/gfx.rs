@@ -1640,12 +1640,12 @@ async fn open_backend(
         required_limits: limits,
         ..Default::default()
     };
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(target_vendor = "apple"))]
     let opened = match info.backend {
         wgpu::Backend::Vulkan => horizon_hdr::open_vulkan_device(&adapter, &desc),
         _ => None,
     };
-    #[cfg(target_os = "macos")]
+    #[cfg(target_vendor = "apple")]
     let opened = None;
     let opened = match opened {
         Some(opened) => opened,
