@@ -152,7 +152,11 @@ pub fn clipboard_text() -> Option<String> {
 
 // ---- haptic feedback ----
 
+// `initWithStyle:` is deprecated from iOS 17.5 in favour of a view-bound generator; the app supports
+// iOS 16, where only it exists.
+
 /// A light tap — button presses.
+#[allow(deprecated)]
 pub fn haptic_light() {
     #[cfg(target_os = "ios")]
     if let Some(mtm) = objc2::MainThreadMarker::new() {
@@ -161,11 +165,12 @@ pub fn haptic_light() {
             mtm.alloc(),
             UIImpactFeedbackStyle::Light,
         );
-        unsafe { feedback.impactOccurred() };
+        feedback.impactOccurred();
     }
 }
 
 /// A medium tap — toggle activations.
+#[allow(deprecated)]
 pub fn haptic_medium() {
     #[cfg(target_os = "ios")]
     if let Some(mtm) = objc2::MainThreadMarker::new() {
@@ -174,11 +179,12 @@ pub fn haptic_medium() {
             mtm.alloc(),
             UIImpactFeedbackStyle::Medium,
         );
-        unsafe { feedback.impactOccurred() };
+        feedback.impactOccurred();
     }
 }
 
 /// A rigid tap — joystick forward lock engaging.
+#[allow(deprecated)]
 pub fn haptic_rigid() {
     #[cfg(target_os = "ios")]
     if let Some(mtm) = objc2::MainThreadMarker::new() {
@@ -187,7 +193,7 @@ pub fn haptic_rigid() {
             mtm.alloc(),
             UIImpactFeedbackStyle::Rigid,
         );
-        unsafe { feedback.impactOccurred() };
+        feedback.impactOccurred();
     }
 }
 
@@ -197,7 +203,7 @@ pub fn haptic_selection() {
     if let Some(mtm) = objc2::MainThreadMarker::new() {
         use objc2_ui_kit::UISelectionFeedbackGenerator;
         let feedback = UISelectionFeedbackGenerator::new(mtm);
-        unsafe { feedback.selectionChanged() };
+        feedback.selectionChanged();
     }
 }
 
