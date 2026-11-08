@@ -31,14 +31,6 @@ pub fn viewport_bottom() -> Option<u32> {
     horizon_gamecontroller::keyboard_top()
 }
 
-/// Files are added through the Files app (the Documents folder is shared), not a picker.
-pub fn pick_document() -> bool {
-    false
-}
-
 pub fn configure_screen(immersive: bool, avoid_cutout: bool) {
     crate::display::configure_screen(immersive, avoid_cutout);
 }
-
-/// UIKit's layout guide is read each time `viewport_bottom` asks; nothing to queue.
-pub fn refresh_bounds() {}

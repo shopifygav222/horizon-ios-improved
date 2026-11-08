@@ -15,18 +15,7 @@ pub struct Notice {
     pub kind: Option<Kind>,
 }
 
-#[derive(Clone, Copy)]
-pub enum Choice {
-    KeepBoth,
-    Replace,
-    Cancel,
-}
-
 pub fn busy() -> bool {
-    false
-}
-
-pub fn conflict() -> bool {
     false
 }
 
@@ -36,10 +25,6 @@ pub fn poll() -> Option<Notice> {
 
 pub fn begin(_kind: Kind, _home: PathBuf) -> Result<(), String> {
     Err(format!("Importing here is not available on iOS. {USE_FILES}"))
-}
-
-pub fn picker_failed(error: &str) {
-    log::warn!("iOS document import: {error}");
 }
 
 pub fn begin_appearance(
@@ -55,14 +40,6 @@ pub fn begin_into_dir(_target_dir: PathBuf) -> Result<(), String> {
 
 pub fn export_file(_home: &Path, _profile: u32, _file_path: &Path) -> Result<String, String> {
     Err("Exporting is not available on iOS. Your files are in the Horizon folder in the Files app.".into())
-}
-
-pub fn resolve(_choice: Choice) {}
-
-pub fn cancel() {}
-
-pub fn tap(_x: f32, _y: f32) -> bool {
-    false
 }
 
 pub fn draw(_batch: &mut HudBatch, _atlas: &HudAtlas) {}
