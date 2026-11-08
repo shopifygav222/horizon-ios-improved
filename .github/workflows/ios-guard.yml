@@ -53,6 +53,10 @@ jobs:
         run: |
           cargo clippy --keep-going -p horizon-client -p horizon-gamecontroller --lib --bins -- -D warnings
           cargo clippy --keep-going -p horizon-ios-game --bins -- -D warnings
+          cargo clippy --keep-going -p horizon-ios-prepare --all-targets -- -D warnings
+      # The iOS port's host-testable parts: the installer's pack/assemble round trip.
+      - name: Test the iOS port's host-side code
+        run: cargo test -p horizon-ios-prepare
 
   android:
     runs-on: ubuntu-latest
