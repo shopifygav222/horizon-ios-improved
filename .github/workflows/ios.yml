@@ -54,10 +54,11 @@ jobs:
           HORIZON_IOS_PUBLIC: "1"
           # The Microsoft sign-in app (account.rs): a repository variable, else the built-in one.
           HORIZON_MSA_CLIENT_ID: ${{ vars.HORIZON_MSA_CLIENT_ID }}
+        # The default features, as Android's APK: sound and WebAssembly mods (run by Pulley on iOS).
         # --keep-going: every crate that can be built is, so one run reports every error.
         run: |
           export HORIZON_IOS_BUILD_COMMIT="$GITHUB_SHA"
-          cargo build --release --keep-going --target "$IOS_TARGET" -p horizon-ios-game --no-default-features --features audio
+          cargo build --release --keep-going --target "$IOS_TARGET" -p horizon-ios-game
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

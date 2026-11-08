@@ -58,6 +58,8 @@ horizon-bench = { path = "../horizon-bench" }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 # UIKit, GameController, CoreMotion and the Keychain, the calls the iOS modules make.
 horizon-gamecontroller = { path = "../horizon-gamecontroller" }
+# Standard error into the diagnostics folder (ios_main.rs `capture_stderr`).
+libc = "0.2"
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "time", "fs"] }

@@ -534,6 +534,15 @@ impl Mods {
         if self.engine.is_none() {
             let mut config = Config::new();
             config.wasm_component_model(true).consume_fuel(true);
+            // iOS lets an app write no machine code while it runs, so mods compile to Pulley
+            // bytecode for wasmtime's interpreter instead of native code; and iOS caps an app's
+            // address space, so each memory reserves what it uses rather than 4 GiB ahead.
+            #[cfg(target_os = "ios")]
+            config
+                .target("pulley64")
+                .map_err(|e| e.to_string())?
+                .memory_reservation(0)
+                .memory_guard_size(0);
             let engine = Engine::new(&config).map_err(|e| e.to_string())?;
             let mut linker = Linker::new(&engine);
             HorizonMod::add_to_linker::<State, HasSelf<State>>(&mut linker, |s| s)

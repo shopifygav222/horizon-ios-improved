@@ -142,6 +142,82 @@ fn init_logging() {
     }
 }
 
+/// Standard error, into `performance/stderr.log` as it is written (the last run's kept as
+/// `previous-stderr.log`): it holds what a crash leaves, Rust's own fatal messages and the log's
+/// last lines, where the buffered diagnostic log may not have caught up. The diagnostics export
+/// takes it with the other logs.
+fn capture_stderr(home: &std::path::Path) {
+    use std::os::fd::AsRawFd;
+    let dir = home.join("performance");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let _ = std::fs::rename(dir.join("stderr.log"), dir.join("previous-stderr.log"));
+    if let Ok(file) = std::fs::File::create(dir.join("stderr.log")) {
+        // SAFETY: descriptor 2 becomes a copy of the file's; `file` closes only its own.
+        unsafe { libc::dup2(file.as_raw_fd(), libc::STDERR_FILENO) };
+    }
+}
+
+/// Every launcher and game callback runs on a stack of its own. Desktop links the game's main
+/// thread with 8 MB (crates/horizon-client/build.rs: whole `Game`s are built deep in the event
+/// loop); iOS fixes the main thread's stack at 1 MB, which Play overran. UIKit's frames stay on
+/// the main thread's stack; a callback that already has room runs where it is.
+const GAME_STACK: usize = 16 << 20;
+const GAME_STACK_LEFT: usize = 8 << 20;
+
+fn on_game_stack<R>(callback: impl FnOnce() -> R) -> R {
+    stacker::maybe_grow(GAME_STACK_LEFT, GAME_STACK, callback)
+}
+
+struct GameStack<A>(A);
+
+impl<A: winit::application::ApplicationHandler> winit::application::ApplicationHandler
+    for GameStack<A>
+{
+    fn new_events(
+        &mut self,
+        events: &winit::event_loop::ActiveEventLoop,
+        cause: winit::event::StartCause,
+    ) {
+        on_game_stack(|| self.0.new_events(events, cause));
+    }
+    fn resumed(&mut self, events: &winit::event_loop::ActiveEventLoop) {
+        on_game_stack(|| self.0.resumed(events));
+    }
+    fn user_event(&mut self, events: &winit::event_loop::ActiveEventLoop, event: ()) {
+        on_game_stack(|| self.0.user_event(events, event));
+    }
+    fn window_event(
+        &mut self,
+        events: &winit::event_loop::ActiveEventLoop,
+        id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
+        on_game_stack(|| self.0.window_event(events, id, event));
+    }
+    fn device_event(
+        &mut self,
+        events: &winit::event_loop::ActiveEventLoop,
+        id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        on_game_stack(|| self.0.device_event(events, id, event));
+    }
+    fn about_to_wait(&mut self, events: &winit::event_loop::ActiveEventLoop) {
+        on_game_stack(|| self.0.about_to_wait(events));
+    }
+    fn suspended(&mut self, events: &winit::event_loop::ActiveEventLoop) {
+        on_game_stack(|| self.0.suspended(events));
+    }
+    fn exiting(&mut self, events: &winit::event_loop::ActiveEventLoop) {
+        on_game_stack(|| self.0.exiting(events));
+    }
+    fn memory_warning(&mut self, events: &winit::event_loop::ActiveEventLoop) {
+        on_game_stack(|| self.0.memory_warning(events));
+    }
+}
+
 /// Horizon's folder in the app's Documents, which the Files app shows (UIFileSharingEnabled).
 fn data_dir() -> Option<std::path::PathBuf> {
     std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join("Documents/horizon"))
@@ -169,9 +245,13 @@ fn unpack_engine_data(home: &std::path::Path) {
 }
 
 fn main() {
+    let home = data_dir();
+    if let Some(home) = &home {
+        capture_stderr(home);
+    }
     init_logging();
     horizon_protocol::install_system_srv_lookup(dns::query_srv);
-    let Some(home) = data_dir() else {
+    let Some(home) = home else {
         log::error!("iOS supplied no home directory");
         return;
     };
@@ -205,7 +285,7 @@ fn main() {
     exit_reports::install(&home);
     let _ = std::fs::remove_file(home.join("ios-error.txt"));
     unpack_engine_data(&home);
-    let mut launcher = launcher::Launcher::new(home.clone());
+    let mut launcher = GameStack(on_game_stack(|| launcher::Launcher::new(home.clone())));
     // UIKit's main loop never returns; this continues only when winit could not start it.
     let result = winit::event_loop::EventLoop::new()
         .map_err(|e| -> Box<dyn std::error::Error> { e.into() })

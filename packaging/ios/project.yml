@@ -92,9 +92,10 @@ targets:
             echo "Horizon: using the game Cargo already built (HORIZON_GAME_PREBUILT)."
             exit 0
           fi
-          # The workflow's flags: `audio` is cpal over CoreAudio. Controllers come from GameController,
-          # and code mods stay off (iOS allows no JIT); content mods still load.
-          cargo build --release --target "$IOS_TARGET" -p horizon-ios-game --no-default-features --features audio
+          # The workflow's build: the default features, as Android's APK. Sound is cpal over CoreAudio,
+          # controllers come from GameController, and WebAssembly mods run in wasmtime's Pulley
+          # interpreter, since iOS allows no machine code made at run time.
+          cargo build --release --target "$IOS_TARGET" -p horizon-ios-game
     postCompileScripts:
       - name: Put the Rust game and its engine data in the bundle
         shell: /bin/bash
