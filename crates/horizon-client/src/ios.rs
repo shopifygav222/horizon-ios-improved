@@ -63,7 +63,10 @@ pub fn game_failed(why: &str) {
 
 /// Why the last start failed, once.
 pub fn take_failure() -> Option<String> {
-    FAILURE.lock().unwrap_or_else(PoisonError::into_inner).take()
+    FAILURE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take()
 }
 
 /// Android restarts its activity in a new process; iOS can't, so the app ends the game and
@@ -168,7 +171,10 @@ pub fn put_in_inbox(path: &Path) {
     match copied {
         Ok(()) => log::info!("Horizon: {} is in the import inbox", done.display()),
         Err(e) => {
-            log::warn!("Horizon: {} did not reach the import inbox: {e}", path.display());
+            log::warn!(
+                "Horizon: {} did not reach the import inbox: {e}",
+                path.display()
+            );
             let _ = std::fs::remove_file(&part);
         }
     }

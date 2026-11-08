@@ -161,10 +161,8 @@ pub fn haptic_light() {
     #[cfg(target_os = "ios")]
     if let Some(mtm) = objc2::MainThreadMarker::new() {
         use objc2_ui_kit::{UIImpactFeedbackGenerator, UIImpactFeedbackStyle};
-        let feedback = UIImpactFeedbackGenerator::initWithStyle(
-            mtm.alloc(),
-            UIImpactFeedbackStyle::Light,
-        );
+        let feedback =
+            UIImpactFeedbackGenerator::initWithStyle(mtm.alloc(), UIImpactFeedbackStyle::Light);
         feedback.impactOccurred();
     }
 }
@@ -175,10 +173,8 @@ pub fn haptic_medium() {
     #[cfg(target_os = "ios")]
     if let Some(mtm) = objc2::MainThreadMarker::new() {
         use objc2_ui_kit::{UIImpactFeedbackGenerator, UIImpactFeedbackStyle};
-        let feedback = UIImpactFeedbackGenerator::initWithStyle(
-            mtm.alloc(),
-            UIImpactFeedbackStyle::Medium,
-        );
+        let feedback =
+            UIImpactFeedbackGenerator::initWithStyle(mtm.alloc(), UIImpactFeedbackStyle::Medium);
         feedback.impactOccurred();
     }
 }
@@ -189,10 +185,8 @@ pub fn haptic_rigid() {
     #[cfg(target_os = "ios")]
     if let Some(mtm) = objc2::MainThreadMarker::new() {
         use objc2_ui_kit::{UIImpactFeedbackGenerator, UIImpactFeedbackStyle};
-        let feedback = UIImpactFeedbackGenerator::initWithStyle(
-            mtm.alloc(),
-            UIImpactFeedbackStyle::Rigid,
-        );
+        let feedback =
+            UIImpactFeedbackGenerator::initWithStyle(mtm.alloc(), UIImpactFeedbackStyle::Rigid);
         feedback.impactOccurred();
     }
 }

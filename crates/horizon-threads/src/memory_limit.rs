@@ -309,7 +309,7 @@ pub fn resident_bytes() -> Option<u64> {
 }
 
 /// The memory this process holds in RAM, in bytes.
-#[cfg(target_vendor = "apple")]
+#[cfg(target_os = "macos")]
 pub fn resident_bytes() -> Option<u64> {
     let size = std::mem::size_of::<libc::proc_taskinfo>() as libc::c_int;
     // SAFETY: all-zero is a valid value of this plain C struct, and the call writes at most `size`
@@ -325,6 +325,52 @@ pub fn resident_bytes() -> Option<u64> {
         );
         (written == size).then_some(info.pti_resident_size)
     }
+}
+
+/// The memory this process holds in RAM, in bytes. iOS has no libproc: Mach's own task info
+/// (`MACH_TASK_BASIC_INFO`).
+#[cfg(all(target_vendor = "apple", not(target_os = "macos")))]
+pub fn resident_bytes() -> Option<u64> {
+    /// `time_value_t`.
+    #[allow(dead_code)]
+    #[repr(C)]
+    #[derive(Default)]
+    struct TimeValue {
+        seconds: i32,
+        microseconds: i32,
+    }
+    /// `struct mach_task_basic_info`, every field.
+    #[allow(dead_code)]
+    #[repr(C)]
+    #[derive(Default)]
+    struct BasicInfo {
+        virtual_size: u64,
+        resident_size: u64,
+        resident_size_max: u64,
+        user_time: TimeValue,
+        system_time: TimeValue,
+        policy: i32,
+        suspend_count: i32,
+    }
+    unsafe extern "C" {
+        /// What the C macro `mach_task_self()` reads.
+        static mach_task_self_: u32;
+        fn task_info(task: u32, flavor: u32, info: *mut i32, count: *mut u32) -> i32;
+    }
+    const MACH_TASK_BASIC_INFO: u32 = 20;
+    let mut info = BasicInfo::default();
+    // In `integer_t`s, as Mach counts it (MACH_TASK_BASIC_INFO_COUNT).
+    let mut count = (std::mem::size_of::<BasicInfo>() / 4) as u32;
+    // SAFETY: the task's own port; `info` is the struct this flavor writes, `count` its length.
+    let status = unsafe {
+        task_info(
+            mach_task_self_,
+            MACH_TASK_BASIC_INFO,
+            (&raw mut info).cast(),
+            &mut count,
+        )
+    };
+    (status == 0).then_some(info.resident_size)
 }
 
 /// The memory this process holds in RAM, in bytes: not known on this system.
