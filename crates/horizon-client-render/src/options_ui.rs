@@ -43,6 +43,12 @@ fn shader_folder_note() -> String {
             return format!("Folder: {}", shared.display());
         }
     }
+    // iOS: the game folder is the app's Documents, the Files app's "Starling" folder.
+    if cfg!(target_os = "ios")
+        && let Ok(inside) = dir.strip_prefix(crate::logging::game_home())
+    {
+        return clipped(&format!("Files app: Starling/{}", inside.display()), 52);
+    }
     clipped(&format!("Folder: {}", dir.display()), 52)
 }
 fn generic(caption: &str, value: Text) -> Text {
@@ -2126,7 +2132,7 @@ fn shader_option_rows(s: &Settings) -> Vec<Row> {
     let Some(options) = &s.shader_options else {
         return vec![Row::Header("horizon.shader_options.loading")];
     };
-    let columns = if cfg!(target_os = "android") {
+    let columns = if crate::PHONE {
         1
     } else {
         options
@@ -2139,7 +2145,7 @@ fn shader_option_rows(s: &Settings) -> Vec<Row> {
     let widget = |item: &horizon_shaders::ScreenItem| -> Option<Widget> {
         use horizon_shaders::ScreenItem;
         Some(match item {
-            ScreenItem::Empty if columns > 2 || cfg!(target_os = "android") => return None,
+            ScreenItem::Empty if columns > 2 || crate::PHONE => return None,
             ScreenItem::Empty => blank(),
             ScreenItem::Profile => {
                 button(0.0, 0.0, width, options.profile_label(), Act::ShaderProfile)
@@ -2899,7 +2905,7 @@ impl OptionsUi {
                             open("horizon.pages.open.agent", Page::Agent)
                         };
                         // A phone has no Discord client to show the game in.
-                        if cfg!(target_os = "android") {
+                        if crate::PHONE {
                             Row::Buttons(ai, None)
                         } else {
                             Row::Buttons(
@@ -3015,7 +3021,7 @@ impl OptionsUi {
                     )
                 };
                 // A phone's own file picker: the file chosen comes through the import inbox.
-                if cfg!(target_os = "android") {
+                if crate::PHONE {
                     rows.push(Row::Buttons(
                         button(
                             0.0,
@@ -3083,7 +3089,7 @@ impl OptionsUi {
                 ));
                 rows.push(Row::Header("options.video.display.header"));
                 // A phone's app always fills its screen.
-                let display: &[Opt] = if cfg!(target_os = "android") {
+                let display: &[Opt] = if crate::PHONE {
                     &[
                         Opt::MaxFps,
                         Opt::Vsync,
@@ -3241,7 +3247,7 @@ impl OptionsUi {
                     None,
                 ));
                 // The touch controls' layout, where there is a touch screen to play on.
-                if cfg!(target_os = "android") {
+                if crate::PHONE {
                     rows.push(Row::Buttons(
                         button(
                             0.0,
@@ -3279,7 +3285,7 @@ impl OptionsUi {
                 // A phone reads its controllers through Android (game/pad/android.rs): the
                 // DualSense's own output (its triggers and lightbar) and Steam's keyboard are
                 // the computer's only.
-                let opts: &[Opt] = if cfg!(target_os = "android") {
+                let opts: &[Opt] = if crate::PHONE {
                     &[
                         Opt::PadEnabled,
                         Opt::PadVibration,
@@ -3710,7 +3716,7 @@ impl OptionsUi {
             .unwrap_or_default()
             .join(crate::shader_pack_list::DIR);
         self.shader_profiles = vec![String::new()];
-        if cfg!(target_os = "android") {
+        if crate::PHONE {
             self.shader_profiles
                 .insert(0, crate::graphics::AUTO_PROFILE.to_owned());
         }

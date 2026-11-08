@@ -279,11 +279,12 @@ fn write_next(body: serde_json::Value) -> std::io::Result<()> {
     std::fs::write(path, body.to_string())
 }
 
-/// Starts the game again: Android's launcher activity, or this program with its arguments.
+/// Starts the game again: Android's launcher activity, iOS's app (in this process), or this
+/// program with its arguments.
 pub(super) fn restart() {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     crate::android::restart_app();
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let args: Vec<_> = std::env::args_os().skip(1).collect();
         match std::env::current_exe()

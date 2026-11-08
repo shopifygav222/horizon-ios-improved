@@ -16,11 +16,15 @@ pub const DIR: &str = "horizon-mods";
 /// game the launcher built with them.
 pub const NATIVE_DIR: &str = "horizon-native-mods";
 /// Why a native mod installed in [`NATIVE_DIR`] doesn't run in this game.
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub const NOT_BUILT: &str = "Installed, not built into this game: build the game with it in the launcher (Settings > Native mods), then play the instance that build is in.";
 #[cfg(target_os = "android")]
 pub const NOT_BUILT: &str =
     "Installed, not in this game yet: Compile builds the game with it on Starling's build server.";
+/// iOS runs no code it did not ship with: a native mod is compiled into the app itself.
+#[cfg(target_os = "ios")]
+pub const NOT_BUILT: &str =
+    "Installed, not in this game: on iOS a native mod is built into the app (Mods > Native mods).";
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ModList {

@@ -20,7 +20,7 @@ pub mod packets;
 pub mod quiet;
 pub mod registry;
 mod resolver;
-pub use resolver::{server_redirect, set_name_servers};
+pub use resolver::{install_system_srv_lookup, server_redirect, set_name_servers};
 pub mod rsa;
 pub mod secure_chat;
 pub mod servers;

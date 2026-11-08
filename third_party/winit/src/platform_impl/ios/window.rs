@@ -80,7 +80,11 @@ impl WinitUIWindow {
         frame: CGRect,
         view_controller: &UIViewController,
     ) -> Retained<Self> {
-        let this: Retained<Self> = unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] };
+        let this: Retained<Self> = if let Some(scene) = super::scene::current() {
+            unsafe { msg_send_id![mtm.alloc(), initWithWindowScene: &*scene] }
+        } else {
+            unsafe { msg_send_id![mtm.alloc(), initWithFrame: frame] }
+        };
 
         this.setRootViewController(Some(view_controller));
 
@@ -90,11 +94,11 @@ impl WinitUIWindow {
                 let screen = monitor.ui_screen(mtm);
                 screen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
                 this.setScreen(screen);
-            },
+            }
             Some(Fullscreen::Borderless(Some(ref monitor))) => {
                 let screen = monitor.ui_screen(mtm);
                 this.setScreen(screen);
-            },
+            }
             _ => (),
         }
 
@@ -136,6 +140,7 @@ impl Inner {
     }
 
     pub fn request_redraw(&self) {
+        self.view.update_mice();
         if self.gl_or_metal_backed {
             let mtm = MainThreadMarker::new().unwrap();
             // `setNeedsDisplay` does nothing on UIViews which are directly backed by CAEAGLLayer or
@@ -157,16 +162,20 @@ impl Inner {
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let safe_area = self.safe_area_screen_space();
-        let position =
-            LogicalPosition { x: safe_area.origin.x as f64, y: safe_area.origin.y as f64 };
+        let position = LogicalPosition {
+            x: safe_area.origin.x as f64,
+            y: safe_area.origin.y as f64,
+        };
         let scale_factor = self.scale_factor();
         Ok(position.to_physical(scale_factor))
     }
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let screen_frame = self.screen_frame();
-        let position =
-            LogicalPosition { x: screen_frame.origin.x as f64, y: screen_frame.origin.y as f64 };
+        let position = LogicalPosition {
+            x: screen_frame.origin.x as f64,
+            y: screen_frame.origin.y as f64,
+        };
         let scale_factor = self.scale_factor();
         Ok(position.to_physical(scale_factor))
     }
@@ -176,7 +185,10 @@ impl Inner {
         let position = physical_position.to_logical::<f64>(scale_factor);
         let screen_frame = self.screen_frame();
         let new_screen_frame = CGRect {
-            origin: CGPoint { x: position.x as _, y: position.y as _ },
+            origin: CGPoint {
+                x: position.x as _,
+                y: position.y as _,
+            },
             size: screen_frame.size,
         };
         let bounds = self.rect_from_screen_space(new_screen_frame);
@@ -185,10 +197,13 @@ impl Inner {
 
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         let scale_factor = self.scale_factor();
-        let safe_area = self.safe_area_screen_space();
+        // The Metal layer and input events use the entire render view. Safe-area
+        // insets describe UI chrome, not a smaller drawable: using them here
+        // stretches a recreated surface and separates buttons from their hitboxes.
+        let bounds = self.view.bounds();
         let size = LogicalSize {
-            width: safe_area.size.width as f64,
-            height: safe_area.size.height as f64,
+            width: bounds.size.width as f64,
+            height: bounds.size.height as f64,
         };
         size.to_physical(scale_factor)
     }
@@ -256,8 +271,26 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        if mode == CursorGrabMode::Confined {
+            return Err(ExternalError::NotSupported(NotSupportedError::new()));
+        }
+        let locked = mode == CursorGrabMode::Locked;
+        if locked {
+            // A nil scene lock state means this device does not support pointer locking.
+            let scene: Option<Retained<objc2::runtime::AnyObject>> = unsafe {
+                msg_send_id![&*self.window, windowScene]
+            };
+            let state: Option<Retained<objc2::runtime::AnyObject>> = scene.and_then(|scene| unsafe {
+                msg_send_id![&*scene, pointerLockState]
+            });
+            if state.is_none() {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()));
+            }
+        }
+        self.view_controller.set_pointer_locked(locked);
+        self.view.set_mouse_captured(locked);
+        Ok(())
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
@@ -304,15 +337,15 @@ impl Inner {
                 let uiscreen = video_mode.monitor.ui_screen(mtm);
                 uiscreen.setCurrentMode(Some(video_mode.screen_mode(mtm)));
                 uiscreen.clone()
-            },
+            }
             Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen(mtm).clone(),
             Some(Fullscreen::Borderless(None)) => {
                 self.current_monitor_inner().ui_screen(mtm).clone()
-            },
+            }
             None => {
                 warn!("`Window::set_fullscreen(None)` ignored on iOS");
                 return;
-            },
+            }
         };
 
         // this is pretty slow on iOS, so avoid doing it if we can
@@ -367,20 +400,9 @@ impl Inner {
         warn!("`Window::set_ime_cursor_area` is ignored on iOS")
     }
 
-    /// Show / hide the keyboard. To show the keyboard, we call `becomeFirstResponder`,
-    /// requesting focus for the [WinitView]. Since [WinitView] implements
-    /// [objc2_ui_kit::UIKeyInput], the keyboard will be shown.
-    /// <https://developer.apple.com/documentation/uikit/uiresponder/1621113-becomefirstresponder>
+    /// Toggle software text input while keeping hardware keyboard focus for gameplay.
     pub fn set_ime_allowed(&self, allowed: bool) {
-        if allowed {
-            unsafe {
-                self.view.becomeFirstResponder();
-            }
-        } else {
-            unsafe {
-                self.view.resignFirstResponder();
-            }
-        }
+        self.view.set_ime_allowed(allowed);
     }
 
     pub fn set_ime_purpose(&self, _purpose: ImePurpose) {
@@ -410,7 +432,9 @@ impl Inner {
 
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         #[allow(deprecated)]
-        Some(MonitorHandle::new(UIScreen::mainScreen(MainThreadMarker::new().unwrap())))
+        Some(MonitorHandle::new(UIScreen::mainScreen(
+            MainThreadMarker::new().unwrap(),
+        )))
     }
 
     pub fn id(&self) -> WindowId {
@@ -514,9 +538,12 @@ impl Window {
                 let size = dim.to_logical::<f64>(scale_factor as f64);
                 CGRect {
                     origin: screen_bounds.origin,
-                    size: CGSize { width: size.width as _, height: size.height as _ },
+                    size: CGSize {
+                        width: size.width as _,
+                        height: size.height as _,
+                    },
                 }
-            },
+            }
             None => screen_bounds,
         };
 
@@ -536,21 +563,20 @@ impl Window {
         let scale_factor = scale_factor as f64;
         if scale_factor != 1.0 {
             let bounds = view.bounds();
-            let screen = window.screen();
-            let screen_space = screen.coordinateSpace();
-            let screen_frame = view.convertRect_toCoordinateSpace(bounds, &screen_space);
             let size = LogicalSize {
-                width: screen_frame.size.width as f64,
-                height: screen_frame.size.height as f64,
+                width: bounds.size.width as f64,
+                height: bounds.size.height as f64,
             };
             let window_id = RootWindowId(window.id());
             app_state::handle_nonuser_events(
                 mtm,
-                std::iter::once(EventWrapper::ScaleFactorChanged(app_state::ScaleFactorChanged {
-                    window: window.clone(),
-                    scale_factor,
-                    suggested_size: size.to_physical(scale_factor),
-                }))
+                std::iter::once(EventWrapper::ScaleFactorChanged(
+                    app_state::ScaleFactorChanged {
+                        window: window.clone(),
+                        scale_factor,
+                        suggested_size: size.to_physical(scale_factor),
+                    },
+                ))
                 .chain(std::iter::once(EventWrapper::StaticEvent(
                     Event::WindowEvent {
                         window_id,
@@ -560,8 +586,15 @@ impl Window {
             );
         }
 
-        let inner = Inner { window, view_controller, view, gl_or_metal_backed };
-        Ok(Window { inner: MainThreadBound::new(inner, mtm) })
+        let inner = Inner {
+            window,
+            view_controller,
+            view,
+            gl_or_metal_backed,
+        };
+        Ok(Window {
+            inner: MainThreadBound::new(inner, mtm),
+        })
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Inner) + Send + 'static) {
@@ -590,7 +623,9 @@ impl Window {
     pub(crate) fn raw_display_handle_rwh_06(
         &self,
     ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
-        Ok(rwh_06::RawDisplayHandle::UiKit(rwh_06::UiKitDisplayHandle::new()))
+        Ok(rwh_06::RawDisplayHandle::UiKit(
+            rwh_06::UiKitDisplayHandle::new(),
+        ))
     }
 }
 
@@ -613,11 +648,13 @@ impl Inner {
     }
 
     pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
-        self.view_controller.set_prefers_home_indicator_auto_hidden(hidden);
+        self.view_controller
+            .set_prefers_home_indicator_auto_hidden(hidden);
     }
 
     pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
-        self.view_controller.set_preferred_screen_edges_deferring_system_gestures(edges);
+        self.view_controller
+            .set_preferred_screen_edges_deferring_system_gestures(edges);
     }
 
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
@@ -625,7 +662,8 @@ impl Inner {
     }
 
     pub fn set_preferred_status_bar_style(&self, status_bar_style: StatusBarStyle) {
-        self.view_controller.set_preferred_status_bar_style(status_bar_style);
+        self.view_controller
+            .set_preferred_status_bar_style(status_bar_style);
     }
 
     pub fn recognize_pinch_gesture(&self, should_recognize: bool) {
@@ -661,12 +699,14 @@ impl Inner {
 
     fn rect_to_screen_space(&self, rect: CGRect) -> CGRect {
         let screen_space = self.window.screen().coordinateSpace();
-        self.window.convertRect_toCoordinateSpace(rect, &screen_space)
+        self.window
+            .convertRect_toCoordinateSpace(rect, &screen_space)
     }
 
     fn rect_from_screen_space(&self, rect: CGRect) -> CGRect {
         let screen_space = self.window.screen().coordinateSpace();
-        self.window.convertRect_fromCoordinateSpace(rect, &screen_space)
+        self.window
+            .convertRect_fromCoordinateSpace(rect, &screen_space)
     }
 
     fn safe_area_screen_space(&self) -> CGRect {
@@ -700,8 +740,14 @@ impl Inner {
                 (y, height)
             };
             CGRect {
-                origin: CGPoint { x: screen_frame.origin.x, y },
-                size: CGSize { width: screen_frame.size.width, height },
+                origin: CGPoint {
+                    x: screen_frame.origin.x,
+                    y,
+                },
+                size: CGSize {
+                    width: screen_frame.size.width,
+                    height,
+                },
             }
         }
     }
@@ -714,7 +760,9 @@ pub struct WindowId {
 
 impl WindowId {
     pub const fn dummy() -> Self {
-        WindowId { window: std::ptr::null_mut() }
+        WindowId {
+            window: std::ptr::null_mut(),
+        }
     }
 }
 
@@ -726,7 +774,9 @@ impl From<WindowId> for u64 {
 
 impl From<u64> for WindowId {
     fn from(raw_id: u64) -> Self {
-        Self { window: raw_id as _ }
+        Self {
+            window: raw_id as _,
+        }
     }
 }
 
@@ -735,7 +785,9 @@ unsafe impl Sync for WindowId {}
 
 impl From<&AnyObject> for WindowId {
     fn from(window: &AnyObject) -> WindowId {
-        WindowId { window: window as *const _ as _ }
+        WindowId {
+            window: window as *const _ as _,
+        }
     }
 }
 

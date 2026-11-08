@@ -17,6 +17,7 @@ pub fn set_name_servers(source: fn() -> Vec<SocketAddr>) {
 }
 
 mod dns;
+pub use dns::install_system_srv_lookup;
 
 #[derive(Debug)]
 pub(crate) struct Resolved {

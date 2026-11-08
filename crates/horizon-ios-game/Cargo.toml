@@ -1,0 +1,37 @@
+[package]
+name = "horizon-ios-game"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version = "1.90"
+description = "Starling on iOS: the app's program, whose event loop runs the launcher and the game"
+publish = false
+
+[[bin]]
+name = "horizon-ios-game"
+path = "src/main.rs"
+
+# Everything is iOS-only: on other targets the program only says what it is for.
+[target.'cfg(target_os = "ios")'.dependencies]
+# The game (Starling's), its iOS hooks (horizon-client/src/ios.rs) and its start (entry.rs).
+horizon-client = { path = "../horizon-client", default-features = false }
+# UIKit, GameController and the Keychain: the calls the launcher makes.
+horizon-gamecontroller = { path = "../horizon-gamecontroller" }
+# SRV records through iOS's resolver (dns.rs).
+horizon-protocol = { path = "../horizon-protocol" }
+# The mod API level the program carries, as the desktop's does (main.rs).
+horizon-mods = { path = "../horizon-mods", default-features = false, features = ["index"] }
+winit = "0.30.13"
+# The 16 MB stack every event-loop callback runs on: iOS gives its main thread 1 MB.
+stacker = "0.1"
+# Standard error into the game folder's logs (`capture_stderr`).
+libc = "0.2"
+log = "0.4"
+
+[features]
+default = ["audio"]
+# Sound: cpal over CoreAudio.
+audio = ["horizon-client/audio"]
+
+[lints]
+workspace = true

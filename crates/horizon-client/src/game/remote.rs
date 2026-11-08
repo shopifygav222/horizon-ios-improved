@@ -2148,7 +2148,7 @@ impl Game<'_> {
             .is_some_and(|since| since.elapsed() >= BACKLOG_LIMIT);
         let budget = match overdue {
             false => CHUNK_PACKETS_PER_FRAME,
-            true if cfg!(target_os = "android") => OVERDUE_CHUNK_PACKETS_PER_FRAME,
+            true if horizon_client::PHONE => OVERDUE_CHUNK_PACKETS_PER_FRAME,
             true => Duration::MAX,
         };
         let mut chunks = Duration::ZERO;

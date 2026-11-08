@@ -10,6 +10,10 @@ members = [
     "crates/horizon-client",
     # Starling: the game as a NativeActivity library; empty on other targets.
     "crates/horizon-android",
+    # This port: Starling's iOS app (its program, and the UIKit calls the game can't make itself);
+    # empty and inert on other targets (IOS-SYNC.md).
+    "crates/horizon-ios-game",
+    "crates/horizon-gamecontroller",
     "crates/horizon-client-lib",
     "crates/horizon-client-core",
     "crates/horizon-client-input",
@@ -72,7 +76,9 @@ large_enum_variant = "allow"
 # Android backend makes touches of a controller's sticks and a mouse's buttons and drops the
 # rest (hover, the wheel, the buttons' own events), and the app never sees the raw events.
 # Starling takes those there (crates/horizon-client/src/android_lib.rs). A few lines in the
-# backend, marked "Horizon's patch"; nothing changes on the other platforms.
+# backend, marked "Horizon's patch"; nothing changes on the other platforms. Its UIKit backend has
+# this port's iOS patches too (third_party/winit/IOS_PATCHES.md): the scene lifecycle, hardware
+# keyboards and mice, the on-screen keyboard, files opened in the app and the exit request.
 [patch.crates-io]
 wgpu-hal = { path = "third_party/wgpu-hal" }
 winit = { path = "third_party/winit" }

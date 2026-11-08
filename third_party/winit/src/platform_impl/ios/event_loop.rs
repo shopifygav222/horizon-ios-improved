@@ -40,6 +40,14 @@ pub struct ActiveEventLoop {
     pub(super) mtm: MainThreadMarker,
 }
 
+/// Horizon: an `exit` asked for since the app last looked (`take_exit_request`).
+pub(crate) static EXIT_REQUESTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn take_exit_request() -> bool {
+    EXIT_REQUESTED.swap(false, std::sync::atomic::Ordering::SeqCst)
+}
+
 impl ActiveEventLoop {
     pub fn create_custom_cursor(&self, source: CustomCursorSource) -> CustomCursor {
         let _ = source.inner;
@@ -89,6 +97,8 @@ impl ActiveEventLoop {
         // https://developer.apple.com/library/archive/qa/qa1561/_index.html
         // it is not possible to quit an iOS app gracefully and programmatically
         tracing::warn!("`ControlFlow::Exit` ignored on iOS");
+        // Horizon: the app ends what asked to exit (its game) itself (`take_exit_request`).
+        EXIT_REQUESTED.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
     pub(crate) fn exiting(&self) -> bool {
@@ -177,13 +187,15 @@ impl<T: 'static> EventLoop<T> {
         setup_control_flow_observers();
 
         let center = unsafe { NSNotificationCenter::defaultCenter() };
+        let scene_lifecycle = super::scene::enabled();
+        super::scene::register();
 
         let _did_finish_launching_observer = create_observer(
             &center,
             // `application:didFinishLaunchingWithOptions:`
             unsafe { UIApplicationDidFinishLaunchingNotification },
             move |_| {
-                app_state::did_finish_launching(mtm);
+                if !scene_lifecycle { app_state::did_finish_launching(mtm); }
             },
         );
         let _did_become_active_observer = create_observer(
@@ -191,7 +203,7 @@ impl<T: 'static> EventLoop<T> {
             // `applicationDidBecomeActive:`
             unsafe { UIApplicationDidBecomeActiveNotification },
             move |_| {
-                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed));
+                if !scene_lifecycle { app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Resumed)); }
             },
         );
         let _will_resign_active_observer = create_observer(
@@ -199,7 +211,7 @@ impl<T: 'static> EventLoop<T> {
             // `applicationWillResignActive:`
             unsafe { UIApplicationWillResignActiveNotification },
             move |_| {
-                app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended));
+                if !scene_lifecycle { app_state::handle_nonuser_event(mtm, EventWrapper::StaticEvent(Event::Suspended)); }
             },
         );
         let _will_enter_foreground_observer = create_observer(
@@ -207,6 +219,7 @@ impl<T: 'static> EventLoop<T> {
             // `applicationWillEnterForeground:`
             unsafe { UIApplicationWillEnterForegroundNotification },
             move |notification| {
+                if scene_lifecycle { return; }
                 let app = unsafe { notification.object() }.expect(
                     "UIApplicationWillEnterForegroundNotification to have application object",
                 );
@@ -221,6 +234,7 @@ impl<T: 'static> EventLoop<T> {
             // `applicationDidEnterBackground:`
             unsafe { UIApplicationDidEnterBackgroundNotification },
             move |notification| {
+                if scene_lifecycle { return; }
                 let app = unsafe { notification.object() }.expect(
                     "UIApplicationDidEnterBackgroundNotification to have application object",
                 );

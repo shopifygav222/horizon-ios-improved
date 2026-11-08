@@ -1,6 +1,10 @@
 //! The client's world data, rendering and screens: chunks, meshing, light, streaming, the renderer,
 //! the HUD, menus and settings. Gameplay (horizon-client) builds on it; nothing here reaches gameplay.
 #![forbid(unsafe_code)]
+/// A phone's build, Android's or iOS's: the touch screen is the player's own input, the GPU a
+/// tiled one, the screen held close and the app filling it.
+pub const PHONE: bool = cfg!(any(target_os = "android", target_os = "ios"));
+
 pub mod assets;
 pub mod atlas_sources;
 pub mod audio;

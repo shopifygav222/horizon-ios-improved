@@ -17,6 +17,22 @@ env:
   CARGO_TERM_COLOR: never
 
 jobs:
+  # Its own job, so a layout slip never hides the lint: on failure the log ends with the patch
+  # that fixes it (git apply).
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install rustfmt
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt
+          rustup default stable
+      - name: Formatting
+        run: |
+          cargo fmt --all
+          git diff --exit-code
+
   desktop:
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -25,17 +41,18 @@ jobs:
       - name: Install Rust and the ALSA and udev headers the client links against
         run: |
           sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev
-          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup toolchain install stable --profile minimal --component clippy
           rustup default stable
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: guard-desktop
           cache-on-failure: true
-      - name: Formatting
-        run: cargo fmt --all -- --check
-      # --keep-going: every crate that fails is reported in one run, not only the first.
+      # --keep-going: every crate that fails is reported in one run, not only the first. The iOS
+      # crates are inert here, and must stay buildable.
       - name: Lint the client for the desktop
-        run: cargo clippy --keep-going -p horizon-client --lib --bins -- -D warnings
+        run: |
+          cargo clippy --keep-going -p horizon-client -p horizon-gamecontroller --lib --bins -- -D warnings
+          cargo clippy --keep-going -p horizon-ios-game --bins -- -D warnings
 
   android:
     runs-on: ubuntu-latest

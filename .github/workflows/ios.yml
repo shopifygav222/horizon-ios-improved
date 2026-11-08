@@ -1,0 +1,85 @@
+name: ios
+run-name: iOS · ${{ github.sha }}
+# Starling for iPhone and iPad (this port, IOS-SYNC.md): `horizon-ios-game` cross-compiled for
+# aarch64-apple-ios and linted. A push checks that it builds; the unsigned .ipa is made and kept
+# only when dispatched with `deliver`.
+on:
+  push:
+    branches: [starling-ios]
+  workflow_dispatch:
+    inputs:
+      deliver:
+        description: Make and keep the unsigned .ipa
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  HORIZON_TELEMETRY_URL: "off"
+  IOS_TARGET: aarch64-apple-ios
+  # Release with fewer codegen passes: the release profile's single unit and LTO cost minutes.
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+  CARGO_PROFILE_RELEASE_LTO: "false"
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: never
+  # The app's own minimum (project.yml); rustc and cc read it.
+  IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check the Apple toolchain
+        run: bash tools/ci/ios-toolchain.sh
+      - name: Install Rust and its iOS standard library
+        # Starling has no rust-toolchain.toml: stable, as its own workflows use.
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy --target "$IOS_TARGET"
+          rustup default stable
+          rustc --version
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ios-${{ env.IOS_TARGET }}
+          # Keep what compiled even when the game itself did not, so the next run starts there.
+          cache-on-failure: true
+      # --keep-going: every crate that can be built is, so one run reports every error.
+      - name: Build the game
+        id: build
+        run: cargo build --release --keep-going --target "$IOS_TARGET" -p horizon-ios-game
+      # This port's code and Starling's must be warning-free on iOS; the vendored UIKit backend and
+      # registry crates are shown, not failed on.
+      - name: Lint the game for iOS
+        id: lint
+        if: always()
+        run: |
+          set -o pipefail
+          cargo clippy --keep-going --target "$IOS_TARGET" -p horizon-ios-game \
+            --message-format short 2>&1 | tee clippy.log || true
+          if grep -E '^(crates|launcher)/[^:]+:[0-9]+:[0-9]+: (warning|error)' clippy.log; then
+            echo '::error::clippy found the problems above in the game'
+            exit 1
+          fi
+      - name: Keep the lockfile the build resolved
+        if: always()
+        run: |
+          if ! git diff --quiet -- Cargo.lock; then
+            echo '::warning::Cargo.lock changed in this build: commit the artifact cargo-lock'
+            mkdir -p lock && cp Cargo.lock lock/
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cargo-lock
+          path: lock/Cargo.lock
+          retention-days: 7
+          if-no-files-found: ignore

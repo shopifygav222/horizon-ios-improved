@@ -130,8 +130,9 @@ pub fn set_platform(clipboard: PlatformClipboard) {
     let _ = PLATFORM.set(clipboard);
 }
 
-/// Android's clipboard, through the platform's hooks: arboard has no Android backend.
-#[cfg(target_os = "android")]
+/// The phone's clipboard (Android's activity, iOS's UIPasteboard), through the platform's hooks:
+/// arboard has no backend for either.
+#[cfg(any(target_os = "android", target_os = "ios"))]
 mod arboard {
     pub struct Clipboard;
     pub enum Error {

@@ -301,10 +301,11 @@ pub use horizon_client_core::key_display::display_name;
 /// Q key shows A.
 // Not on Android: winit's backend there has no key without modifiers (the key names stay as
 // they are).
-#[cfg(target_os = "android")]
+// Nor on iOS: winit's UIKit backend has no key without modifiers either.
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub fn learn_layout(_event: &winit::event::KeyEvent) {}
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn learn_layout(event: &winit::event::KeyEvent) {
     use winit::keyboard::{Key, PhysicalKey};
     use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;

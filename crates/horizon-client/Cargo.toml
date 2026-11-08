@@ -88,6 +88,14 @@ rustix = { version = "1", default-features = false, features = ["std", "time", "
 winit = { version = "0.30.13", features = ["android-native-activity"] }
 jni = "0.21.1"
 
+[target.'cfg(target_os = "ios")'.dependencies]
+# UIKit, GameController, CoreMotion, the Keychain and Files' picker (ios.rs, game/pad/ios.rs):
+# the calls this crate, which forbids unsafe code, can't make itself.
+horizon-gamecontroller = { path = "../horizon-gamecontroller" }
+# The secrets ios.rs seals with a key the Keychain keeps (accounts.rs), and that key.
+chacha20poly1305 = "0.10"
+getrandom = "0.3"
+
 [target.'cfg(windows)'.dependencies]
 # (Resource pack overlays' `junction` is horizon-client-render's, with packs.rs.)
 # Use the registered URI handler without routing links through Explorer/cmd.

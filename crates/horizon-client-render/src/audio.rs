@@ -743,7 +743,7 @@ fn default_output_name() -> Option<String> {
 /// cards: the rest are `cpal`'s fixed names. On macOS, every Core Audio
 /// device's name, inputs included: telling which of them play opens each one
 /// (about 90 ms a second with twenty devices), naming them takes 2 or 3 ms.
-/// On Android a fixed one: the system routes the output itself, and listing the
+/// On Android (and iOS) a fixed one: the system routes the output itself, and listing the
 /// devices makes 468 `AudioTrack.getMinFrameCount` calls, 300 to 600 ms every second.
 /// `None` elsewhere, where the list is always looked at.
 #[cfg(feature = "audio")]
@@ -752,7 +752,7 @@ fn card_fingerprint() -> Option<String> {
     {
         std::fs::read_to_string("/proc/asound/cards").ok()
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         Some(String::new())
     }
@@ -766,7 +766,12 @@ fn card_fingerprint() -> Option<String> {
                 .join("\n"),
         )
     }
-    #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "ios",
+        target_os = "macos"
+    )))]
     {
         None
     }

@@ -2,8 +2,11 @@
 
 mod app_state;
 mod event_loop;
+mod hardware_keyboard;
+mod hardware_mouse;
 mod monitor;
 mod notification_center;
+mod scene;
 mod view;
 mod view_controller;
 mod window;
@@ -17,6 +20,8 @@ pub(crate) use self::event_loop::{
     PlatformSpecificEventLoopAttributes,
 };
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
+pub(crate) use self::event_loop::take_exit_request;
+pub(crate) use self::scene::take_opened_files;
 pub(crate) use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
 pub(crate) use crate::cursor::{
     NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,

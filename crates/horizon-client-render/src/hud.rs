@@ -122,7 +122,7 @@ pub fn set_gpu_texture_side(side: u32) {
 /// the driver); elsewhere a GPU not found yet counts as one that takes the most.
 fn atlas_limit() -> u32 {
     let side = || GPU_TEXTURE_SIDE.load(std::sync::atomic::Ordering::Relaxed);
-    if cfg!(target_os = "android") {
+    if crate::PHONE {
         let start = std::time::Instant::now();
         while side() == 0 && start.elapsed() < std::time::Duration::from_secs(20) {
             std::thread::sleep(std::time::Duration::from_millis(10));
