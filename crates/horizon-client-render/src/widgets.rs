@@ -160,9 +160,37 @@ pub fn last_targets() -> Vec<Target> {
     TARGETS.with_borrow(|(_, last, _)| last.clone())
 }
 
+/// Enabled labelled buttons plus explicit fields, sliders and list targets (Horizon Android's
+/// launcher moves its focus between them).
+pub fn navigation_targets() -> Vec<Target> {
+    let mut targets: Vec<_> = last()
+        .into_iter()
+        .filter(|w| w.enabled)
+        .map(|w| Target {
+            rect: [w.x, w.y, w.w, w.h],
+            kind: Kind::Button,
+        })
+        .collect();
+    for t in last_targets() {
+        if let Some(same) = targets.iter_mut().find(|o| o.rect == t.rect) {
+            same.kind = t.kind;
+        } else {
+            targets.push(t);
+        }
+    }
+    targets
+}
+
 /// Counts drawn frames: focus waits for a new one after scrolling a list.
 pub fn generation() -> u64 {
     TARGETS.with_borrow(|(_, _, generation)| *generation)
+}
+
+/// Publish a frame from a standalone screen without a Game frame counter (Horizon Android's
+/// launcher): its focus targets are there before the game's first frame.
+pub fn publish_frame() {
+    let next = WIDGETS.with_borrow(|(_, _, seen)| seen.wrapping_add(1));
+    end_frame(next);
 }
 
 /// Called by the button drawers.

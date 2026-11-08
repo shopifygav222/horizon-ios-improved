@@ -210,6 +210,9 @@ fn assemble(resources: &Path) -> Result<(), String> {
     )?;
     // Bedrock's touch buttons, from Mojang too, so the first game already has them.
     crate::bedrock_touch::fetch_logged(resources);
+    // Everything the game reads is in the resources now: the official files go (about 450 MB on
+    // a phone that keeps little). New tables (an update) fetch them again before laying out.
+    let _ = std::fs::remove_dir_all(crate::accounts::files_root());
     Ok(())
 }
 

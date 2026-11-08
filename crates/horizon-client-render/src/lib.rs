@@ -5,6 +5,10 @@
 /// tiled one, the screen held close and the app filling it.
 pub const PHONE: bool = cfg!(any(target_os = "android", target_os = "ios"));
 
+/// Horizon Android's: the input mode its launcher sets, and its controllers' state.
+pub mod android_gamepad;
+/// Horizon Android's launcher's knobs over the game (this iOS port carries that launcher).
+pub mod android_runtime;
 pub mod assets;
 pub mod atlas_sources;
 pub mod audio;
@@ -51,6 +55,9 @@ pub mod graphics;
 pub mod graphics_style;
 pub mod graphics_ui;
 pub mod hdr_calibration;
+/// Horizon Android's touch controls (GoyControl and MCPE styles, presets, the editor), the
+/// "Horizon controls" scheme of this iOS port; Starling's own are `horizon_client::touch`.
+pub mod horizon_touch;
 pub mod hud;
 pub mod hud_layout;
 pub mod hud_overlays;
@@ -58,6 +65,8 @@ pub mod inventory_effects;
 pub mod java_text;
 pub mod jigsaw_block;
 pub use horizon_world::json_folder;
+/// Horizon Android's keypad profile: hardware keys played as a controller.
+pub mod keypad;
 pub mod level_loading;
 pub mod light;
 pub mod lod;

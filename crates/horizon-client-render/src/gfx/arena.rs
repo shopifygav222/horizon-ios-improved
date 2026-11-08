@@ -310,7 +310,7 @@ impl Arena {
         }
         let last = self.pages.len().saturating_sub(1);
         if let Some(page) = self.pages.last().and_then(Option::as_ref)
-            && page.capacity < self.page_limit
+            && page.capacity < self.growth_limit()
             && self.closing != Some(last as u32)
         {
             let current = page.capacity;
@@ -525,7 +525,19 @@ impl Arena {
     /// half empty (nor held twice during the copy) by hundreds of MiB.
     fn grown(&self, current: u64, len: u64) -> u64 {
         let step = current.min(PAGE_BYTES / self.stride);
-        (current + step).max(current + len).min(self.page_limit)
+        (current + step).max(current + len).min(self.growth_limit())
+    }
+    /// The most vertices a page grows to by moving into a larger buffer. iOS ends an app whose
+    /// memory jumps (a grow holds the old buffer and the new one at once): there pages grow to
+    /// 32 MiB at most, and a new page takes what does not fit, as on Horizon Android's phones.
+    fn growth_limit(&self) -> u64 {
+        if cfg!(target_os = "ios") {
+            ((32 << 20) / self.stride / GRAIN * GRAIN)
+                .max(GRAIN)
+                .min(self.page_limit)
+        } else {
+            self.page_limit
+        }
     }
     /// Moves a page into a larger buffer; false (the page unchanged) when
     /// there is no memory for it. A page past `PAGE_BYTES` grows in video

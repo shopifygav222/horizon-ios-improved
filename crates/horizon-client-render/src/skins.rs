@@ -3,6 +3,9 @@
 //! `SkinManager` lookup (which texture a player shows, and when the default
 //! one) and `SkinTextureDownloader.processLegacySkin`.
 
+/// The skin and cape a launcher's wardrobe hands the game (Horizon Android's, this iOS port's).
+pub mod appearance;
+
 /// `Property.hasSignature` and the services key check, as authlib's
 /// `SignatureState`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -2034,6 +2034,9 @@ impl Game<'_> {
     /// Once a frame, in a world or not, after Horizon's extras.
     pub(super) fn native_frame(&mut self, elapsed: Duration) {
         mod_api::dispatch_frame(self, mod_api::mods(), elapsed);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_frame(self, elapsed);
     }
     /// The frame rate this window is about to be held to: Max Framerate after the
     /// inactivity throttle and Battery Mode (260 is unlimited). `focused` is whether the
@@ -2339,6 +2342,9 @@ impl Game<'_> {
     /// `native_playing`), mouse buttons while playing. Repeats are left out.
     pub(super) fn native_key(&mut self, key: &str, pressed: bool) {
         mod_api::dispatch_key(self, mod_api::mods(), key, pressed);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_key(self, key, pressed);
     }
     /// A real window key event after handling, including repeats and consumed shortcuts.
     /// Receives the original physical/logical key, text, location, state and repeat flag.
@@ -2371,6 +2377,9 @@ impl Game<'_> {
     /// Wheel steps while playing: set `claimed` to keep them from the hotbar.
     pub(super) fn native_wheel(&mut self, steps: f32, claimed: &mut bool) {
         mod_api::dispatch_wheel(self, mod_api::mods(), steps, claimed);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_wheel(self, steps, claimed);
     }
     /// Gameplay scrolling after whole steps accumulate, before hotbar/spectator handling.
     /// `scroll` is scaled x/y, `accumulated` whole x/y steps, `buttons` left/middle/right,
@@ -2428,6 +2437,9 @@ impl Game<'_> {
     /// server and Horizon's commands see it: set `ran` when the mod ran it.
     pub(super) fn native_command(&mut self, command: &str, ran: &mut bool) {
         mod_api::dispatch_command(self, mod_api::mods(), command, ran);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_command(self, command, ran);
     }
     /// The commands `native_command` runs, by name and without their slash:
     /// push the ones that are yours. Asked when a connection starts and
@@ -2467,6 +2479,9 @@ impl Game<'_> {
     /// own view wins): set `zoom` when it is none yet.
     pub(super) fn native_zoom(&self, zoom: &mut Option<NativeZoom>) {
         mod_api::dispatch_zoom(self, mod_api::mods(), zoom);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_zoom(self, zoom);
     }
     /// Computed world fog RGB, after ordinary effects and before upload. Title panoramas skip it.
     /// Only finite RGB components in 0..=1 are accepted; alpha and distances stay unchanged.
@@ -2664,6 +2679,9 @@ impl Game<'_> {
     /// The minimap a native mod shows: set `minimap` when it is none yet.
     pub(super) fn native_minimap(&self, minimap: &mut Option<NativeMinimap>) {
         mod_api::dispatch_minimap(self, mod_api::mods(), minimap);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_minimap(self, minimap);
     }
     /// Register namespaced NBT component types before content loads.
     pub(super) fn native_component_types(types: &mut Vec<String>) {
@@ -2714,21 +2732,33 @@ impl Game<'_> {
     /// Options > Mods lists the native mods: push yours.
     pub(super) fn native_mods(&mut self, mods: &mut Vec<NativeMod>) {
         mod_api::dispatch_mods(self, mod_api::mods(), mods);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_mods(self, mods);
     }
     /// The buttons of mod `mod_id`'s settings page, under its keys: push
     /// their labels when it is yours. Asked again each time the page opens
     /// and after each click.
     pub(super) fn native_settings(&mut self, mod_id: &str, buttons: &mut Vec<String>) {
         mod_api::dispatch_settings(self, mod_api::mods(), mod_id, buttons);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_settings(self, mod_id, buttons);
     }
     /// Button `button` of mod `mod_id`'s settings page was clicked.
     pub(super) fn native_settings_click(&mut self, mod_id: &str, button: usize) {
         mod_api::dispatch_settings_click(self, mod_api::mods(), mod_id, button);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_settings_click(self, mod_id, button);
     }
     /// The player did `event` on mod `mod_id`'s panel (`native_panel_items`):
     /// act on it when it is yours. API 2.
     pub(super) fn native_panel_event(&mut self, mod_id: &str, event: &NativePanelEvent) {
         mod_api::dispatch_panel_event(self, mod_api::mods(), mod_id, event);
+        // Horizon Android's bundled mods (iOS).
+        #[cfg(target_os = "ios")]
+        super::android_bundled::native_panel_event(self, mod_id, event);
     }
     /// Block `block` (`mymod:machine`) gets a block entity
     /// (`EntityBlock.newBlockEntity`): set `entity` to its id and saved

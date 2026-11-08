@@ -6,6 +6,7 @@
 //! the way typed keys reach it.
 use crate::gamepad::{Button, GlyphStyle};
 use crate::ui_theme::{self, Face, Ui, color};
+use winit::keyboard::KeyCode;
 
 /// A label of the keyboard: the language table's, or the English text.
 fn tr(key: &str, english: &str) -> String {
@@ -20,6 +21,9 @@ pub enum Output {
     Enter,
     /// The keyboard closes; the field keeps its text.
     Close,
+    /// A hardware key press, kept for editors that accept more than Backspace, Enter and Close
+    /// (the Horizon touch controls' editor's key bindings).
+    Key(KeyCode),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -269,6 +273,27 @@ impl Keyboard {
             }
             _ => None,
         }
+    }
+
+    /// Touch the same key rectangles used by draw, in Ui coordinates (Horizon Android's
+    /// launcher types with it).
+    pub fn touch(&mut self, width: f32, height: f32, at_top: bool, p: [f32; 2]) -> Option<Output> {
+        let x0 = ((width - 554.0) / 2.0).round();
+        let y0 = if at_top { 16.0 } else { height - 268.0 - 16.0 };
+        for (r, row) in self.rows().iter().enumerate() {
+            for (c, (_, units)) in row.iter().enumerate() {
+                let (left, _) = Self::span(row, c);
+                let x = x0 + left * 56.0;
+                let y = y0 + r as f32 * 44.0;
+                let w = units * 50.0 + (units - 1.0) * 6.0;
+                if (x..x + w).contains(&p[0]) && (y..y + 38.0).contains(&p[1]) {
+                    self.row = r;
+                    self.col = c;
+                    return self.press();
+                }
+            }
+        }
+        None
     }
 
     /// Draw the keyboard across the bottom of the screen, or the top when

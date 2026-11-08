@@ -33,15 +33,7 @@ sys.path.insert(0, str(ROOT / 'tools'))
 sys.path.insert(0, str(ROOT / 'packaging' / 'android'))
 import lab  # noqa: E402
 
-MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
 OBJECTS = 'https://resources.download.minecraft.net'
-
-
-def fetch_json(url):
-    import urllib.request
-    request = urllib.request.Request(url, headers={'User-Agent': 'horizon/0.1'})
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return json.load(response)
 
 
 def inside(base, value):
@@ -72,12 +64,12 @@ def download_game(version, directory):
     pins = json.loads((ROOT / 'research-lock.json').read_text())['minecraft']
     if version != pins['version']:
         raise ValueError(f"This engine implements {pins['version']}; {version} is unsupported")
-    entry = next((v for v in fetch_json(MANIFEST)['versions'] if v['id'] == version), None)
-    if entry is None:
-        raise ValueError(f'Mojang does not list Minecraft {version}')
+    # The version file research-lock.json pins, by its hash: Mojang republishes it now and then,
+    # and horizon-prepare accepts only the pinned ones (as the phone's download fetches it).
     versions = directory / 'versions' / version
     manifest_path = versions / f'{version}.json'
-    lab.download(entry['url'], manifest_path, entry['sha1'])
+    pinned = pins['manifest_sha1']
+    lab.download(f'https://piston-meta.mojang.com/v1/packages/{pinned}/{version}.json', manifest_path, pinned)
     manifest = json.loads(manifest_path.read_text())
     files = []
     for side in ['client', 'server']:

@@ -10,6 +10,30 @@ use std::{
 };
 
 pub const FILE: &str = "horizon-mods.txt";
+/// Horizon Android's native mods, compiled into its APK and into this iOS port's app
+/// (game/android_bundled.rs), all opt-in.
+pub const ANDROID_BUNDLED: [(&str, &str, &str); 4] = [
+    (
+        "zoom",
+        "Zoom",
+        "Hold Z to zoom; configurable in Options > Mods",
+    ),
+    (
+        "minimap",
+        "Minimap",
+        "A configurable map in the screen corner",
+    ),
+    (
+        "recipes",
+        "Recipes",
+        "Item recipes and uses beside the inventory",
+    ),
+    (
+        "smartf3",
+        "SmartF3",
+        "Configurable modules for the F3 debug screen",
+    ),
+];
 /// The folder holding `.hmod` files, beside `options.txt`.
 pub const DIR: &str = "horizon-mods";
 /// Where the launcher installs native mods (`<id>.hnmod`), beside [`DIR`]. They run only in a
@@ -82,6 +106,17 @@ impl ModList {
                 .collect()
         };
         let (enabled, disabled) = (ids("true"), ids("false"));
+        // The bundled mods are off until turned on, unlike other native mods.
+        #[cfg(target_os = "ios")]
+        let disabled = {
+            let mut disabled = disabled;
+            for (id, _, _) in ANDROID_BUNDLED {
+                if !enabled.contains(id) {
+                    disabled.insert(id.to_owned());
+                }
+            }
+            disabled
+        };
         let mut keys: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
         for (k, v) in text.lines().filter_map(|l| l.split_once(':')) {
             // Mod ids have no dots; a key's name may.

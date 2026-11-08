@@ -229,6 +229,13 @@ mod native_entity_refs;
 mod native_explosions;
 mod native_falling;
 mod native_hooks;
+// Horizon Android's bundled mods, compiled into this iOS port (android_bundled.rs).
+#[cfg(target_os = "ios")]
+mod android_bundled;
+#[cfg(target_os = "ios")]
+use android_bundled::{
+    official_minimap, official_recipes, official_recipes_glue, official_zoom, smartf3,
+};
 mod native_inventories;
 mod native_item_container;
 mod native_item_energy;
@@ -20716,7 +20723,8 @@ fn build_renderer(
 /// The loading screen's renderer: one atlas (the boot screen's until the
 /// pack's GUI atlas is ready) over one opaque white block-sprite layer, an
 /// empty border texture and the title panorama once the menu bundle is ready.
-fn loading_renderer(
+/// Public for this iOS port's launcher (crates/horizon-ios-game), which draws with it too.
+pub fn loading_renderer(
     window: Arc<Window>,
     offscreen: bool,
     atlas: Option<&horizon_client::hud::HudAtlas>,
@@ -20789,7 +20797,8 @@ fn hwnd(window: &Window) -> Option<isize> {
     }
 }
 
-fn loading_frame(hud: &HudBatch) -> Frame<'_> {
+/// Public for this iOS port's launcher (crates/horizon-ios-game), which draws with it too.
+pub fn loading_frame(hud: &HudBatch) -> Frame<'_> {
     Frame {
         weather: &[],
         weather_time: horizon_client::weather::Time::new(0, 0.0),
@@ -21841,6 +21850,13 @@ fn run_until_quit(mut app: App) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// The bundled mods' state back to its start, between games of one process (this iOS port's
+/// launcher plays again without a new process).
+#[cfg(target_os = "ios")]
+pub fn android_reset_bundled_mods() {
+    android_bundled::reset();
 }
 
 pub use launch_api::{UsageError, exit_code};

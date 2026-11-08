@@ -268,6 +268,10 @@ pub fn keyboard_keys() -> Vec<&'static str> {
         .chain(names().filter(|n| !function(n)))
         .collect()
 }
+/// Every key a binding may name, with its name (the Horizon touch controls' editor lists them).
+pub fn available_keys() -> &'static [(&'static str, KeyCode)] {
+    KEYS
+}
 pub fn key_code(name: &str) -> Option<KeyCode> {
     KEYS.iter().find(|(n, _)| *n == name).map(|(_, k)| *k)
 }

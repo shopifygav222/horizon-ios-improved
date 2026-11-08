@@ -19,14 +19,32 @@ horizon-client = { path = "../horizon-client", default-features = false }
 horizon-gamecontroller = { path = "../horizon-gamecontroller" }
 # SRV records through iOS's resolver (dns.rs).
 horizon-protocol = { path = "../horizon-protocol" }
+# Free memory given back when iOS warns (`memory_warning`).
+horizon-threads = { path = "../horizon-threads" }
 # The mod API level the program carries, as the desktop's does (main.rs).
 horizon-mods = { path = "../horizon-mods", default-features = false, features = ["index"] }
+# The game tables the launcher installs from (official_install.rs).
+horizon-ios-prepare = { path = "../horizon-ios-prepare" }
+# Java content ported for Horizon's catalog (shared/browser).
+horizon-port-pack = { path = "../horizon-port-pack" }
 winit = "0.30.13"
 # The 16 MB stack every event-loop callback runs on: iOS gives its main thread 1 MB.
 stacker = "0.1"
 # Standard error into the game folder's logs (`capture_stderr`).
 libc = "0.2"
 log = "0.4"
+# Horizon Android's launcher's own: its catalog, accounts, wardrobe and diagnostics, with the
+# versions it was written against.
+regex = "1"
+getrandom = "0.3"
+url = "2"
+sha1 = "0.10"
+sha2 = "0.10.9"
+ureq = { version = "2", default-features = false, features = ["json", "tls"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["raw_value"] }
+zip = { version = "9.1.3", default-features = false, features = ["deflate"] }
 
 [features]
 default = ["audio"]

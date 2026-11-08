@@ -1394,6 +1394,7 @@ impl Game<'_> {
             Output::Text(t) => (None, Some(t.as_str())),
             Output::Backspace => (Some(KeyCode::Backspace), None),
             Output::Enter => (Some(KeyCode::Enter), None),
+            Output::Key(code) => (Some(*code), None),
             Output::Close => {
                 self.pad.menu.osk = None;
                 self.pad.menu.osk_dismissed = true;
