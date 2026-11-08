@@ -27,8 +27,9 @@ enum Step {
     #[cfg(target_os = "android")]
     Folder(super::files_offer::Stage),
     /// Horizon Android is on the phone: its worlds and resource packs can come over
-    /// (HorizonImport.java). True once its folder was asked for: they are arriving.
-    #[cfg(target_os = "android")]
+    /// (HorizonImport.java; on iOS, Horizon's folder picked in Files, ios.rs). True once its
+    /// folder was asked for: they are arriving.
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     Horizon(bool),
     /// Nothing under way: sign in, play offline, or bring resources from a computer.
     Start,
@@ -69,10 +70,10 @@ enum Action {
     FolderLater,
     /// Horizon Android's folder in the system's picker (again, if the player came back without
     /// picking it).
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     Horizon,
     /// Skip, or Next once its files are on their way: not offered again.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     HorizonDone,
     SignIn,
     Ely,
@@ -110,10 +111,10 @@ pub(super) struct Setup {
     #[cfg(target_os = "android")]
     folder_later: bool,
     /// Whether Horizon Android is installed, asked of Android once.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     horizon_installed: Cell<Option<bool>>,
     /// Its folder asked for: its worlds and packs are on their way to the import inbox.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     horizon_picked: bool,
     /// Play offline tapped: the question shows.
     offline_asked: bool,
@@ -210,7 +211,7 @@ fn account_step(setup: &Setup, state: State) -> Step {
                 return Step::Folder(stage);
             }
             // After the folder: what comes over lands in the game folder that stays.
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             if horizon_offer(setup) {
                 return Step::Horizon(setup.horizon_picked);
             }
@@ -253,19 +254,19 @@ fn folder_offer(setup: &Setup) -> Option<super::files_offer::Stage> {
 
 /// Written once Horizon Android's worlds came over (Next here, Done over the title,
 /// game/files_offer.rs): the offer is not made again.
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub(super) fn horizon_answered() -> std::path::PathBuf {
     horizon_client::logging::private_home().join("horizon-android-import-answered")
 }
 
 /// Skip here or Not now over the title: not offered again until the next start, when the title
 /// offers it again while Horizon Android is installed.
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub(super) static HORIZON_LATER: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
 /// Whether to offer Horizon Android's worlds and packs: it is installed, and not answered yet.
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 fn horizon_offer(setup: &Setup) -> bool {
     if horizon_answered().exists() || HORIZON_LATER.load(std::sync::atomic::Ordering::Relaxed) {
         return false;
@@ -289,6 +290,20 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
             let [title, body, ..] = super::files_offer::texts(*stage);
             (title, body.into(), None)
         }
+        #[cfg(target_os = "ios")]
+        Step::Horizon(false) => (
+            "Coming from Horizon?",
+            "Horizon's iOS app is part of Starling now: bring your worlds and resource packs over.              In the Files sheet that opens, go to On My iPhone (or iPad), then Horizon, and tap              Open."
+                .into(),
+            Some("They are copied: Horizon keeps its own.".into()),
+        ),
+        #[cfg(target_os = "ios")]
+        Step::Horizon(true) => (
+            "Coming from Horizon?",
+            "Your worlds and resource packs are on their way: the note at the top says what each              one added. Tap Next when they are in."
+                .into(),
+            None,
+        ),
         #[cfg(target_os = "android")]
         Step::Horizon(false) => (
             "Coming from Horizon Android?",
@@ -334,6 +349,13 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
                 "Checking the files".into()
             }),
         ),
+        // iOS runs no Java: the app carries the tables Java made, and the files come from the
+        // download (preparer.rs).
+        Step::Java(..) | Step::Unpacking if cfg!(target_os = "ios") => (
+            "Preparing the game",
+            "Laying out the game files on this phone.".into(),
+            None,
+        ),
         Step::Java(done, total) => (
             "Preparing the game",
             "Downloading Java, which prepares the game files.".into(),
@@ -376,12 +398,12 @@ fn buttons(step: &Step) -> Vec<(String, Action)> {
                 literal(other, Action::FolderLater),
             ]
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         Step::Horizon(false) => vec![
             literal("Bring them over", Action::Horizon),
             literal("Skip", Action::HorizonDone),
         ],
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         Step::Horizon(true) => vec![
             literal("Next", Action::HorizonDone),
             literal("Pick the folder again", Action::Horizon),
@@ -896,7 +918,7 @@ impl Loading {
                 }
                 self.setup.folder_later = true;
             }
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             Action::Horizon => {
                 if crate::android::import_horizon_android() {
                     self.setup.horizon_picked = true;
@@ -904,9 +926,10 @@ impl Loading {
                     log::warn!("Horizon: no folder picker for Horizon Android's files");
                 }
             }
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             Action::HorizonDone => {
-                if self.setup.horizon_picked {
+                // iOS can't tell whether Horizon is installed: a Skip there is final.
+                if self.setup.horizon_picked || cfg!(target_os = "ios") {
                     let _ = std::fs::write(horizon_answered(), b"");
                 } else {
                     HORIZON_LATER.store(true, std::sync::atomic::Ordering::Relaxed);

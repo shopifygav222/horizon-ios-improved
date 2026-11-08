@@ -48,8 +48,7 @@ fn main() -> ExitCode {
             else {
                 return Err("check needs --engine, --minecraft and --reference".to_owned());
             };
-            let work =
-                path("--work").unwrap_or_else(|| std::env::temp_dir().join("ios-assembled"));
+            let work = path("--work").unwrap_or_else(|| std::env::temp_dir().join("ios-assembled"));
             let version = options.get("--version").ok_or("check needs --version")?;
             let foreign = horizon_ios_prepare::foreign(&engine, &minecraft, version)?;
             if !foreign.is_empty() {
@@ -70,7 +69,10 @@ fn main() -> ExitCode {
                     differences.join("\n  ")
                 ));
             }
-            println!("{} is horizon-prepare's folder, file for file", work.display());
+            println!(
+                "{} is horizon-prepare's folder, file for file",
+                work.display()
+            );
             Ok(())
         })(),
         other => Err(format!("unknown command {other}")),

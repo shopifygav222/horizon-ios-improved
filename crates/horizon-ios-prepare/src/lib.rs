@@ -123,19 +123,22 @@ fn client_jar(minecraft: &Path, version: &str) -> PathBuf {
 }
 
 fn object_path(minecraft: &Path, sha1: &str) -> PathBuf {
-    minecraft
-        .join("assets/objects")
-        .join(&sha1[..2])
-        .join(sha1)
+    minecraft.join("assets/objects").join(&sha1[..2]).join(sha1)
 }
 
 /// `resources` (horizon-prepare's folder for `version`) split over the official files in
 /// `minecraft` (the launcher layout): the generated files and the recipe, into the zip `out`.
-pub fn pack(resources: &Path, minecraft: &Path, version: &str, out: &Path) -> Result<Packed, String> {
+pub fn pack(
+    resources: &Path,
+    minecraft: &Path,
+    version: &str,
+    out: &Path,
+) -> Result<Packed, String> {
     // The client jar's members and the asset objects, by their SHA-256.
     let jar = client_jar(minecraft, version);
-    let mut archive = zip::ZipArchive::new(File::open(&jar).map_err(|e| format!("{}: {e}", jar.display()))?)
-        .map_err(|e| format!("{}: {e}", jar.display()))?;
+    let mut archive =
+        zip::ZipArchive::new(File::open(&jar).map_err(|e| format!("{}: {e}", jar.display()))?)
+            .map_err(|e| format!("{}: {e}", jar.display()))?;
     let mut members: HashMap<String, Vec<String>> = HashMap::new();
     for i in 0..archive.len() {
         let entry = archive.by_index(i).map_err(|e| e.to_string())?;
@@ -160,7 +163,8 @@ pub fn pack(resources: &Path, minecraft: &Path, version: &str, out: &Path) -> Re
     }
     let mut recipe = Vec::new();
     let mut packed = Packed::default();
-    let mut zip = zip::ZipWriter::new(File::create(out).map_err(|e| format!("{}: {e}", out.display()))?);
+    let mut zip =
+        zip::ZipWriter::new(File::create(out).map_err(|e| format!("{}: {e}", out.display()))?);
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
     for path in files(resources)? {
@@ -265,10 +269,9 @@ pub fn assemble(
     out: &Path,
     progress: &dyn Fn(usize, usize),
 ) -> Result<(), String> {
-    let mut engine = zip::ZipArchive::new(
-        File::open(engine).map_err(|e| format!("{}: {e}", engine.display()))?,
-    )
-    .map_err(|e| format!("The app's game tables: {e}"))?;
+    let mut engine =
+        zip::ZipArchive::new(File::open(engine).map_err(|e| format!("{}: {e}", engine.display()))?)
+            .map_err(|e| format!("The app's game tables: {e}"))?;
     let recipe: serde_json::Value = {
         let entry = engine
             .by_name(RECIPE)
@@ -278,8 +281,12 @@ pub fn assemble(
     if recipe["format"].as_u64() != Some(FORMAT) {
         return Err("The app's recipe is of another format".into());
     }
-    let version = recipe["version"].as_str().ok_or("The recipe names no version")?;
-    let lines = recipe["files"].as_array().ok_or("The recipe lists no files")?;
+    let version = recipe["version"]
+        .as_str()
+        .ok_or("The recipe names no version")?;
+    let lines = recipe["files"]
+        .as_array()
+        .ok_or("The recipe lists no files")?;
     let mut plan = Vec::with_capacity(lines.len());
     for line in lines {
         let path = line["path"].as_str().ok_or("A recipe line has no path")?;
@@ -384,8 +391,9 @@ pub fn compare(reference: &Path, built: &Path, limit: usize) -> Result<Vec<Strin
 pub fn foreign(engine: &Path, minecraft: &Path, version: &str) -> Result<Vec<String>, String> {
     let mut mojang = HashSet::new();
     let jar = client_jar(minecraft, version);
-    let mut archive = zip::ZipArchive::new(File::open(&jar).map_err(|e| format!("{}: {e}", jar.display()))?)
-        .map_err(|e| e.to_string())?;
+    let mut archive =
+        zip::ZipArchive::new(File::open(&jar).map_err(|e| format!("{}: {e}", jar.display()))?)
+            .map_err(|e| e.to_string())?;
     for i in 0..archive.len() {
         let entry = archive.by_index(i).map_err(|e| e.to_string())?;
         if !entry.is_dir() {
@@ -417,10 +425,8 @@ mod tests {
     use super::*;
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "horizon-ios-prepare-{name}-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("horizon-ios-prepare-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -453,8 +459,14 @@ mod tests {
         let sound = b"an ogg";
         let sha1 = format!("{:x}", sha1::Sha1::digest(sound));
         write(&object_path(&minecraft, &sha1), sound);
-        write(&resources.join("assets/minecraft/textures/stone.png"), b"stone");
-        write(&resources.join("data/minecraft/tags/block/logs.json"), b"{\"values\":[]}");
+        write(
+            &resources.join("assets/minecraft/textures/stone.png"),
+            b"stone",
+        );
+        write(
+            &resources.join("data/minecraft/tags/block/logs.json"),
+            b"{\"values\":[]}",
+        );
         write(&resources.join("assets/minecraft/sounds/step.ogg"), sound);
         write(&resources.join("horizon-resources.json"), b"{\"schema\":7}");
         write(&resources.join("facts.json"), b"[1, 2]");

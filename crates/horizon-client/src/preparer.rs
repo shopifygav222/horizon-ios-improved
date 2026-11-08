@@ -61,10 +61,16 @@ fn home() -> PathBuf {
 /// Prepare the fetched files into `resources` (the folder the game reads), on a thread of its
 /// own; `stage` follows it.
 pub fn start(resources: PathBuf) {
+    // iOS runs no Java: the app carries what horizon-prepare made in CI, and lays it out.
+    #[cfg(target_os = "ios")]
+    let first = Stage::Unpacking;
+    #[cfg(not(target_os = "ios"))]
     let Some(runtime) = starling_account::java::android_runtime(std::env::consts::ARCH) else {
         *shared() = Stage::Failed("On 32-bit x86, import prepared resources as a .starling file. An Android x86 Java 25 runtime is not available.".into());
         return;
     };
+    #[cfg(not(target_os = "ios"))]
+    let first = Stage::Java(0, runtime.size);
     {
         let mut stage = shared();
         if matches!(
@@ -73,13 +79,18 @@ pub fn start(resources: PathBuf) {
         ) {
             return;
         }
-        *stage = Stage::Java(0, runtime.size);
+        *stage = first;
     }
     let spawned = std::thread::Builder::new()
         .name("preparer".into())
         .spawn(move || {
             let started = std::time::Instant::now();
-            let result = run(&resources);
+            // iOS runs no Java: the app carries what horizon-prepare made in CI.
+            let result = if cfg!(target_os = "ios") {
+                assemble(&resources)
+            } else {
+                run(&resources)
+            };
             *shared() = match result {
                 Ok(()) => {
                     log::info!(
@@ -190,6 +201,34 @@ fn run(resources: &Path) -> Result<(), String> {
     for done in [&jre, &kit.join(".local"), &temp] {
         let _ = std::fs::remove_dir_all(done);
     }
+    Ok(())
+}
+
+/// iOS's preparing, where no Java runs (an app may run no program it did not ship with): the
+/// tables horizon-prepare made in CI, which the app carries (`assets/engine-data.zip`), laid out
+/// with the player's own official files just fetched, as horizon-prepare made them file for file
+/// (horizon-ios-prepare, checked by CI on every build).
+fn assemble(resources: &Path) -> Result<(), String> {
+    let engine = std::env::current_exe()
+        .map_err(|e| e.to_string())?
+        .parent()
+        .ok_or("Starling cannot find its own files.")?
+        .join("assets/engine-data.zip");
+    if !engine.is_file() {
+        return Err("Starling's game tables are missing from the app: install it again.".into());
+    }
+    horizon_ios_prepare::assemble(
+        &engine,
+        &crate::accounts::files_root(),
+        resources,
+        &|done, total| {
+            if done == total || done % 250 == 0 {
+                *shared() = Stage::Preparing(format!("{done} of {total} files"));
+            }
+        },
+    )?;
+    // Bedrock's touch buttons, from Mojang too, so the first game already has them.
+    crate::bedrock_touch::fetch_logged(resources);
     Ok(())
 }
 
