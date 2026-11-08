@@ -676,7 +676,7 @@ impl Graphics {
             .or_else(|| Some(self.shader_pack.clone()).filter(|p| !p.is_empty()))?;
         let profile = match self.shader_profile.as_str() {
             "" => env("HORIZON_SHADER_PROFILE").unwrap_or_else(|| {
-                if cfg!(target_os = "android") {
+                if crate::PHONE {
                     AUTO_PROFILE.to_owned()
                 } else {
                     String::new()
@@ -994,7 +994,7 @@ impl Graphics {
         // laptop while a world loaded: a teleport there took ~15% longer.
         // A phone leaves two, as Starling was measured with: half its cores are small ones, and
         // a hot phone slows every core down.
-        let spare = if cfg!(target_os = "android") { 2 } else { 1 };
+        let spare = if crate::PHONE { 2 } else { 1 };
         let auto = horizon_threads::worker_count().saturating_sub(spare).max(1);
         if self.battery { auto.div_ceil(2) } else { auto }
     }

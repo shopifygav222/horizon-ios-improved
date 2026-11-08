@@ -803,7 +803,7 @@ impl Title {
     pub fn enter_singleplayer(&mut self) {
         self.search.clear();
         // On a phone the focus opens the keyboard: there the box waits for a tap.
-        self.search_focused = !cfg!(target_os = "android");
+        self.search_focused = !crate::PHONE;
         self.scroll.set(crate::ui::Scroll::default());
         let worlds = list_worlds(&self.saves);
         self.create_return_to_main = worlds.is_empty();

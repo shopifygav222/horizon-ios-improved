@@ -21,7 +21,7 @@ impl Game<'_> {
             .settings
             .touch
             .input_selection
-            .resolve(self.input_mode.after(input, cfg!(target_os = "android")));
+            .resolve(self.input_mode.after(input, horizon_client::PHONE));
         if mode == self.input_mode {
             return;
         }
@@ -32,6 +32,25 @@ impl Game<'_> {
             self.pad.in_use = false;
         }
         self.input_mode = mode;
+    }
+
+    /// iOS: a hardware keyboard's keys (the on-screen keyboard not asked for) and a mouse's or a
+    /// trackpad's pointer are the keyboard and mouse, as Android's input hook tells them apart.
+    #[cfg(target_os = "ios")]
+    pub(super) fn ios_input(&mut self, event: &winit::event::WindowEvent) {
+        use winit::event::WindowEvent;
+        let keyboard_mouse = match event {
+            WindowEvent::KeyboardInput { .. } => {
+                !self.touch_keyboard_asked() && horizon_gamecontroller::keyboard_connected()
+            }
+            WindowEvent::CursorMoved { .. }
+            | WindowEvent::MouseInput { .. }
+            | WindowEvent::MouseWheel { .. } => true,
+            _ => false,
+        };
+        if keyboard_mouse {
+            self.input_used(InputMode::KeyboardMouse);
+        }
     }
 
     /// The touch controls, the chat's bar and the on-screen keyboard show.

@@ -1019,7 +1019,7 @@ fn shadow_every() -> u32 {
     std::env::var("HORIZON_SHADER_SHADOW_EVERY")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(if cfg!(target_os = "android") { 2 } else { 1 })
+        .unwrap_or(if crate::PHONE { 2 } else { 1 })
         .max(1)
 }
 

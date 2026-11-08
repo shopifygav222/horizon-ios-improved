@@ -25,10 +25,19 @@ pub struct Probes {
 }
 
 static PROBES: OnceLock<Probes> = OnceLock::new();
+/// The device's memory and its fastest core's clock (MHz), from a platform without /proc and
+/// sysfs to read them in (iOS).
+static DEVICE: OnceLock<(u64, u32)> = OnceLock::new();
 
 /// Registers the platform's probes (before the first sample).
 pub fn set_probes(probes: Probes) {
     let _ = PROBES.set(probes);
+}
+
+/// Registers what a platform without /proc and sysfs knows of its device (before the first start
+/// reads its [`Tier`]).
+pub fn set_device(ram_bytes: u64, fastest_mhz: u32) {
+    let _ = DEVICE.set((ram_bytes, fastest_mhz));
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -153,8 +162,12 @@ impl Tier {
             Self::High => "high",
         }
     }
-    /// This device's, where /proc and sysfs tell (Linux and Android).
+    /// This device's, where /proc and sysfs tell (Linux and Android) or the platform did
+    /// ([`set_device`], iOS).
     pub fn here() -> Option<Self> {
+        if let Some(&(ram, mhz)) = DEVICE.get() {
+            return Some(Self::of(ram, mhz));
+        }
         let meminfo = fs::read_to_string("/proc/meminfo").ok()?;
         let ram = kib_field(&meminfo, "MemTotal:")? * 1024;
         let core = fastest_core(Path::new("/sys/devices/system/cpu"))?;

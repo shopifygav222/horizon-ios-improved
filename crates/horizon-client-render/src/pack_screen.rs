@@ -26,7 +26,14 @@ pub enum Compat {
 /// The line under the title: where packs come from. A phone has no window to drop files on;
 /// they go in the game's folder in its shared storage (`datapacks` for data packs).
 fn drop_info(data: bool) -> Text {
-    if cfg!(target_os = "android") {
+    if cfg!(target_os = "ios") {
+        // The Files app shows the game folder as "Starling" (On My iPhone).
+        Text::literal(if data {
+            "Put data packs in Starling/datapacks, mods in Starling/horizon-mods (Files app)"
+        } else {
+            "Put packs in Starling/resourcepacks (Files app)"
+        })
+    } else if cfg!(target_os = "android") {
         Text::literal(phone_drop_info(data, phone_game_folder().as_deref()))
     } else {
         tr("pack.dropInfo")

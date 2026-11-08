@@ -645,9 +645,9 @@ impl Game<'_> {
         if !on || !self.has_touch() {
             return;
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         crate::android::vibrate(millis);
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let _ = millis;
     }
 
@@ -697,7 +697,7 @@ impl Game<'_> {
             self.yaw = turn.y_rot;
             self.pitch = turn.x_rot;
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {
             self.touch.gyro_on = wanted;
         }
@@ -716,6 +716,12 @@ impl Game<'_> {
         if let Err(e) = saved {
             log::warn!("Horizon: the touch layout was not saved: {e}");
         }
+    }
+
+    /// The on-screen keyboard was asked for (and so is the one typing: game/input_mode.rs).
+    #[cfg(target_os = "ios")]
+    pub(super) fn touch_keyboard_asked(&self) -> bool {
+        self.touch.keyboard
     }
 
     /// A touch event; true when it was taken (the caller passes the rest on).
@@ -979,7 +985,7 @@ impl Game<'_> {
                 self.touch.tap_from = None;
             }
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.touch.keyboard {
             if crate::android::ime_height() > 0 {
                 self.touch.ime_seen = true;
@@ -1606,7 +1612,7 @@ impl Game<'_> {
         // No window events here: the screen gets them back when the app returns.
         let _ = self.touch.pointer.cancel();
         // The gyroscope rests in the background; the next frame that aims listens again.
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if std::mem::take(&mut self.touch.gyro_on) {
             crate::android::gyroscope(false);
         }
@@ -1689,9 +1695,9 @@ impl Game<'_> {
             }
         }
     }
-    /// How far the on-screen keyboard covers the window, in pixels (Android).
+    /// How far the on-screen keyboard covers the window, in pixels (Android, iOS).
     fn keyboard_height(&self) -> u32 {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.touch.keyboard {
             return crate::android::ime_height();
         }

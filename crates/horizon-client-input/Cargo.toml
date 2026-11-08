@@ -16,7 +16,8 @@ png = "0.18"
 horizon-dualsense = { path = "../horizon-dualsense", optional = true }
 
 # No Android backend: the platform's clipboard stands in there (clipboard.rs).
-[target.'cfg(not(target_os = "android"))'.dependencies]
+# Not on the phones: arboard has neither an Android nor an iOS backend (clipboard.rs).
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 
 [features]

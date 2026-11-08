@@ -433,3 +433,36 @@ pub enum StatusBarStyle {
     LightContent,
     DarkContent,
 }
+
+/// A file another app handed this one to open ("Open in", the share sheet, Files): readable at
+/// [`path`](Self::path) until dropped, which ends the access iOS lent for it. Horizon's addition;
+/// an app with a `UIApplicationSceneManifest` gets them.
+#[cfg(ios_platform)]
+pub struct OpenedFile {
+    pub path: std::path::PathBuf,
+    pub(crate) url: objc2::rc::Retained<objc2::runtime::AnyObject>,
+}
+
+#[cfg(ios_platform)]
+impl Drop for OpenedFile {
+    fn drop(&mut self) {
+        // SAFETY: the NSURL the scene delegate started accessing, still alive.
+        let _: () = unsafe { objc2::msg_send![&*self.url, stopAccessingSecurityScopedResource] };
+    }
+}
+
+/// The files opened in this app since the last call (Horizon: the scene delegate keeps them).
+#[cfg(ios_platform)]
+pub fn take_opened_files() -> Vec<OpenedFile> {
+    crate::platform_impl::take_opened_files()
+}
+
+/// Whether something asked the event loop to exit since the last call ([`ActiveEventLoop::exit`],
+/// which iOS can't do: an app ends when the player closes it). Horizon's addition: its app ends
+/// the game that asked, and goes back to its launcher.
+///
+/// [`ActiveEventLoop::exit`]: crate::event_loop::ActiveEventLoop::exit
+#[cfg(ios_platform)]
+pub fn take_exit_request() -> bool {
+    crate::platform_impl::take_exit_request()
+}

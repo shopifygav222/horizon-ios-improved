@@ -215,3 +215,8 @@ mod utils;
 pub mod window;
 
 pub mod platform;
+
+// Horizon: exercise UIKit's layout-independent key mapping on the build host too.
+#[cfg(all(test, not(target_os = "ios")))]
+#[path = "platform_impl/ios/hardware_keyboard.rs"]
+mod ios_hardware_keyboard_tests;

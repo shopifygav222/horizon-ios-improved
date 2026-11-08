@@ -262,7 +262,7 @@ mod natural_spawning;
 mod nautili;
 mod net_harness;
 mod nether_portal;
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod no_resources;
 mod ominous_item_spawner;
 mod options;
@@ -569,10 +569,11 @@ impl Options {
     /// The command line, then what it asks of the process: the game folder, the account.
     /// A bad command line is a [`launch_api::UsageError`] (exit code 2, no crash report).
     fn read() -> Result<Option<Self>> {
-        // An Android activity has no command line: horizon-android builds one.
-        #[cfg(not(target_os = "android"))]
+        // An Android activity has no command line: horizon-android builds one (on iOS the app's
+        // start, ios.rs).
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let args = std::env::args().skip(1);
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let args = crate::android::args().into_iter();
         let Some(mut o) = Self::parse(args).map_err(|e| launch_api::UsageError(e.to_string()))?
         else {
@@ -21072,7 +21073,7 @@ fn start_game<'a>(
             title.skip_multiplayer_warning = game.settings.file.bool("skipMultiplayerWarning");
             // Gui.addInitialScreens: the accessibility onboarding comes first. Not on Android,
             // which has no narrator, and whose players' options all still ask for it.
-            if !cfg!(target_os = "android") && game.settings.file.bool("onboardAccessibility") {
+            if !horizon_client::PHONE && game.settings.file.bool("onboardAccessibility") {
                 title.start_onboarding();
             }
             game.title = Some(title);
@@ -21842,7 +21843,7 @@ impl ApplicationHandler for App {
             Step::Done => event_loop.exit(),
             Step::Failed(e) => {
                 if let App::Loading(loading) = self {
-                    if cfg!(target_os = "android") {
+                    if horizon_client::PHONE {
                         log::error!("Horizon: {e}");
                         loading.failure = Some(e.to_string());
                         return;
@@ -21869,7 +21870,7 @@ impl ApplicationHandler for App {
 /// Every launch reads the prepared game files (`horizon-prepare`'s output, whose
 /// manifest is `horizon-resources.json`): without them, say where they were
 /// looked for and how to get them, before a window or a loader starts.
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn missing_resources(root: &std::path::Path) -> Option<String> {
     if root.join("horizon-resources.json").is_file() {
         return None;
@@ -21937,7 +21938,18 @@ fn run_loading(
         sound_registry,
         suspended: false,
     };
-    let mut app = App::Loading(Box::new(loading));
+    let app = App::Loading(Box::new(loading));
+    // iOS: the app's event loop already runs (UIKit makes one a process, ios.rs), and takes the
+    // game from here, under the stack the game needs.
+    #[cfg(target_os = "ios")]
+    return crate::ios::take_game(Box::new(app));
+    #[cfg(not(target_os = "ios"))]
+    run_until_quit(app)
+}
+
+/// The loading screen and then the game on a new event loop, until the player quits.
+#[cfg(not(target_os = "ios"))]
+fn run_until_quit(mut app: App) -> Result<()> {
     let result = event_loop()?.run_app(&mut app);
     narrator::stop();
     match &mut app {
@@ -22010,8 +22022,9 @@ pub fn run_with() -> Result<()> {
         horizon_client::spans::record_here(true);
     }
     let vanilla_root = options.resources.clone();
-    // Android has no launcher to start from: the setup screen asks for the game files instead.
-    #[cfg(not(target_os = "android"))]
+    // Android has no launcher to start from: the setup screen asks for the game files instead
+    // (iOS's too).
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     if let Some(error) = missing_resources(&vanilla_root) {
         // The game build started by hand (the release's zip), not by the
         // launcher: a window says where to get it. Scripts and servers get
@@ -22055,12 +22068,12 @@ pub fn run_with() -> Result<()> {
             .spawn(move || horizon_client::bedrock_touch::fetch_logged(&root));
     }
     let options_txt = Game::options_path();
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     let first_start = !options_txt.exists();
     #[allow(unused_mut)]
     let mut early_settings = Settings::load(&options_txt);
     // A phone's first start: settings for what it can take, saved before anything reads them.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     if first_start && let Some(tier) = horizon_client::system_stats::Tier::here() {
         horizon_client::graphics::apply_mobile_defaults(tier, &mut early_settings);
         early_settings.save(&options_txt);

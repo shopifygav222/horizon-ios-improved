@@ -29,8 +29,8 @@ pub(super) const HELP: &[&str] = &[
 pub(super) struct Pads {
     /// Splitscreen: this player's pad, read by `PadRouter` for every game, instead of the pads.
     pub(super) feed: Option<PadState>,
-    /// The real controllers and the DualSense's output, or Android's controllers.
-    #[cfg(any(feature = "controllers", target_os = "android"))]
+    /// The real controllers and the DualSense's output, or Android's or iOS's controllers.
+    #[cfg(any(feature = "controllers", target_os = "android", target_os = "ios"))]
     devices: hardware::Devices,
     /// The virtual pad of `horizon-ctl pad`.
     injected: PadState,
@@ -86,6 +86,11 @@ pub(in crate::game) enum PadEvent {
 #[path = "pad/android.rs"]
 mod hardware;
 
+/// iOS's controllers, from Apple's GameController framework: gilrs has no iOS backend either.
+#[cfg(all(target_os = "ios", not(feature = "controllers")))]
+#[path = "pad/ios.rs"]
+mod hardware;
+
 /// The splitscreen's pad router where there are no gilrs pads to route (the server build, Android):
 /// no pad events, no pad to lend.
 #[cfg(not(feature = "controllers"))]
@@ -122,7 +127,7 @@ mod no_router {
 
 /// A build without the `controllers` feature (the server build, which must not need libudev): no
 /// hardware pads, only `horizon-ctl pad`'s virtual one.
-#[cfg(not(any(feature = "controllers", target_os = "android")))]
+#[cfg(not(any(feature = "controllers", target_os = "android", target_os = "ios")))]
 mod hardware {
     use super::{super::Game, Pads};
     use horizon_client::gamepad::{PadState, Pulse, Rumble};

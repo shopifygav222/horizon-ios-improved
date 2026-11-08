@@ -7,6 +7,12 @@ pub use horizon_client_lib::*;
 pub mod android;
 pub mod entry;
 pub mod game;
+// iOS: the app's hooks and the game's hand-over, which answer what the game asks of
+// `crate::android` where the phones share its code (ios.rs).
+#[cfg(target_os = "ios")]
+pub mod ios;
+#[cfg(target_os = "ios")]
+pub use ios as android;
 pub mod mod_api;
 
 pub mod diagnostics;

@@ -1,5 +1,6 @@
 #![allow(clippy::unnecessary_cast)]
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 
 use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
@@ -7,16 +8,19 @@ use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, De
 use objc2_foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject, NSSet, NSString};
 use objc2_ui_kit::{
     UICoordinateSpace, UIEvent, UIForceTouchCapability, UIGestureRecognizer,
-    UIGestureRecognizerDelegate, UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer,
-    UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer,
-    UITextInputTraits, UITouch, UITouchPhase, UITouchType, UITraitEnvironment, UIView,
+    UIGestureRecognizerDelegate, UIGestureRecognizerState, UIHoverGestureRecognizer, UIKeyInput,
+    UIPanGestureRecognizer, UIPinchGestureRecognizer, UIPress, UIPressesEvent, UIResponder,
+    UIRotationGestureRecognizer, UITapGestureRecognizer, UITextInputTraits, UITouch, UITouchPhase,
+    UITouchType, UITraitEnvironment, UIView,
 };
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
 use crate::dpi::PhysicalPosition;
 use crate::event::{ElementState, Event, Force, KeyEvent, Touch, TouchPhase, WindowEvent};
-use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
+use crate::keyboard::{
+    Key, KeyCode, KeyLocation, ModifiersState, NamedKey, PhysicalKey,
+};
 use crate::platform_impl::platform::DEVICE_ID;
 use crate::platform_impl::KeyEventExtra;
 use crate::window::{WindowAttributes, WindowId as RootWindowId};
@@ -31,6 +35,10 @@ pub struct WinitViewState {
     rotation_last_delta: Cell<CGFloat>,
     pinch_last_delta: Cell<CGFloat>,
     pan_last_delta: Cell<CGPoint>,
+    ime_allowed: Cell<bool>,
+    hidden_input: Retained<UIView>,
+    held_keys: RefCell<HashMap<usize, KeyEvent>>,
+    mouse: super::hardware_mouse::Mouse,
 }
 
 declare_class!(
@@ -69,16 +77,6 @@ declare_class!(
 
             let window = self.window().unwrap();
             let window_bounds = window.bounds();
-            let screen = window.screen();
-            let screen_space = screen.coordinateSpace();
-            let screen_frame = self.convertRect_toCoordinateSpace(window_bounds, &screen_space);
-            let scale_factor = screen.scale();
-            let size = crate::dpi::LogicalSize {
-                width: screen_frame.size.width as f64,
-                height: screen_frame.size.height as f64,
-            }
-            .to_physical(scale_factor as f64);
-
             // If the app is started in landscape, the view frame and window bounds can be mismatched.
             // The view frame will be in portrait and the window bounds in landscape. So apply the
             // window bounds to the view frame to make it consistent.
@@ -86,6 +84,15 @@ declare_class!(
             if view_frame != window_bounds {
                 self.setFrame(window_bounds);
             }
+
+            // Match Window::inner_size, the Metal layer, and view-local input.
+            // Query after correcting the frame so rotation cannot report old bounds.
+            let bounds = self.bounds();
+            let size = crate::dpi::LogicalSize {
+                width: bounds.size.width as f64,
+                height: bounds.size.height as f64,
+            }
+            .to_physical(self.contentScaleFactor() as f64);
 
             app_state::handle_nonuser_event(
                 mtm,
@@ -122,12 +129,9 @@ declare_class!(
             );
             let scale_factor = scale_factor as f64;
             let bounds = self.bounds();
-            let screen = window.screen();
-            let screen_space = screen.coordinateSpace();
-            let screen_frame = self.convertRect_toCoordinateSpace(bounds, &screen_space);
             let size = crate::dpi::LogicalSize {
-                width: screen_frame.size.width as f64,
-                height: screen_frame.size.height as f64,
+                width: bounds.size.width as f64,
+                height: bounds.size.height as f64,
             };
             let window_id = RootWindowId(window.id());
             app_state::handle_nonuser_events(
@@ -317,6 +321,57 @@ declare_class!(
             app_state::handle_nonuser_event(mtm, gesture_event);
         }
 
+        // Remain a responder during gameplay while an empty input view hides the software keyboard.
+        #[method(inputView)]
+        fn input_view(&self) -> Option<&UIView> {
+            if self.ivars().ime_allowed.get() { None } else { Some(&*self.ivars().hidden_input) }
+        }
+
+        #[method(didMoveToWindow)]
+        fn did_move_to_window(&self) {
+            let _: () = unsafe { msg_send![super(self), didMoveToWindow] };
+            if self.window().is_some() { unsafe { self.becomeFirstResponder(); } }
+        }
+
+        #[method(resignFirstResponder)]
+        fn resign_first_responder(&self) -> bool {
+            self.release_hardware_keys();
+            self.set_mouse_captured(false);
+            unsafe { msg_send![super(self), resignFirstResponder] }
+        }
+
+        #[method(pressesBegan:withEvent:)]
+        fn presses_began(&self, presses: &NSSet<UIPress>, event: Option<&UIPressesEvent>) {
+            if !self.handle_presses(presses, ElementState::Pressed) {
+                let _: () = unsafe { msg_send![super(self), pressesBegan: presses withEvent: event] };
+            }
+        }
+
+        #[method(pressesEnded:withEvent:)]
+        fn presses_ended(&self, presses: &NSSet<UIPress>, event: Option<&UIPressesEvent>) {
+            if !self.handle_presses(presses, ElementState::Released) {
+                let _: () = unsafe { msg_send![super(self), pressesEnded: presses withEvent: event] };
+            }
+        }
+
+        #[method(pressesCancelled:withEvent:)]
+        fn presses_cancelled(&self, presses: &NSSet<UIPress>, event: Option<&UIPressesEvent>) {
+            if !self.handle_presses(presses, ElementState::Released) {
+                let _: () = unsafe { msg_send![super(self), pressesCancelled: presses withEvent: event] };
+            }
+        }
+
+        #[method(hardwareHover:)]
+        fn hardware_hover(&self, recognizer: &UIHoverGestureRecognizer) {
+            if self.ivars().mouse.captured() { return; }
+            let Some(window) = self.window() else { return };
+            let at = unsafe { recognizer.locationInView(Some(self)) };
+            app_state::handle_nonuser_event(MainThreadMarker::from(self),
+                EventWrapper::StaticEvent(Event::WindowEvent { window_id: RootWindowId(window.id()),
+                    event: WindowEvent::CursorMoved { device_id: DEVICE_ID,
+                        position: PhysicalPosition::new(at.x * self.contentScaleFactor(), at.y * self.contentScaleFactor()) } }));
+        }
+
         #[method(canBecomeFirstResponder)]
         fn can_become_first_responder(&self) -> bool {
             true
@@ -368,10 +423,22 @@ impl WinitView {
             rotation_last_delta: Cell::new(0.0),
             pinch_last_delta: Cell::new(0.0),
             pan_last_delta: Cell::new(CGPoint { x: 0.0, y: 0.0 }),
+            ime_allowed: Cell::new(false),
+            hidden_input: unsafe { UIView::new(mtm) },
+            held_keys: RefCell::new(HashMap::new()),
+            mouse: super::hardware_mouse::Mouse::default(),
         });
         let this: Retained<Self> = unsafe { msg_send_id![super(this), initWithFrame: frame] };
 
         this.setMultipleTouchEnabled(true);
+        let hover = unsafe {
+            UIHoverGestureRecognizer::initWithTarget_action(
+                mtm.alloc(),
+                Some(&*this),
+                Some(sel!(hardwareHover:)),
+            )
+        };
+        this.addGestureRecognizer(&hover);
 
         if let Some(scale_factor) = window_attributes.platform_specific.scale_factor {
             this.setContentScaleFactor(scale_factor as _);
@@ -382,7 +449,9 @@ impl WinitView {
 
     fn window(&self) -> Option<Retained<WinitUIWindow>> {
         // SAFETY: `WinitView`s are always installed in a `WinitUIWindow`
-        (**self).window().map(|window| unsafe { Retained::cast(window) })
+        (**self)
+            .window()
+            .map(|window| unsafe { Retained::cast(window) })
     }
 
     pub(crate) fn recognize_pinch_gesture(&self, should_recognize: bool) {
@@ -467,7 +536,9 @@ impl WinitView {
                 };
                 rotation.setDelegate(Some(ProtocolObject::from_ref(self)));
                 self.addGestureRecognizer(&rotation);
-                self.ivars().rotation_gesture_recognizer.replace(Some(rotation));
+                self.ivars()
+                    .rotation_gesture_recognizer
+                    .replace(Some(rotation));
             }
         } else if let Some(recognizer) = self.ivars().rotation_gesture_recognizer.take() {
             self.removeGestureRecognizer(&recognizer);
@@ -479,8 +550,12 @@ impl WinitView {
         let mut touch_events = Vec::new();
         let os_supports_force = app_state::os_capabilities().force_touch;
         for touch in touches {
-            let logical_location = touch.locationInView(None);
+            // Hover, direct touches and trackpad clicks share the render-view origin.
+            let logical_location = touch.locationInView(Some(self));
             let touch_type = touch.r#type();
+            if touch_type == UITouchType::IndirectPointer && self.ivars().mouse.captured() {
+                continue;
+            }
             let force = if os_supports_force {
                 let trait_collection = self.traitCollection();
                 let touch_capability = trait_collection.forceTouchCapability();
@@ -525,6 +600,33 @@ impl WinitView {
                     scale_factor as f64,
                 )
             };
+            if touch_type == UITouchType::IndirectPointer {
+                touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: RootWindowId(window.id()),
+                    event: WindowEvent::CursorMoved {
+                        device_id: DEVICE_ID,
+                        position: physical_location,
+                    },
+                }));
+                if matches!(
+                    phase,
+                    TouchPhase::Started | TouchPhase::Ended | TouchPhase::Cancelled
+                ) {
+                    touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                        window_id: RootWindowId(window.id()),
+                        event: WindowEvent::MouseInput {
+                            device_id: DEVICE_ID,
+                            button: crate::event::MouseButton::Left,
+                            state: if phase == TouchPhase::Started {
+                                ElementState::Pressed
+                            } else {
+                                ElementState::Released
+                            },
+                        },
+                    }));
+                }
+                continue;
+            }
             touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
                 event: WindowEvent::Touch(Touch {
@@ -540,41 +642,152 @@ impl WinitView {
         app_state::handle_nonuser_events(mtm, touch_events);
     }
 
+    pub(crate) fn set_mouse_captured(&self, captured: bool) {
+        self.ivars().mouse.capture(captured);
+        self.update_mice();
+    }
+
+    pub(crate) fn update_mice(&self) {
+        if let Some(window) = self.window() {
+            self.ivars().mouse.update(RootWindowId(window.id()));
+        }
+    }
+
+    pub(crate) fn set_ime_allowed(&self, allowed: bool) {
+        self.ivars().ime_allowed.set(allowed);
+        unsafe {
+            self.reloadInputViews();
+            self.becomeFirstResponder();
+        }
+    }
+
+    fn emit_hardware_key(&self, event: KeyEvent) {
+        let Some(window) = self.window() else { return };
+        app_state::handle_nonuser_event(
+            MainThreadMarker::from(self),
+            EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: RootWindowId(window.id()),
+                event: WindowEvent::KeyboardInput {
+                    device_id: DEVICE_ID,
+                    event,
+                    is_synthetic: false,
+                },
+            }),
+        );
+    }
+
+    fn release_hardware_keys(&self) {
+        let held = std::mem::take(&mut *self.ivars().held_keys.borrow_mut());
+        for (_, mut event) in held {
+            event.state = ElementState::Released;
+            event.text = None;
+            event.repeat = false;
+            self.emit_hardware_key(event);
+        }
+        if let Some(window) = self.window() {
+            app_state::handle_nonuser_event(
+                MainThreadMarker::from(self),
+                EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: RootWindowId(window.id()),
+                    event: WindowEvent::ModifiersChanged(ModifiersState::empty().into()),
+                }),
+            );
+        }
+    }
+
+    fn handle_presses(&self, presses: &NSSet<UIPress>, state: ElementState) -> bool {
+        let mut handled = false;
+        for press in presses {
+            // UIKey is present only for keyboard presses (iOS 13.4+, app minimum is 16).
+            let Some(key) = (unsafe { press.key(MainThreadMarker::from(self)) }) else {
+                continue;
+            };
+            handled = true;
+            let usage = unsafe { key.keyCode() }.0 as usize;
+            let physical_key = super::hardware_keyboard::physical_key(usage);
+            let flags = unsafe { key.modifierFlags() }.0;
+            let mut modifiers = ModifiersState::empty();
+            modifiers.set(ModifiersState::SHIFT, flags & (1 << 17) != 0);
+            modifiers.set(ModifiersState::CONTROL, flags & (1 << 18) != 0);
+            modifiers.set(ModifiersState::ALT, flags & (1 << 19) != 0);
+            modifiers.set(ModifiersState::SUPER, flags & (1 << 20) != 0);
+            if let Some(window) = self.window() {
+                app_state::handle_nonuser_event(
+                    MainThreadMarker::from(self),
+                    EventWrapper::StaticEvent(Event::WindowEvent {
+                        window_id: RootWindowId(window.id()),
+                        event: WindowEvent::ModifiersChanged(modifiers.into()),
+                    }),
+                );
+            }
+            let text = unsafe { key.characters() }.to_string();
+            let logical_key = super::hardware_keyboard::logical_key(physical_key, &text);
+            let event_text = if state == ElementState::Pressed {
+                super::hardware_keyboard::key_text(&logical_key, &text)
+            } else {
+                None
+            };
+            let event = KeyEvent {
+                physical_key,
+                logical_key,
+                text: event_text,
+                location: super::hardware_keyboard::location(physical_key),
+                state,
+                repeat: state == ElementState::Pressed
+                    && self.ivars().held_keys.borrow().contains_key(&usage),
+                platform_specific: KeyEventExtra {},
+            };
+            if state == ElementState::Pressed {
+                self.ivars()
+                    .held_keys
+                    .borrow_mut()
+                    .insert(usage, event.clone());
+            } else {
+                self.ivars().held_keys.borrow_mut().remove(&usage);
+            }
+            self.emit_hardware_key(event);
+        }
+        handled
+    }
+
     fn handle_insert_text(&self, text: &NSString) {
         let window = self.window().unwrap();
         let window_id = RootWindowId(window.id());
         let mtm = MainThreadMarker::new().unwrap();
-        // send individual events for each character
+        // Both software typing and hardware navigation can arrive via insertText:.
+        // Decode navigation tokens before expanding genuine text into characters.
         app_state::handle_nonuser_events(
             mtm,
-            text.to_string().chars().flat_map(|c| {
-                let text = smol_str::SmolStr::from_iter([c]);
-                // Emit both press and release events
-                [ElementState::Pressed, ElementState::Released].map(|state| {
-                    EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::KeyboardInput {
-                            event: KeyEvent {
-                                text: if state == ElementState::Pressed {
-                                    Some(text.clone())
-                                } else {
-                                    None
+            super::hardware_keyboard::insert_text_keys(&text.to_string())
+                .into_iter()
+                .flat_map(|(physical_key, logical_key)| {
+                    let text = match &logical_key {
+                        Key::Character(text) => Some(text.clone()),
+                        _ => None,
+                    };
+                    [ElementState::Pressed, ElementState::Released].map(|state| {
+                        EventWrapper::StaticEvent(Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::KeyboardInput {
+                                event: KeyEvent {
+                                    text: if state == ElementState::Pressed {
+                                        text.clone()
+                                    } else {
+                                        None
+                                    },
+                                    state,
+                                    location: KeyLocation::Standard,
+                                    repeat: false,
+                                    logical_key: logical_key.clone(),
+                                    physical_key,
+                                    platform_specific: KeyEventExtra {},
                                 },
-                                state,
-                                location: KeyLocation::Standard,
-                                repeat: false,
-                                logical_key: Key::Character(text.clone()),
-                                physical_key: PhysicalKey::Unidentified(
-                                    NativeKeyCode::Unidentified,
-                                ),
-                                platform_specific: KeyEventExtra {},
+                                is_synthetic: false,
+                                device_id: DEVICE_ID,
                             },
-                            is_synthetic: false,
-                            device_id: DEVICE_ID,
-                        },
+                        })
                     })
-                })
-            }),
+                }),
         );
     }
 

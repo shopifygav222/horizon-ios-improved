@@ -9,6 +9,22 @@ use std::{
 };
 
 const TYPE_SRV: u16 = 33;
+type SystemSrvLookup = fn(&str) -> Option<Vec<u8>>;
+static SYSTEM_SRV_LOOKUP: std::sync::OnceLock<SystemSrvLookup> = std::sync::OnceLock::new();
+
+/// Install a platform resolver returning a complete DNS SRV response: iOS's mDNSResponder follows
+/// the active network, VPNs and Private Relay, which no list of name servers does.
+pub fn install_system_srv_lookup(lookup: SystemSrvLookup) {
+    let _ = SYSTEM_SRV_LOOKUP.set(lookup);
+}
+
+fn system_reply(reply: &[u8]) -> Option<(String, u16)> {
+    let id = u16::from_be_bytes(reply.get(..2)?.try_into().ok()?);
+    match parse_reply(id, reply) {
+        Reply::Answer(answer) => answer,
+        _ => None,
+    }
+}
 /// JNDI's `com.sun.jndi.dns.timeout.initial`, per name server.
 pub(super) const SERVER_TIMEOUT: Duration = Duration::from_secs(1);
 
@@ -73,6 +89,11 @@ pub(super) fn query_srv(
     servers: &[SocketAddr],
     timeout: Duration,
 ) -> Option<(String, u16)> {
+    if let Some(lookup) = SYSTEM_SRV_LOOKUP.get()
+        && let Some(reply) = lookup(name)
+    {
+        return system_reply(&reply);
+    }
     let mut id = [0; 2];
     getrandom::fill(&mut id).ok()?;
     let id = u16::from_be_bytes(id);

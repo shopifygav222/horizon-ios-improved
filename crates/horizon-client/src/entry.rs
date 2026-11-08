@@ -21,10 +21,11 @@ pub fn start(mods: crate::mod_api::Mods, after_log: impl FnOnce()) {
     horizon_threads::configure_allocator();
     horizon_client::telemetry::mark_start();
     horizon_client::spans::startup::init(std::time::Instant::now());
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let args: Vec<String> = std::env::args().skip(1).collect();
-    // The process has no command line: `horizon-args.txt`'s, read by `android::main`.
-    #[cfg(target_os = "android")]
+    // The process has no command line: `horizon-args.txt`'s, read by `android::main` (on iOS
+    // the app's, ios.rs).
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     let args: Vec<String> = crate::android::args();
     let game_args = args.iter().take_while(|a| *a != "--dedicated");
     let help = game_args
@@ -198,7 +199,10 @@ pub fn start(mods: crate::mod_api::Mods, after_log: impl FnOnce()) {
         // The activity ends first, and the process without the C library's exit handlers.
         #[cfg(target_os = "android")]
         crate::android::finish_and_exit();
-        #[cfg(not(target_os = "android"))]
+        // An iOS app ends only when the player closes it: the app shows the failure instead.
+        #[cfg(target_os = "ios")]
+        crate::ios::game_failed(&error.to_string());
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         std::process::exit(if usage {
             game::exit_code::USAGE
         } else {

@@ -154,7 +154,7 @@ impl RulesScreen {
         // setInitialFocus: the search box. On a phone the focus opens the keyboard: there it waits
         // for a tap.
         let mut search = EditBox::new(0.0, 0.0, SEARCH_WIDTH, 15.0);
-        search.focused = !cfg!(target_os = "android");
+        search.focused = !horizon_client::PHONE;
         let numbers = rules
             .available_rules()
             .filter(|r| matches!(r.default, Value::Int(_)))

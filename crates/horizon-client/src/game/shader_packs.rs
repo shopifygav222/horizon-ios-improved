@@ -358,7 +358,7 @@ impl Game<'_> {
                         // On a phone whatever the profile: it pays for itself even on a pack's
                         // highest settings, and the player picks a profile for how it looks.
                         renderer.set_pack_prepass(
-                            (cfg!(target_os = "android") || profile == AUTO_PROFILE)
+                            (horizon_client::PHONE || profile == AUTO_PROFILE)
                                 && !light_shader_pack(name),
                         );
                         let inputs = renderer.pack_inputs();
