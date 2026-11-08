@@ -365,9 +365,11 @@ pub fn download_files() {
                     s.files = Files::Downloading(p);
                 }
             };
+            // The server jar and the libraries are Java's, which iOS doesn't run (preparer.rs):
+            // the app carries what they made.
             let wanted = Wanted {
-                server: true,
-                libraries: true,
+                server: !cfg!(target_os = "ios"),
+                libraries: !cfg!(target_os = "ios"),
                 assets: true,
             };
             let pins = Pins::starling();

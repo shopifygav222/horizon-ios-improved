@@ -1,0 +1,116 @@
+# Starling's iOS app, as an XcodeGen spec (IOS-SYNC.md).
+#
+# Xcode does not like being edited in source control, so the repository keeps this file and
+# `xcodegen` writes StarlingIOS.xcodeproj from it:
+#   brew install xcodegen && cd packaging/ios && xcodegen generate
+# Generating from this directory matters: $(SRCROOT) below is this directory.
+#
+# The game is the `horizon-ios-game` binary (crates/horizon-ios-game): Starling's game and Horizon
+# Android's launcher, drawn with Metal. Xcode wraps it so the bundle can be signed, and copies in
+# beside it what Starling's APK carries in assets/ (tools/ios_prepare.py makes them in
+# .local/ios/assets: the game tables horizon-prepare made, the setup's skin, Starling Visuals).
+# .github/workflows/ios.yml runs the same steps for the unsigned .ipa.
+name: StarlingIOS
+options:
+  pathBase: project
+  createIntermediateGroups: true
+  # A format every Xcode since 15.3 opens.
+  projectFormat: xcode15_3
+  xcodeVersion: "15.4"
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    # Starling's own version (packaging/android/build_apk.py's VERSION_NAME); the workflow passes it.
+    MARKETING_VERSION: 0.2.3
+    CURRENT_PROJECT_VERSION: 1
+    IPHONEOS_DEPLOYMENT_TARGET: 16.0
+    ENABLE_STRICT_OBJC_MSGSEND: YES
+    GCC_NO_COMMON_BLOCKS: YES
+    # The target writes its own Info.plist (GENERATE_INFOPLIST_FILE: NO), which names the icon.
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    # A build setting rather than the workflow's environment: build phases get Xcode's environment,
+    # and both scripts below must ask for the same target the workflow builds.
+    IOS_TARGET: aarch64-apple-ios
+targets:
+  # The game, in a bundle Xcode can sign:
+  #
+  #   1. Cargo builds `horizon-ios-game` for the phone (the pre-compile phase).
+  #   2. Xcode links GameShell/main.m, which only gives the target an executable.
+  #   3. The post-compile phase replaces that executable with the Rust one and adds the assets;
+  #      Xcode signs the bundle afterwards, so what reaches the phone carries a valid signature.
+  StarlingGame:
+    type: application
+    platform: iOS
+    productName: Starling
+    sources:
+      - path: GameShell
+      - path: Assets.xcassets
+    preBuildScripts:
+      - name: Build the game with Cargo
+        shell: /bin/bash
+        showEnvVarsInLog: false
+        script: |
+          set -euo pipefail
+          # Xcode's build phases do not get your shell's PATH; rustup's binaries live in ~/.cargo/bin.
+          export PATH="$HOME/.cargo/bin:$PATH"
+          command -v cargo >/dev/null 2>&1 || {
+            echo "error: no cargo on PATH. Install Rust with https://rustup.rs, or run Xcode from a terminal." >&2
+            exit 1
+          }
+          sysroot=$(rustc --print sysroot)
+          test -d "$sysroot/lib/rustlib/$IOS_TARGET/lib" || {
+            echo "error: Rust has no standard library for $IOS_TARGET. Run: rustup target add $IOS_TARGET" >&2
+            exit 1
+          }
+          cd "$SRCROOT/../.."
+          # CI builds the game in its own step first and sets this, so the bundle step does not compile it twice.
+          if [ -n "${HORIZON_GAME_PREBUILT:-}" ] && [ -x "target/$IOS_TARGET/release/horizon-ios-game" ]; then
+            echo "Starling: using the game Cargo already built (HORIZON_GAME_PREBUILT)."
+            exit 0
+          fi
+          cargo build --release --target "$IOS_TARGET" -p horizon-ios-game
+    postCompileScripts:
+      - name: Put the Rust game and the app's assets in the bundle
+        shell: /bin/bash
+        showEnvVarsInLog: false
+        script: |
+          set -euo pipefail
+          root="$SRCROOT/../.."
+          game="$root/target/$IOS_TARGET/release/horizon-ios-game"
+          test -x "$game" || {
+            echo "error: the Cargo phase reported success and left no $game" >&2
+            exit 1
+          }
+          bundle="$BUILT_PRODUCTS_DIR/$WRAPPER_NAME"
+          cp "$game" "$bundle/$EXECUTABLE_NAME"
+          chmod +x "$bundle/$EXECUTABLE_NAME"
+          echo "Starling: $bundle/$EXECUTABLE_NAME is now the Rust game, $(stat -f %z "$bundle/$EXECUTABLE_NAME") bytes."
+          # What Starling's APK carries in assets/, read by the game's platform::asset (ios.rs) and
+          # its preparer (engine-data.zip, preparer.rs).
+          assets="$root/.local/ios/assets"
+          if [ -d "$assets" ]; then
+            mkdir -p "$bundle/assets"
+            cp "$assets"/* "$bundle/assets/"
+            echo "Starling: bundled $(ls "$assets" | tr '\n' ' ')"
+          else
+            echo "warning: no $assets; run tools/ios_prepare.py first, or the setup can't prepare the game."
+          fi
+    settings:
+      base:
+        INFOPLIST_FILE: GameInfo.plist
+        GENERATE_INFOPLIST_FILE: NO
+        # A separate app from Horizon's iOS app (dev.horizon.game): both install side by side.
+        PRODUCT_BUNDLE_IDENTIFIER: dev.horizon.starling
+        PRODUCT_NAME: Starling
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # The name inside the bundle, so GameInfo.plist's CFBundleExecutable is true of this build.
+        EXECUTABLE_NAME: Starling
+
+schemes:
+  Starling:
+    build:
+      targets:
+        StarlingGame: All
+    run:
+      config: Release

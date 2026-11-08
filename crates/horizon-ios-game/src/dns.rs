@@ -98,6 +98,9 @@ pub fn query_srv(name: &str) -> Option<Vec<u8>> {
     let question = encode_name(name)?;
     let fullname = CString::new(name).ok()?;
     let mut answer = Answer::Pending;
+    // The callback writes the answer through this pointer, inside DNSServiceProcessResult: the
+    // loop reads it through the same one.
+    let answer_at: *mut Answer = &raw mut answer;
     let mut sd_ref: DnsServiceRef = std::ptr::null_mut();
     // SAFETY: `answer` outlives the query, which is deallocated before this returns; every
     // pointer passed is live for the call.
@@ -110,14 +113,17 @@ pub fn query_srv(name: &str) -> Option<Vec<u8>> {
             TYPE_SRV,
             CLASS_IN,
             reply,
-            (&raw mut answer).cast(),
+            answer_at.cast(),
         );
         if error != 0 || sd_ref.is_null() {
             return None;
         }
         let fd = DNSServiceRefSockFD(sd_ref);
         let deadline = Instant::now() + Duration::from_secs(5);
-        while fd >= 0 && matches!(answer, Answer::Pending) {
+        loop {
+            if fd < 0 || !matches!(*answer_at, Answer::Pending) {
+                break;
+            }
             let left = deadline.saturating_duration_since(Instant::now());
             if left.is_zero() {
                 break;

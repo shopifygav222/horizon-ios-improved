@@ -72,6 +72,8 @@ horizon-bench = { path = "../horizon-bench" }
 starling-account = { path = "../starling-account" }
 # The game files prepared on a phone (`preparer.rs`), where no computer prepares them.
 horizon-prepare = { path = "../horizon-prepare" }
+# iOS's: what horizon-prepare made in CI, laid out with the player's own files (`preparer.rs`).
+horizon-ios-prepare = { path = "../horizon-ios-prepare" }
 zip = { version = "9.1.3", default-features = false, features = ["deflate"] }
 # Controllers (evdev + libudev on Linux, IOKit on macOS, Windows.Gaming.Input); the `controllers` feature.
 gilrs = { version = "0.11", optional = true }

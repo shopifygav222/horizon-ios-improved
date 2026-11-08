@@ -1,8 +1,11 @@
 name: ios
 run-name: iOS · ${{ github.sha }}
-# Starling for iPhone and iPad (this port, IOS-SYNC.md): `horizon-ios-game` cross-compiled for
-# aarch64-apple-ios and linted. A push checks that it builds; the unsigned .ipa is made and kept
-# only when dispatched with `deliver`.
+# Starling for iPhone and iPad (this port, IOS-SYNC.md), on every push to starling-ios:
+#   ipa: `horizon-ios-game` cross-compiled for aarch64-apple-ios and linted; the game files Starling's
+#        Android app prepares with Java, prepared here (tools/ios_prepare.py) and proved to come back on
+#        the phone file for file; the app bundled and checked to carry none of Mojang's files. The
+#        unsigned .ipa is kept only when dispatched with `deliver`.
+#   simulator: the same game for the iOS Simulator, started there and checked to get through its start.
 on:
   push:
     branches: [starling-ios]
@@ -19,7 +22,6 @@ concurrency:
   cancel-in-progress: true
 env:
   HORIZON_TELEMETRY_URL: "off"
-  IOS_TARGET: aarch64-apple-ios
   # Release with fewer codegen passes: the release profile's single unit and LTO cost minutes.
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
   CARGO_PROFILE_RELEASE_LTO: "false"
@@ -31,7 +33,9 @@ env:
 jobs:
   ipa:
     runs-on: macos-26
-    timeout-minutes: 180
+    timeout-minutes: 240
+    env:
+      IOS_TARGET: aarch64-apple-ios
     defaults:
       run:
         shell: bash
@@ -59,10 +63,8 @@ jobs:
       # This port's code and Starling's must be warning-free on iOS; the vendored UIKit backend and
       # registry crates are shown, not failed on.
       - name: Lint the game for iOS
-        id: lint
         if: always()
         run: |
-          set -o pipefail
           cargo clippy --keep-going --target "$IOS_TARGET" -p horizon-ios-game \
             --message-format short 2>&1 | tee clippy.log || true
           if grep -E '^(crates|launcher)/[^:]+:[0-9]+:[0-9]+: (warning|error)' clippy.log; then
@@ -83,3 +85,109 @@ jobs:
           path: lock/Cargo.lock
           retention-days: 7
           if-no-files-found: ignore
+      # The game files don't depend on the game's build: checked even when it failed.
+      - uses: actions/setup-java@v4
+        if: always()
+        with:
+          distribution: temurin
+          java-version: '25'
+      # Mojang's files, checked again each run, kept between runs so they are fetched once.
+      - uses: actions/cache@v4
+        if: always()
+        with:
+          path: .local/ios-cache/minecraft
+          key: ios-minecraft-${{ hashFiles('research-lock.json') }}
+      - name: Prepare the game files and prove the phone lays them out the same
+        if: always()
+        run: |
+          set -euo pipefail
+          # A phone's file system is case-sensitive; this Mac's is not.
+          hdiutil create -size 16g -fs 'Case-sensitive APFS' -volname StarlingPrep -type SPARSE \
+            "$RUNNER_TEMP/prep.sparseimage" > /dev/null
+          hdiutil attach "$RUNNER_TEMP/prep.sparseimage" > /dev/null
+          python3 tools/ios_prepare.py --java-home "$JAVA_HOME" \
+            --minecraft .local/ios-cache/minecraft --work /Volumes/StarlingPrep/work
+      - name: Bundle it
+        run: |
+          set -euo pipefail
+          version=$(python3 -c 'import sys; sys.path.insert(0, "packaging/android"); import build_apk; print(build_apk.VERSION_NAME)')
+          command -v xcodegen >/dev/null || brew install xcodegen
+          ( cd packaging/ios && xcodegen generate )
+          HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/StarlingIOS.xcodeproj \
+            -target StarlingGame -configuration Release -sdk iphoneos -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO \
+            DEBUG_INFORMATION_FORMAT=dwarf MARKETING_VERSION="$version" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            CONFIGURATION_BUILD_DIR="$PWD/build-ios" \
+            build > xcode-build.log 2>&1 || { tail -80 xcode-build.log; exit 1; }
+          app=build-ios/Starling.app
+          for asset in engine-data.zip lowbudget.zip StarlingVisuals.zip; do
+            test -f "$app/assets/$asset" || { echo "::error::the app has no assets/$asset"; exit 1; }
+          done
+          cmp -s "$app/Starling" "target/$IOS_TARGET/release/horizon-ios-game" \
+            || { echo '::error::the app does not contain the Rust game'; exit 1; }
+          rm -rf game && mkdir -p game/Payload
+          cp -a "$app" game/Payload/
+          ( cd game && zip -qry ../Starling-iOS-unsigned.ipa Payload )
+          ls -l Starling-iOS-unsigned.ipa
+      - name: Preserve the Xcode log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcode-log
+          path: xcode-build.log
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Check the distributable carries no Mojang files
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('Starling-iOS-unsigned.ipa') as ipa:
+              names = ipa.namelist()
+          bad = [n for n in names if n.endswith(('.jar', '.ogg')) or '/minecraft/' in n or n.endswith('asset-index.json')]
+          if bad:
+              raise SystemExit(f'::error::the .ipa carries game files: {bad[:5]}')
+          print(f'{len(names)} entries, none of them Mojang files')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.deliver }}
+        with:
+          name: starling-ios-${{ github.run_number }}
+          path: Starling-iOS-unsigned.ipa
+          retention-days: 30
+          if-no-files-found: error
+
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 180
+    env:
+      IOS_TARGET: aarch64-apple-ios-sim
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Rust and its iOS Simulator standard library
+        run: |
+          rustup toolchain install stable --profile minimal --target "$IOS_TARGET"
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ios-${{ env.IOS_TARGET }}
+          cache-on-failure: true
+      - name: Build the game for the Simulator
+        run: cargo build --release --keep-going --target "$IOS_TARGET" -p horizon-ios-game
+      - name: Bundle it for the Simulator
+        run: |
+          set -euo pipefail
+          command -v xcodegen >/dev/null || brew install xcodegen
+          ( cd packaging/ios && xcodegen generate )
+          HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/StarlingIOS.xcodeproj \
+            -target StarlingGame -configuration Release -sdk iphonesimulator -arch arm64 \
+            IOS_TARGET="$IOS_TARGET" CODE_SIGN_IDENTITY=- \
+            CONFIGURATION_BUILD_DIR="$PWD/build-sim" \
+            build > xcode-sim.log 2>&1 || { tail -80 xcode-sim.log; exit 1; }
+      - name: Start it in the Simulator
+        run: bash tools/ci/ios_simulator_smoke.sh build-sim/Starling.app

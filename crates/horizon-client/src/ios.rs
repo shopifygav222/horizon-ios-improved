@@ -180,6 +180,113 @@ pub fn put_in_inbox(path: &Path) {
     }
 }
 
+/// iOS can't tell whether another app is installed: the setup offers Horizon's worlds once, and
+/// a Skip there is final (game/setup.rs).
+pub fn horizon_android_installed() -> bool {
+    true
+}
+
+/// Horizon's own folder picked in Files (its iOS app's, "Horizon"), or any folder of it: its
+/// worlds and resource and shader packs into the import inbox, as Starling's HorizonImport.java
+/// brings Horizon Android's. False when no picker could open.
+pub fn import_horizon_android() -> bool {
+    horizon_gamecontroller::pick(
+        horizon_gamecontroller::Pick::Folder,
+        Box::new(|folders| {
+            for folder in folders {
+                let brought = bring_horizon(&folder, 0);
+                log::info!(
+                    "Horizon: {brought} worlds and packs from {} on their way",
+                    folder.display()
+                );
+            }
+        }),
+    )
+}
+
+/// How deep [`bring_horizon`] looks for worlds and packs (Horizon's profiles hold them a few
+/// folders down).
+const HORIZON_DEPTH: usize = 6;
+/// What a world keeps that is the running game's, not the world's.
+const LOCK: &str = "session.lock";
+
+/// Each world (a folder with `level.dat`) under `dir`, and each pack in a `resourcepacks` or
+/// `shaderpacks` folder, into the inbox: how many went.
+fn bring_horizon(dir: &Path, depth: usize) -> usize {
+    if dir.join("level.dat").is_file() {
+        return usize::from(zip_to_inbox(dir).is_ok());
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    let packs = matches!(
+        dir.file_name().and_then(|n| n.to_str()),
+        Some("resourcepacks" | "shaderpacks")
+    );
+    let mut brought = 0;
+    for entry in entries.flatten() {
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        let path = entry.path();
+        if packs && kind.is_file() {
+            put_in_inbox(&path);
+            brought += 1;
+        } else if packs && kind.is_dir() && path.join("pack.mcmeta").is_file() {
+            brought += usize::from(zip_to_inbox(&path).is_ok());
+        } else if kind.is_dir() && depth < HORIZON_DEPTH {
+            brought += bring_horizon(&path, depth + 1);
+        }
+    }
+    brought
+}
+
+/// A folder (a world, a pack) as `<name>.zip` in the inbox (`.part` until complete), its files
+/// under `<name>/`, a world's lock left out.
+fn zip_to_inbox(folder: &Path) -> std::io::Result<()> {
+    use std::io::Write;
+    let name = folder
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .ok_or_else(|| std::io::Error::other("a folder without a name"))?;
+    let inbox = crate::import::inbox_dir();
+    std::fs::create_dir_all(&inbox)?;
+    let part = inbox.join(format!("{name}.zip.part"));
+    let result = (|| -> std::io::Result<()> {
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&part)?);
+        // Region files are compressed already: the quickest level loses little.
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated)
+            .compression_level(Some(1));
+        let mut stack = vec![(folder.to_path_buf(), format!("{name}/"))];
+        while let Some((dir, prefix)) = stack.pop() {
+            for entry in std::fs::read_dir(&dir)?.flatten() {
+                let kind = entry.file_type()?;
+                let file = entry.file_name().to_string_lossy().into_owned();
+                if kind.is_dir() {
+                    stack.push((entry.path(), format!("{prefix}{file}/")));
+                } else if kind.is_file() && file != LOCK {
+                    zip.start_file(format!("{prefix}{file}"), options)
+                        .map_err(std::io::Error::other)?;
+                    std::io::copy(&mut std::fs::File::open(entry.path())?, &mut zip)?;
+                }
+            }
+        }
+        zip.finish().map_err(std::io::Error::other)?.flush()
+    })();
+    match result.and_then(|()| std::fs::rename(&part, inbox.join(format!("{name}.zip")))) {
+        Ok(()) => {
+            log::info!("Horizon: {name} is in the import inbox");
+            Ok(())
+        }
+        Err(e) => {
+            log::warn!("Horizon: {name} did not reach the import inbox: {e}");
+            let _ = std::fs::remove_file(&part);
+            Err(e)
+        }
+    }
+}
+
 /// Files' view of `dir`: the app's Documents are its "Starling" folder there.
 fn open_folder(dir: &Path) -> bool {
     horizon_gamecontroller::open_url(&format!("shareddocuments://{}", url_path(dir)))
