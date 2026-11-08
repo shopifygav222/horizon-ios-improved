@@ -245,9 +245,6 @@ impl Config {
         }
     }
     pub fn apply_experimental_to_game(&self, home: &Path) {
-        horizon_client::android_runtime::set_experimental_leaf_culling(
-            self.experimental_leaf_culling,
-        );
         let game = self.game_home(home);
         let _ = std::fs::create_dir_all(&game);
         let options_path = game.join("options.txt");
@@ -286,9 +283,20 @@ impl Config {
             settings.horizon.upload_budget_kib = settings.horizon.upload_budget_kib.max(4096);
         }
         settings.horizon.cave_culling = true;
+        // The launcher's leaf culling is Starling's own option (Video Settings): on, the faces
+        // two leaves share are dropped; off, the launcher's choice is taken back.
+        use horizon_client::graphics::LeafCullingMode;
+        if self.experimental_leaf_culling {
+            if settings.horizon.leaf_culling == LeafCullingMode::Off {
+                settings.horizon.leaf_culling = LeafCullingMode::Hollow;
+            }
+        } else if settings.horizon.leaf_culling == LeafCullingMode::Hollow {
+            settings.horizon.leaf_culling = LeafCullingMode::Off;
+        }
         // Horizon Android's launcher keeps entity culling on; Starling's has three modes.
         if settings.horizon.entity_culling == horizon_client::graphics::EntityCullingMode::Off {
-            settings.horizon.entity_culling = horizon_client::graphics::EntityCullingMode::Synchronous;
+            settings.horizon.entity_culling =
+                horizon_client::graphics::EntityCullingMode::Synchronous;
         }
         settings.horizon.resolution_scale = self.render_scale.percent().clamp(25, 100);
         settings.save(&options_path);
@@ -889,8 +897,7 @@ impl Catalog {
     pub fn sort_local_items(&mut self) {
         match self.installed_sort {
             InstalledSort::Name => {
-                self.local
-                    .sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+                self.local.sort_by_key(|item| item.title.to_lowercase());
             }
             InstalledSort::Type => {
                 self.local.sort_by(|a, b| {
@@ -1325,12 +1332,12 @@ impl Catalog {
             for (id, title, direct_url, kind) in tasks {
                 let mut icon_url = direct_url;
                 let mut found_summary = None;
-                if icon_url.is_none() {
-                    if let Some(hit) = lookup_modrinth_by_name(&title, kind) {
-                        icon_url = hit.icon;
-                        if !hit.summary.trim().is_empty() {
-                            found_summary = Some(hit.summary);
-                        }
+                if icon_url.is_none()
+                    && let Some(hit) = lookup_modrinth_by_name(&title, kind)
+                {
+                    icon_url = hit.icon;
+                    if !hit.summary.trim().is_empty() {
+                        found_summary = Some(hit.summary);
                     }
                 }
                 if let Some(url) = icon_url
@@ -1429,60 +1436,59 @@ impl Catalog {
 
             // For Horizon list items (or bundled mods), search Modrinth by the project's name
             // to enrich with Modrinth's full description, PFP icon, and gallery screenshots!
-            if project.source == browser::SourceId::Horizon
+            if (project.source == browser::SourceId::Horizon
                 || gallery.is_empty()
-                || icon_url.is_none()
+                || icon_url.is_none())
+                && let Some(m_hit) = lookup_modrinth_by_name(&project.title, project.kind)
             {
-                if let Some(m_hit) = lookup_modrinth_by_name(&project.title, project.kind) {
-                    if icon_url.is_none() {
-                        icon_url = m_hit.icon.clone();
-                    }
-                    if downloads == 0 {
-                        downloads = m_hit.downloads;
-                    }
-                    if author.is_empty() && !m_hit.author.is_empty() {
-                        author = m_hit.author.clone();
-                    }
-                    if license.is_empty() && !m_hit.license.is_empty() {
-                        license = m_hit.license.clone();
-                    }
-                    if let Ok(m_details) = browser::modrinth::Modrinth.details(&m_hit) {
-                        if !m_details.body.trim().is_empty() {
-                            let body_clean = clean_markdown_body(&m_details.body);
-                            if project.source == browser::SourceId::Horizon {
-                                let caps = browser::horizon::trust_and_capabilities(&project.id);
-                                if caps.is_empty() {
-                                    description = body_clean;
-                                } else {
-                                    description = format!(
-                                        "{}
+                if icon_url.is_none() {
+                    icon_url = m_hit.icon.clone();
+                }
+                if downloads == 0 {
+                    downloads = m_hit.downloads;
+                }
+                if author.is_empty() && !m_hit.author.is_empty() {
+                    author = m_hit.author.clone();
+                }
+                if license.is_empty() && !m_hit.license.is_empty() {
+                    license = m_hit.license.clone();
+                }
+                if let Ok(m_details) = browser::modrinth::Modrinth.details(&m_hit) {
+                    if !m_details.body.trim().is_empty() {
+                        let body_clean = clean_markdown_body(&m_details.body);
+                        if project.source == browser::SourceId::Horizon {
+                            let caps = browser::horizon::trust_and_capabilities(&project.id);
+                            if caps.is_empty() {
+                                description = body_clean;
+                            } else {
+                                description = format!(
+                                    "{}
 
 {}",
-                                        caps.join(" • "),
-                                        body_clean
-                                    );
-                                }
-                            } else {
-                                description = body_clean;
+                                    caps.join(" • "),
+                                    body_clean
+                                );
                             }
+                        } else {
+                            description = body_clean;
                         }
-                        if followers == 0 {
-                            followers = m_details.followers;
-                        }
-                        if !m_details.categories.is_empty() {
-                            categories = m_details.categories;
-                        }
-                        if gallery.is_empty() {
-                            gallery = m_details.gallery;
-                        }
-                    } else if description.len() < m_hit.summary.len() {
-                        description = m_hit.summary.clone();
                     }
-                    if versions.is_empty()
-                        && let Ok(m_vers) = browser::modrinth::Modrinth.versions(&m_hit)
-                    {
-                        versions = m_vers;
+                    if followers == 0 {
+                        followers = m_details.followers;
                     }
+                    if !m_details.categories.is_empty() {
+                        categories = m_details.categories;
+                    }
+                    if gallery.is_empty() {
+                        gallery = m_details.gallery;
+                    }
+                } else if description.len() < m_hit.summary.len() {
+                    description = m_hit.summary.clone();
+                }
+                if versions.is_empty()
+                    && let Ok(m_vers) = browser::modrinth::Modrinth.versions(&m_hit)
+                {
+                    versions = m_vers;
                 }
             }
 

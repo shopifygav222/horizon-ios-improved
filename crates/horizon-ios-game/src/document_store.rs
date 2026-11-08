@@ -702,11 +702,7 @@ mod fm_tests {
         let renamed = fm_rename(&home, &home, "saves/TestWorld", "RenamedWorld").unwrap();
         assert_eq!(renamed, "saves/RenamedWorld");
 
-        fs::write(
-            home.join("saves/RenamedWorld/notes.txt"),
-            "line1\nline2\n",
-        )
-        .unwrap();
+        fs::write(home.join("saves/RenamedWorld/notes.txt"), "line1\nline2\n").unwrap();
         let details = fm_details(&home, &home, "saves/RenamedWorld/notes.txt").unwrap();
         assert_eq!(details.size_bytes, 12);
         assert!(details.preview_lines.iter().any(|l| l == "line1"));

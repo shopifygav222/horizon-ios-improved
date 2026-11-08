@@ -278,17 +278,25 @@ impl TouchControls {
                         e.drag = None;
                     }
                 }
-            } else if layout::contains([0.32, 0.46, 0.115, 0.06], p) && e.selected.is_some() {
-                let slot = self.settings.slot(e.selected.unwrap());
+            } else if layout::contains([0.32, 0.46, 0.115, 0.06], p)
+                && let Some(selected) = e.selected
+            {
+                let slot = self.settings.slot(selected);
                 self.settings.layouts[self.settings.mode.index()][slot].passthrough ^= true;
-            } else if layout::contains([0.442, 0.46, 0.115, 0.06], p) && e.selected.is_some() {
-                let slot = self.settings.slot(e.selected.unwrap());
+            } else if layout::contains([0.442, 0.46, 0.115, 0.06], p)
+                && let Some(selected) = e.selected
+            {
+                let slot = self.settings.slot(selected);
                 self.settings.layouts[self.settings.mode.index()][slot].toggleable ^= true;
-            } else if layout::contains([0.565, 0.46, 0.115, 0.06], p) && e.selected.is_some() {
-                let slot = self.settings.slot(e.selected.unwrap());
+            } else if layout::contains([0.565, 0.46, 0.115, 0.06], p)
+                && let Some(selected) = e.selected
+            {
+                let slot = self.settings.slot(selected);
                 self.settings.layouts[self.settings.mode.index()][slot].swipeable ^= true;
-            } else if layout::contains([0.32, 0.88, 0.36, 0.07], p) && e.selected.is_some() {
-                self.settings.button_visibility[e.selected.unwrap() as usize] = 2;
+            } else if layout::contains([0.32, 0.88, 0.36, 0.07], p)
+                && let Some(selected) = e.selected
+            {
+                self.settings.button_visibility[selected as usize] = 2;
                 e.selected = None;
                 e.drag = None;
             } else if layout::contains([0.32, 0.61, 0.36, 0.06], p)
@@ -298,9 +306,9 @@ impl TouchControls {
                 e.apply_all = !e.apply_all;
             } else if layout::contains([0.32, 0.68, 0.36, 0.07], p)
                 && e.selected.is_some()
-                && e.option.is_some()
+                && let Some(option) = e.option
             {
-                e.drag = Some((id, Drag::Slider(e.option.unwrap())));
+                e.drag = Some((id, Drag::Slider(option)));
             } else if layout::contains([0.32, 0.79, 0.17, 0.07], p) && e.selected.is_some() {
                 e.option = Some(1);
             } else if layout::contains([0.51, 0.79, 0.17, 0.07], p) && e.selected.is_some() {

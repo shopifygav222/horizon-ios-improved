@@ -225,6 +225,19 @@ pub fn take_launcher_return() -> bool {
     RETURN_TO_LAUNCHER.swap(false, Ordering::AcqRel)
 }
 
+/// The game asked for the launcher's accounts (the iOS port's title-screen account button: the
+/// launcher signs in, as Horizon Android's does).
+static OPEN_ACCOUNTS: AtomicBool = AtomicBool::new(false);
+/// Back to the launcher, which opens its accounts.
+pub fn open_launcher_accounts() {
+    OPEN_ACCOUNTS.store(true, Ordering::Release);
+    return_to_launcher();
+}
+/// Whether the game asked for the launcher's accounts (once).
+pub fn take_accounts_request() -> bool {
+    OPEN_ACCOUNTS.swap(false, Ordering::AcqRel)
+}
+
 #[cfg(test)]
 mod input_tests {
     use super::*;

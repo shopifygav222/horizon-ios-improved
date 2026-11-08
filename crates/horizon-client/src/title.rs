@@ -3440,6 +3440,14 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 self.mode = Mode::Multiplayer(crate::multiplayer::Screen::friend());
                 Action::None
             }
+            // On iOS the launcher holds the accounts (as Horizon Android's): the button goes
+            // back to it, open on its accounts.
+            #[cfg(target_os = "ios")]
+            (Mode::Main, Some(8)) => {
+                crate::android_runtime::open_launcher_accounts();
+                Action::None
+            }
+            #[cfg(not(target_os = "ios"))]
             (Mode::Main, Some(8)) => {
                 self.mode = Mode::Account;
                 Action::None

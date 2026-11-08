@@ -5622,6 +5622,32 @@ impl Game<'_> {
                 resolved.push((uuid, skin));
             }
         }
+        // The iOS launcher's wardrobe: a local override that changes this viewer only, never
+        // the server's profile properties or the account's cloud appearance.
+        #[cfg(target_os = "ios")]
+        if let Some(appearance) = horizon_client::skins::appearance::current() {
+            if let Some((rgba, is_slim)) = &appearance.skin {
+                const LOCAL: &str = "horizon/offline_skin";
+                if !self.skin_slots.contains(LOCAL) || !self.gui.atlas.sprites.contains_key(LOCAL) {
+                    self.store_skin(LOCAL.into(), rgba.clone());
+                }
+                resolved.retain(|(uuid, _)| *uuid != local);
+                resolved.push((local, LOCAL.into()));
+                slim.remove(&local);
+                if *is_slim {
+                    slim.insert(local);
+                }
+            }
+            if appearance.hide_cape {
+                capes.remove(&local);
+            } else if let Some(rgba) = &appearance.cape {
+                const LOCAL: &str = "capes/local";
+                if !self.skin_slots.contains(LOCAL) || !self.gui.atlas.sprites.contains_key(LOCAL) {
+                    self.store_skin(LOCAL.into(), rgba.clone());
+                }
+                capes.insert(local, LOCAL.into());
+            }
+        }
         // Options > Skin Customization: the player's own skin, in this game only (others get
         // what the server sends of the profile).
         if let Some((own, own_slim)) = self.own_skin_sprite() {
@@ -5647,8 +5673,10 @@ impl Game<'_> {
             }
             resolved.push((local, OFFLINE.into()));
         }
-        // An offline name's cape from the launcher, where the profile has none.
+        // An offline name's cape from the launcher, where the profile has none (and the iOS
+        // launcher's wardrobe doesn't hide it).
         if !capes.contains_key(&local)
+            && !wardrobe_hides_cape()
             && let Some(rgba) = horizon_client::skins::offline_cape()
         {
             const OFFLINE: &str = "capes/offline";
@@ -11083,6 +11111,12 @@ impl Remote {
     pub(super) fn tracked(&self, id: i32) -> Option<(&str, [f64; 3])> {
         self.entities.get(&id).map(|t| (&*t.kind, t.position))
     }
+}
+
+/// Whether the iOS launcher's wardrobe hides the local player's cape (never elsewhere).
+fn wardrobe_hides_cape() -> bool {
+    cfg!(target_os = "ios")
+        && horizon_client::skins::appearance::current().is_some_and(|a| a.hide_cape)
 }
 
 /// The textures to resolve skins from: every list entry's, and for a player

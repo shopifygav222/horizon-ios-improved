@@ -27,6 +27,8 @@ horizon-mods = { path = "../horizon-mods", default-features = false, features = 
 horizon-ios-prepare = { path = "../horizon-ios-prepare" }
 # Java content ported for Horizon's catalog (shared/browser).
 horizon-port-pack = { path = "../horizon-port-pack" }
+# Imported shader packs are checked before they reach the game folder (documents.rs).
+horizon-shader-api = { path = "../horizon-shader-api" }
 winit = "0.30.13"
 # The 16 MB stack every event-loop callback runs on: iOS gives its main thread 1 MB.
 stacker = "0.1"

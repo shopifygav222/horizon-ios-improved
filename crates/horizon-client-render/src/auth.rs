@@ -20,6 +20,9 @@ pub struct AuthSession {
     pub uuid: u128,
     pub xuid: Option<String>,
     access_token: String,
+    /// An Ely.by account's session (Horizon Android's, this iOS port's launcher): it joins
+    /// through Ely.by's session server, and Microsoft's services are never asked about it.
+    ely: bool,
 }
 impl std::fmt::Debug for AuthSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -47,9 +50,11 @@ impl AuthSession {
             uuid,
             xuid: None,
             access_token: access_token.to_owned(),
+            ely: false,
         }
     }
     /// The session file's JSON: {"name", "uuid", "access_token", "user_type": "msa", "xuid"}.
+    /// The user type may also be "ely", for an Ely.by account.
     pub fn parse(text: &str) -> Result<Self, String> {
         let v: serde_json::Value =
             serde_json::from_str(text).map_err(|_| "the session is not valid JSON")?;
@@ -64,14 +69,15 @@ impl AuthSession {
         let access_token = field("access_token")
             .filter(|t| !t.is_empty())
             .ok_or("the session has no access token")?;
-        if field("user_type").is_some_and(|t| t != "msa") {
-            return Err("the session is not a Microsoft account session".into());
+        if field("user_type").is_some_and(|t| t != "msa" && t != "ely") {
+            return Err("the session has an unsupported account provider".into());
         }
         Ok(Self {
             name: name.to_owned(),
             uuid,
             xuid: field("xuid").map(str::to_owned),
             access_token: access_token.to_owned(),
+            ely: field("user_type") == Some("ely"),
         })
     }
     /// Read the session file the launcher wrote and delete it at once. It
@@ -219,6 +225,9 @@ pub fn endpoint(doc: &serde_json::Value, service: &str, name: &str) -> Option<St
 /// to no actions, as vanilla does. Blocks: call it off the main thread.
 pub fn fetch_account_status(session: &AuthSession) -> crate::ban_notice::AccountStatus {
     use crate::ban_notice::{AccountStatus, parse_profile_actions, parse_properties};
+    if session.ely {
+        return AccountStatus::default();
+    }
     let Ok(doc) = discovery() else {
         return AccountStatus::default();
     };
@@ -288,9 +297,21 @@ pub fn join_server(session: &AuthSession, server_hash: &str) -> Result<(), JoinE
     )
 }
 
-fn join_server_once(session: &AuthSession, server_hash: &str) -> Result<(), JoinError> {
+/// Ely.by's session server's join, which an Ely.by account's session goes to.
+const ELY_JOIN: &str = "https://authserver.ely.by/session/join";
+
+/// Where `session` joins a server: Ely.by's session server for an Ely.by account, the
+/// services' `session` `join` endpoint otherwise.
+fn join_url(session: &AuthSession) -> Result<String, JoinError> {
+    if session.ely {
+        return Ok(ELY_JOIN.to_owned());
+    }
     let doc = discovery()?;
-    let url = endpoint(&doc, "session", "join").ok_or(JoinError::Unavailable)?;
+    endpoint(&doc, "session", "join").ok_or(JoinError::Unavailable)
+}
+
+fn join_server_once(session: &AuthSession, server_hash: &str) -> Result<(), JoinError> {
+    let url = join_url(session)?;
     match agent()
         .post(&url)
         .set("Content-Type", "application/json; charset=utf-8")
@@ -411,6 +432,10 @@ pub fn parse_certificates(body: &str) -> Option<ChatKeyPair> {
 /// UserApiService.getKeyPair: the certificates endpoint, POSTed with the
 /// access token.
 pub fn fetch_chat_keys(session: &AuthSession) -> Result<ChatKeyPair, JoinError> {
+    // Ely.by gives no chat signing keys: an Ely.by player's chat is unsigned.
+    if session.ely {
+        return Err(JoinError::Unavailable);
+    }
     let doc = discovery()?;
     let url = endpoint(&doc, "player", "getCertificates").ok_or(JoinError::Unavailable)?;
     let body = match agent()
@@ -505,6 +530,9 @@ const MINECRAFT_PROFILE: &str = "https://api.minecraftservices.com/minecraft/pro
 /// Single-player and integrated servers often send no `textures` property, or
 /// one without the equipped cape; the client asks the profile endpoint once.
 pub fn own_textures(session: &AuthSession) -> Option<crate::skins::Textures> {
+    if session.ely {
+        return None;
+    }
     let response = agent()
         .get(MINECRAFT_PROFILE)
         .set("Authorization", &format!("Bearer {}", session.access_token))
@@ -602,6 +630,38 @@ pub fn parse_joined(body: &str) -> Option<JoinedProfile> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ely_session_is_explicit_and_never_requests_microsoft_credentials() {
+        let session = AuthSession::parse(
+            r#"{"name":"Player","uuid":"0123456789abcdef0123456789abcdef","access_token":"ely-private","user_type":"ely"}"#,
+        )
+        .unwrap();
+        assert!(session.ely);
+        assert!(!format!("{session:?}").contains("ely-private"));
+        assert!(own_textures(&session).is_none());
+        assert!(matches!(
+            fetch_chat_keys(&session),
+            Err(JoinError::Unavailable)
+        ));
+        assert_eq!(
+            fetch_account_status(&session),
+            crate::ban_notice::AccountStatus::default()
+        );
+        assert_eq!(join_url(&session).unwrap(), ELY_JOIN);
+        assert_eq!(
+            join_request(&session, "hash"),
+            serde_json::json!({"accessToken":"ely-private","selectedProfile":"0123456789abcdef0123456789abcdef","serverId":"hash"}).to_string()
+        );
+    }
+
+    #[test]
+    fn a_session_of_another_provider_is_refused() {
+        let text = r#"{"name":"Player","uuid":"0123456789abcdef0123456789abcdef","access_token":"t","user_type":"legacy"}"#;
+        assert!(AuthSession::parse(text).is_err());
+        let microsoft = text.replace("legacy", "msa");
+        assert!(!AuthSession::parse(&microsoft).unwrap().ely);
+    }
 
     const UUID: u128 = 0x069a79f444e94726a5befca90e38aaf5;
 

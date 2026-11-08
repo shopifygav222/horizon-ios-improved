@@ -11,7 +11,7 @@
 //! function draws and hit-tests, so they never disagree.
 use crate::hud::{HudAtlas, HudBatch, Rect};
 use ab_glyph::{Font as _, FontRef, PxScale, ScaleFont as _};
-use std::{cell::RefCell, collections::HashMap, path::Path};
+use std::{cell::RefCell, collections::HashMap, f32::consts::FRAC_1_SQRT_2, path::Path};
 
 /// A Horizon-only preference from `horizon.txt` beside `options.txt`
 /// (`key:value` lines), so vanilla's options file stays exactly as vanilla
@@ -306,10 +306,10 @@ fn icon_hit(icon: Icon, u: f32, v: f32) -> bool {
                 (-1.0, 0.0),
                 (0.0, 1.0),
                 (0.0, -1.0),
-                (0.7071, 0.7071),
-                (-0.7071, 0.7071),
-                (0.7071, -0.7071),
-                (-0.7071, -0.7071),
+                (FRAC_1_SQRT_2, FRAC_1_SQRT_2),
+                (-FRAC_1_SQRT_2, FRAC_1_SQRT_2),
+                (FRAC_1_SQRT_2, -FRAC_1_SQRT_2),
+                (-FRAC_1_SQRT_2, -FRAC_1_SQRT_2),
             ];
             dirs.iter().any(|&(rx, ry)| {
                 seg_dist(
@@ -383,10 +383,10 @@ fn icon_hit(icon: Icon, u: f32, v: f32) -> bool {
                 (-1.0, 0.0),
                 (0.0, 1.0),
                 (0.0, -1.0),
-                (0.7071, 0.7071),
-                (-0.7071, 0.7071),
-                (0.7071, -0.7071),
-                (-0.7071, -0.7071),
+                (FRAC_1_SQRT_2, FRAC_1_SQRT_2),
+                (-FRAC_1_SQRT_2, FRAC_1_SQRT_2),
+                (FRAC_1_SQRT_2, -FRAC_1_SQRT_2),
+                (-FRAC_1_SQRT_2, -FRAC_1_SQRT_2),
             ];
             dirs.iter().any(|&(rx, ry)| {
                 let proj = dx * rx + dy * ry;

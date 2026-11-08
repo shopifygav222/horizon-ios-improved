@@ -281,6 +281,10 @@ impl Launcher {
         self.login.refresh_status();
         crate::diagnostics::heartbeat("returned_to_launcher", || serde_json::json!({}));
         self.catalog.page = Page::Play;
+        // The game's title-screen account button: the launcher's accounts, open.
+        if horizon_client::android_runtime::take_accounts_request() {
+            self.open_accounts();
+        }
         if let Ok(message) = std::fs::read_to_string(self.home.join("ios-error.txt")) {
             self.error = Some(message);
         }
@@ -323,9 +327,8 @@ impl Launcher {
             renderer.resize(size.width, size.height);
             return Ok(());
         }
-        let window = Arc::new(
-            events.create_window(Window::default_attributes().with_title("Starling"))?,
-        );
+        let window =
+            Arc::new(events.create_window(Window::default_attributes().with_title("Starling"))?);
         crate::platform::attach_window(&window);
         crate::display::prepare(&window)?;
         // The game's own menu art once it is installed; before that, the low-budget skin the app
@@ -334,7 +337,8 @@ impl Launcher {
         let atlas_root = if resources.join("assets/minecraft/textures/gui").is_dir() {
             resources
         } else {
-            horizon_client::preparer::skin().ok_or("The app's menu art is missing: install it again.")?
+            horizon_client::preparer::skin()
+                .ok_or("The app's menu art is missing: install it again.")?
         };
         let gui = Gui {
             atlas: HudAtlas::build(&atlas_root)?,
@@ -626,24 +630,22 @@ impl Launcher {
             let (sender, receiver) = mpsc::channel();
             self.worker = Some(receiver);
             std::thread::spawn(move || {
-                let result =
-                    crate::official_install::install_with_progress(&home, |update| {
-                        while paused.load(std::sync::atomic::Ordering::Relaxed)
-                            && !cancelled.load(std::sync::atomic::Ordering::Relaxed)
-                        {
-                            std::thread::sleep(Duration::from_millis(50));
-                        }
-                        let mut current = install
-                            .lock()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner);
-                        let done = if current.stage == update.stage {
-                            current.done.max(update.done)
-                        } else {
-                            update.done
-                        };
-                        *current =
-                            crate::official_install::InstallProgress { done, ..update };
-                    });
+                let result = crate::official_install::install_with_progress(&home, |update| {
+                    while paused.load(std::sync::atomic::Ordering::Relaxed)
+                        && !cancelled.load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                    let mut current = install
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    let done = if current.stage == update.stage {
+                        current.done.max(update.done)
+                    } else {
+                        update.done
+                    };
+                    *current = crate::official_install::InstallProgress { done, ..update };
+                });
                 let _ = sender.send(result.map_err(|e| e.to_string()));
             });
         }

@@ -144,6 +144,7 @@ struct SoundCache {
     bytes: usize,
     clock: u64,
 }
+#[cfg(any(test, not(target_os = "ios")))]
 const CACHE_BYTES: usize = 64 << 20;
 impl SoundCache {
     fn get(&mut self, key: &str) -> Option<Samples> {
@@ -158,7 +159,19 @@ impl SoundCache {
         if let Some((old, _)) = self.entries.insert(key, (samples, self.clock)) {
             self.bytes -= Self::size(&old);
         }
-        while self.bytes > CACHE_BYTES && self.entries.len() > 1 {
+        // The iOS launcher's cache budget (its settings): 64 MiB unless the player set one,
+        // which is then kept strictly. Playing channels own their Arc: eviction never
+        // interrupts a sound.
+        #[cfg(target_os = "ios")]
+        let (budget, strict) = (
+            crate::android_runtime::sound_cache_budget(),
+            crate::android_runtime::cache_budget_overridden(),
+        );
+        #[cfg(not(target_os = "ios"))]
+        let (budget, strict) = (CACHE_BYTES, false);
+        while self.bytes > budget
+            && (self.entries.len() > 1 || (strict && !self.entries.is_empty()))
+        {
             let Some(oldest) = self
                 .entries
                 .iter()

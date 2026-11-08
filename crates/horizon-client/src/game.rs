@@ -578,7 +578,10 @@ impl Options {
             return Ok(None);
         };
         // The launcher's account: online-mode servers need it. A bad file
-        // only leaves the game offline.
+        // only leaves the game offline. On iOS the launcher starts game after game in one
+        // process: each plays as the account its launch names, or offline.
+        #[cfg(target_os = "ios")]
+        horizon_client::auth::clear_current();
         let session = if o.session_stdin {
             let mut text = String::new();
             std::io::Read::read_to_string(&mut std::io::stdin(), &mut text)
@@ -611,6 +614,10 @@ impl Options {
                 .and_then(|()| std::env::set_current_dir(&dir))
                 .map_err(|e| format!("game folder {}: {e}", dir.display()))?;
         }
+        // The skin and cape the iOS launcher's wardrobe chose (its horizon-appearance.json in
+        // the game folder), read again each launch.
+        #[cfg(target_os = "ios")]
+        horizon_client::skins::appearance::configure(std::path::Path::new("."))?;
         // Vanilla's quick play (Main, QuickPlay.joinSingleplayerWorld): only a
         // world that exists opens; else the title screen. --world also creates one.
         if let Some(world) = o.quick_play.take() {
@@ -19016,7 +19023,7 @@ impl<'a> Game<'a> {
             last_input: now,
             pad: Default::default(),
             touch: Default::default(),
-            input_mode: horizon_client::input_mode::InputMode::first(horizon_client::PHONE),
+            input_mode: input_mode::first(),
             frames: 0,
             glint_frame: Default::default(),
             kept_block_entities: Default::default(),

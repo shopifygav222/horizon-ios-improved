@@ -24,8 +24,15 @@ fn yellow() -> u32 {
     rgba(255, 255, 85, 255)
 }
 
-/// The title's button for this screen: who plays, at a glance.
+/// The title's button for this screen: who plays, at a glance. On iOS the launcher's account
+/// plays (the button opens the launcher's accounts).
 pub(super) fn main_label() -> String {
+    if cfg!(target_os = "ios") {
+        return match crate::auth::current() {
+            Some(session) => format!("Account: {}", session.name),
+            None => "Accounts".into(),
+        };
+    }
     match accounts::state() {
         State::SignedIn(account) => format!("Account: {}", account.name),
         State::Resuming => "Account: signing in...".into(),

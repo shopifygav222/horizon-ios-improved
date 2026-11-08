@@ -165,9 +165,9 @@ impl Game<'_> {
         if !self.debug || (self.ui.hide_gui && !screen_open) {
             return;
         }
-        // The vanilla screen's scale and size (`draw_debug_overlay`).
+        // The scale and size Starling's own debug overlay draws at (`draw_debug_overlay_under`).
         let framebuffer = size.map(|v| v as i32);
-        let (scale, [width, height]) = debug_overlay::touch_scale(
+        let (scale, [width, height]) = debug_overlay::scale(
             framebuffer,
             batch.scale as i32,
             self.settings.file.int("debugGuiScale"),
@@ -540,11 +540,28 @@ impl Game<'_> {
         if let Some((_, d)) = self.dragon_hit() {
             offer(d, "minecraft:ender_dragon".to_owned());
         }
-        if let Some((_, d)) = self.guest_hit() {
+        if let Some((_, d)) = self.smartf3_guest_hit() {
             offer(d, "minecraft:player".to_owned());
         }
         let (distance, kind) = best?;
         self.before_block(distance).then_some(kind)
+    }
+
+    /// The LAN guest on the host's crosshair and how far, within reach: Horizon Android's
+    /// `guest_hit`, over Starling's LAN hub (whose PvP finds its victims its own way).
+    fn smartf3_guest_hit(&self) -> Option<(u32, f64)> {
+        let host = self.lan.as_ref()?;
+        let (eye, dir) = self.aim()?;
+        let reach = self.entity_reach;
+        host.hub
+            .guests
+            .iter()
+            .filter(|g| host.hub.here(g) && g.loaded && !g.dead && !g.spectator())
+            .filter_map(|g| {
+                let bounds = crate::game::lan_mobs::guest_bounds(g);
+                Some((g.conn, crate::game::ray_box(eye, dir, reach, bounds)?))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
     }
 
     /// `native_command` (a hook point): `/smartf3 [status|on|off|toggle|

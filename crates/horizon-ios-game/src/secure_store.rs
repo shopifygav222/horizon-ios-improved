@@ -1,11 +1,11 @@
-//! Account secrets in the iOS Keychain: Horizon's alone, kept on this device only, readable after
+//! Account secrets in the iOS Keychain: Starling's alone, kept on this device only, readable after
 //! its first unlock (Android encrypts them with a Keystore key). Never in the Documents folder,
 //! which the Files app shows.
 use crate::account::SecretStore;
 use std::sync::Mutex;
 
 static LOCK: Mutex<()> = Mutex::new(());
-const SERVICE: &str = "dev.horizon.game.accounts";
+const SERVICE: &str = "dev.horizon.starling.accounts";
 
 fn account(key: &str) -> Result<&str, String> {
     if key.is_empty()

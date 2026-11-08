@@ -1517,52 +1517,6 @@ pub fn draw_goy_hud(
     ui.finish();
 }
 
-fn draw_mcpe_custom_plate(ui: &mut crate::ui_theme::Ui, rect: [f32; 4], alpha: f32, pressed: bool) {
-    let [rx, ry, rw, rh] = rect;
-    let a_u8 = (alpha * 255.0).round() as u8;
-    ui.rounded(rx, ry, rw, rh, 3.0, rgba(18, 20, 24, a_u8));
-    let inner_col = if pressed {
-        rgba(38, 42, 48, (alpha * 225.0).round() as u8)
-    } else {
-        rgba(58, 62, 70, (alpha * 210.0).round() as u8)
-    };
-    ui.rounded(
-        rx + 2.0,
-        ry + 2.0,
-        (rw - 4.0).max(2.0),
-        (rh - 4.0).max(2.0),
-        2.0,
-        inner_col,
-    );
-    let (top_left_col, bot_right_col) = if pressed {
-        (
-            rgba(28, 30, 36, (alpha * 215.0).round() as u8),
-            rgba(145, 152, 164, (alpha * 185.0).round() as u8),
-        )
-    } else {
-        (
-            rgba(175, 182, 194, (alpha * 195.0).round() as u8),
-            rgba(28, 30, 36, (alpha * 215.0).round() as u8),
-        )
-    };
-    ui.fill(rx + 2.0, ry + 2.0, (rw - 4.0).max(2.0), 2.0, top_left_col);
-    ui.fill(rx + 2.0, ry + 4.0, 2.0, (rh - 6.0).max(2.0), top_left_col);
-    ui.fill(
-        rx + 2.0,
-        ry + rh - 4.0,
-        (rw - 4.0).max(2.0),
-        2.0,
-        bot_right_col,
-    );
-    ui.fill(
-        rx + rw - 4.0,
-        ry + 4.0,
-        2.0,
-        (rh - 6.0).max(2.0),
-        bot_right_col,
-    );
-}
-
 fn hub_metrics(w: f32, h: f32) -> (f32, f32, f32, f32, f32, f32, f32, f32, f32) {
     let dw = (w - 16.0).clamp(352.0, 610.0);
     let dh = (h - 12.0).clamp(264.0, 420.0);
@@ -1659,56 +1613,56 @@ impl TouchUi {
         };
         let btn_rect = [btn_x, btn_y, btn_w, btn_h];
 
-        if let Some((drag_id, offset, mut moved)) = self.floating_drag {
-            if drag_id == id {
-                match phase {
-                    TouchPhase::Moved => {
-                        if !self.goy_mode {
-                            return Some(InGameMenuAction::Close);
-                        }
-                        let nx = (p[0] - offset[0]).clamp(6.0, (w - btn_w - 6.0).max(6.0));
-                        let ny = (p[1] - offset[1]).clamp(4.0, (h - btn_h - 4.0).max(4.0));
-                        if (nx - btn_x).hypot(ny - btn_y) > 5.0 {
-                            moved = true;
-                        }
-                        if moved {
-                            settings.floating_menu_pos = [
-                                (nx / w.max(1.0)).clamp(0.03, 0.93),
-                                (ny / h.max(1.0)).clamp(0.02, 0.90),
-                            ];
-                        }
-                        self.floating_drag = Some((drag_id, offset, moved));
+        if let Some((drag_id, offset, mut moved)) = self.floating_drag
+            && drag_id == id
+        {
+            match phase {
+                TouchPhase::Moved => {
+                    if !self.goy_mode {
                         return Some(InGameMenuAction::Close);
                     }
-                    TouchPhase::Ended | TouchPhase::Cancelled => {
-                        self.floating_drag = None;
-                        if moved {
-                            let _ = settings.save();
-                        } else if phase == TouchPhase::Ended {
-                            self.floating_menu = !self.floating_menu;
-                            if self.floating_menu {
-                                self.open_anim.set(0.0);
-                                self.tab_anim.set(0.0);
-                                self.last_anim_tick.set(None);
-                                self.hub_scroll = 0.0;
-                                self.refresh_presets_cache(settings.control_style);
-                            } else {
-                                self.presets_modal_open = false;
-                                self.preset_dialog = None;
-                                self.custom_input_picker = crate::horizon_touch::PickerStep::None;
-                                self.custom_kb_drag = None;
-                                self.sensitivity_dragging = false;
-                                self.pointer_size_dragging = false;
-                                self.mouse_speed_dragging = false;
-                                self.gyro_sensitivity_dragging = false;
-                                self.button_scale_dragging = false;
-                                self.hub_scroll_drag = None;
-                            }
-                        }
-                        return Some(InGameMenuAction::Close);
+                    let nx = (p[0] - offset[0]).clamp(6.0, (w - btn_w - 6.0).max(6.0));
+                    let ny = (p[1] - offset[1]).clamp(4.0, (h - btn_h - 4.0).max(4.0));
+                    if (nx - btn_x).hypot(ny - btn_y) > 5.0 {
+                        moved = true;
                     }
-                    _ => {}
+                    if moved {
+                        settings.floating_menu_pos = [
+                            (nx / w.max(1.0)).clamp(0.03, 0.93),
+                            (ny / h.max(1.0)).clamp(0.02, 0.90),
+                        ];
+                    }
+                    self.floating_drag = Some((drag_id, offset, moved));
+                    return Some(InGameMenuAction::Close);
                 }
+                TouchPhase::Ended | TouchPhase::Cancelled => {
+                    self.floating_drag = None;
+                    if moved {
+                        let _ = settings.save();
+                    } else if phase == TouchPhase::Ended {
+                        self.floating_menu = !self.floating_menu;
+                        if self.floating_menu {
+                            self.open_anim.set(0.0);
+                            self.tab_anim.set(0.0);
+                            self.last_anim_tick.set(None);
+                            self.hub_scroll = 0.0;
+                            self.refresh_presets_cache(settings.control_style);
+                        } else {
+                            self.presets_modal_open = false;
+                            self.preset_dialog = None;
+                            self.custom_input_picker = crate::horizon_touch::PickerStep::None;
+                            self.custom_kb_drag = None;
+                            self.sensitivity_dragging = false;
+                            self.pointer_size_dragging = false;
+                            self.mouse_speed_dragging = false;
+                            self.gyro_sensitivity_dragging = false;
+                            self.button_scale_dragging = false;
+                            self.hub_scroll_drag = None;
+                        }
+                    }
+                    return Some(InGameMenuAction::Close);
+                }
+                _ => {}
             }
         }
 
@@ -1831,63 +1785,63 @@ impl TouchUi {
         // 0. If "Send Custom Input" Picker Modal is open:
         if self.custom_input_picker != crate::horizon_touch::PickerStep::None {
             use crate::horizon_touch::PickerStep;
-            if let Some((drag_id, last_x, mut moved)) = self.custom_kb_drag {
-                if drag_id == id {
-                    match phase {
-                        TouchPhase::Moved => {
-                            let dx_k = p[0] - last_x;
-                            if dx_k.abs() > 3.5 {
-                                moved = true;
-                            }
-                            let mdw = (w - 20.0).clamp(300.0, 620.0);
-                            let max_kb_scroll = (880.0 - (mdw - 28.0)).max(0.0);
-                            self.custom_kb_scroll_x =
-                                (self.custom_kb_scroll_x - dx_k).clamp(0.0, max_kb_scroll);
-                            self.custom_kb_drag = Some((drag_id, p[0], moved));
-                            return Some(InGameMenuAction::Close);
+            if let Some((drag_id, last_x, mut moved)) = self.custom_kb_drag
+                && drag_id == id
+            {
+                match phase {
+                    TouchPhase::Moved => {
+                        let dx_k = p[0] - last_x;
+                        if dx_k.abs() > 3.5 {
+                            moved = true;
                         }
-                        TouchPhase::Ended => {
-                            self.custom_kb_drag = None;
-                            if !moved
-                                && matches!(self.custom_input_picker, PickerStep::Keyboard { .. })
-                            {
-                                let mdw = (w - 20.0).clamp(300.0, 620.0);
-                                let mdh = (h - 20.0).clamp(235.0, 340.0);
-                                let mdx = (w - mdw) * 0.5;
-                                let mdy = (h - mdh) * 0.5;
-                                let kb_top = mdy + 40.0;
-                                let kb_h = mdh - 56.0;
-                                let row_h = ((kb_h - 25.0) / 6.0).clamp(24.0, 38.0);
-                                let key_unit = 38.0;
-                                let gap = 4.0;
-                                for (r_idx, row) in KB_ROWS.iter().enumerate() {
-                                    let ry = kb_top + r_idx as f32 * (row_h + 4.0);
-                                    let mut kx = mdx + 14.0 - self.custom_kb_scroll_x;
-                                    for (_lbl, tok, width_mult) in *row {
-                                        let kw = key_unit * (*width_mult)
-                                            + (*width_mult - 1.0).max(0.0) * gap;
-                                        if inside([kx, ry, kw, row_h])
-                                            && p[0] >= mdx + 10.0
-                                            && p[0] <= mdx + mdw - 10.0
-                                        {
-                                            self.custom_input_picker = PickerStep::None;
-                                            self.floating_menu = false;
-                                            return Some(InGameMenuAction::SendCustomInput(
-                                                (*tok).to_owned(),
-                                            ));
-                                        }
-                                        kx += kw + gap;
+                        let mdw = (w - 20.0).clamp(300.0, 620.0);
+                        let max_kb_scroll = (880.0 - (mdw - 28.0)).max(0.0);
+                        self.custom_kb_scroll_x =
+                            (self.custom_kb_scroll_x - dx_k).clamp(0.0, max_kb_scroll);
+                        self.custom_kb_drag = Some((drag_id, p[0], moved));
+                        return Some(InGameMenuAction::Close);
+                    }
+                    TouchPhase::Ended => {
+                        self.custom_kb_drag = None;
+                        if !moved
+                            && matches!(self.custom_input_picker, PickerStep::Keyboard { .. })
+                        {
+                            let mdw = (w - 20.0).clamp(300.0, 620.0);
+                            let mdh = (h - 20.0).clamp(235.0, 340.0);
+                            let mdx = (w - mdw) * 0.5;
+                            let mdy = (h - mdh) * 0.5;
+                            let kb_top = mdy + 40.0;
+                            let kb_h = mdh - 56.0;
+                            let row_h = ((kb_h - 25.0) / 6.0).clamp(24.0, 38.0);
+                            let key_unit = 38.0;
+                            let gap = 4.0;
+                            for (r_idx, row) in KB_ROWS.iter().enumerate() {
+                                let ry = kb_top + r_idx as f32 * (row_h + 4.0);
+                                let mut kx = mdx + 14.0 - self.custom_kb_scroll_x;
+                                for (_lbl, tok, width_mult) in *row {
+                                    let kw = key_unit * (*width_mult)
+                                        + (*width_mult - 1.0).max(0.0) * gap;
+                                    if inside([kx, ry, kw, row_h])
+                                        && p[0] >= mdx + 10.0
+                                        && p[0] <= mdx + mdw - 10.0
+                                    {
+                                        self.custom_input_picker = PickerStep::None;
+                                        self.floating_menu = false;
+                                        return Some(InGameMenuAction::SendCustomInput(
+                                            (*tok).to_owned(),
+                                        ));
                                     }
+                                    kx += kw + gap;
                                 }
                             }
-                            return Some(InGameMenuAction::Close);
                         }
-                        TouchPhase::Cancelled => {
-                            self.custom_kb_drag = None;
-                            return Some(InGameMenuAction::Close);
-                        }
-                        _ => {}
+                        return Some(InGameMenuAction::Close);
                     }
+                    TouchPhase::Cancelled => {
+                        self.custom_kb_drag = None;
+                        return Some(InGameMenuAction::Close);
+                    }
+                    _ => {}
                 }
             }
             if phase != TouchPhase::Started {
@@ -1984,34 +1938,34 @@ impl TouchUi {
         }
 
         // Handle content pane vertical scroll drag
-        if let Some((scroll_id, start_y, start_scroll, mut scrolled)) = self.hub_scroll_drag {
-            if scroll_id == id {
-                match phase {
-                    TouchPhase::Moved => {
-                        let dy_touch = p[1] - start_y;
-                        if dy_touch.abs() > 6.0 {
-                            scrolled = true;
-                        }
-                        if scrolled {
-                            let max_s = self.hub_max_scroll.get().max(0.0);
-                            self.hub_scroll = (start_scroll - dy_touch).clamp(0.0, max_s);
-                        }
-                        self.hub_scroll_drag = Some((scroll_id, start_y, start_scroll, scrolled));
-                        return Some(InGameMenuAction::Close);
+        if let Some((scroll_id, start_y, start_scroll, mut scrolled)) = self.hub_scroll_drag
+            && scroll_id == id
+        {
+            match phase {
+                TouchPhase::Moved => {
+                    let dy_touch = p[1] - start_y;
+                    if dy_touch.abs() > 6.0 {
+                        scrolled = true;
                     }
-                    TouchPhase::Cancelled => {
-                        self.hub_scroll_drag = None;
-                        return Some(InGameMenuAction::Close);
+                    if scrolled {
+                        let max_s = self.hub_max_scroll.get().max(0.0);
+                        self.hub_scroll = (start_scroll - dy_touch).clamp(0.0, max_s);
                     }
-                    TouchPhase::Ended => {
-                        self.hub_scroll_drag = None;
-                        if scrolled {
-                            return Some(InGameMenuAction::Close);
-                        }
-                        // Fall through on tap release if not scrolled so the tapped row activates
-                    }
-                    _ => {}
+                    self.hub_scroll_drag = Some((scroll_id, start_y, start_scroll, scrolled));
+                    return Some(InGameMenuAction::Close);
                 }
+                TouchPhase::Cancelled => {
+                    self.hub_scroll_drag = None;
+                    return Some(InGameMenuAction::Close);
+                }
+                TouchPhase::Ended => {
+                    self.hub_scroll_drag = None;
+                    if scrolled {
+                        return Some(InGameMenuAction::Close);
+                    }
+                    // Fall through on tap release if not scrolled so the tapped row activates
+                }
+                _ => {}
             }
         }
 
@@ -3919,7 +3873,10 @@ impl TouchUi {
     }
 }
 
-fn push_undo_snapshot(ed: &mut crate::horizon_touch::Editor, current: &crate::horizon_touch::Settings) {
+fn push_undo_snapshot(
+    ed: &mut crate::horizon_touch::Editor,
+    current: &crate::horizon_touch::Settings,
+) {
     if ed.undo_stack.len() >= 40 {
         ed.undo_stack.remove(0);
     }
@@ -3927,7 +3884,10 @@ fn push_undo_snapshot(ed: &mut crate::horizon_touch::Editor, current: &crate::ho
     ed.redo_stack.clear();
 }
 
-fn clamp_editor_custom_selection(ed: &mut crate::horizon_touch::Editor, settings: &crate::horizon_touch::Settings) {
+fn clamp_editor_custom_selection(
+    ed: &mut crate::horizon_touch::Editor,
+    settings: &crate::horizon_touch::Settings,
+) {
     if let Some(idx) = ed.selected_custom
         && idx >= settings.custom_buttons.len()
     {
@@ -6462,7 +6422,9 @@ pub fn touch_hud_editor(
     started: bool,
     ended: bool,
 ) -> bool {
-    use crate::horizon_touch::{Control, ControlStyle, CustomButton, EditorDragKind, Mode, PickerStep};
+    use crate::horizon_touch::{
+        Control, ControlStyle, CustomButton, EditorDragKind, Mode, PickerStep,
+    };
     let ui = crate::ui_theme::Ui::mobile(a, b, (0.0, 0.0));
     let (w, h) = (ui.w, ui.h);
     let p = [point[0] * w, point[1] * h];
@@ -6477,205 +6439,205 @@ pub fn touch_hud_editor(
     let closed = (|| -> bool {
         // 1. Handle ongoing drag / resize / floating-pod move / horizontal keyboard scroll
         if !started {
-            if let Some((drag_id, kind)) = ed.active_drag {
-                if drag_id == id {
-                    match kind {
-                        EditorDragKind::FloatingPod { offset, mut moved } => {
-                            let pod_w = if ed.pod_expanded { 356.0 } else { 52.0 };
-                            let cur_x = (tc.settings.floating_menu_pos[0] * w)
-                                .clamp(8.0, (w - pod_w - 8.0).max(8.0));
-                            let cur_y = (tc.settings.floating_menu_pos[1] * h)
-                                .clamp(6.0, (h - 54.0).max(6.0));
-                            let nx = (p[0] - offset[0]).clamp(8.0, (w - pod_w - 8.0).max(8.0));
-                            let ny = (p[1] - offset[1]).clamp(6.0, (h - 54.0).max(6.0));
-                            if (nx - cur_x).hypot(ny - cur_y) > 4.0 {
-                                moved = true;
-                            }
-                            if moved {
-                                tc.settings.floating_menu_pos = [
-                                    (nx / w.max(1.0)).clamp(0.04, 0.92),
-                                    (ny / h.max(1.0)).clamp(0.02, 0.90),
-                                ];
-                            }
-                            if ended {
-                                ed.active_drag = None;
-                                if !moved {
-                                    ed.menu_open = !ed.menu_open;
-                                    ed.props_open = false;
-                                }
-                                let _ = tc.settings.save();
-                            } else {
-                                ed.active_drag =
-                                    Some((drag_id, EditorDragKind::FloatingPod { offset, moved }));
-                            }
+            if let Some((drag_id, kind)) = ed.active_drag
+                && drag_id == id
+            {
+                match kind {
+                    EditorDragKind::FloatingPod { offset, mut moved } => {
+                        let pod_w = if ed.pod_expanded { 356.0 } else { 52.0 };
+                        let cur_x = (tc.settings.floating_menu_pos[0] * w)
+                            .clamp(8.0, (w - pod_w - 8.0).max(8.0));
+                        let cur_y = (tc.settings.floating_menu_pos[1] * h)
+                            .clamp(6.0, (h - 54.0).max(6.0));
+                        let nx = (p[0] - offset[0]).clamp(8.0, (w - pod_w - 8.0).max(8.0));
+                        let ny = (p[1] - offset[1]).clamp(6.0, (h - 54.0).max(6.0));
+                        if (nx - cur_x).hypot(ny - cur_y) > 4.0 {
+                            moved = true;
                         }
-                        EditorDragKind::KeyboardScroll { last_x, mut moved } => {
-                            let dx_k = p[0] - last_x;
-                            if dx_k.abs() > 3.5 {
-                                moved = true;
+                        if moved {
+                            tc.settings.floating_menu_pos = [
+                                (nx / w.max(1.0)).clamp(0.04, 0.92),
+                                (ny / h.max(1.0)).clamp(0.02, 0.90),
+                            ];
+                        }
+                        if ended {
+                            ed.active_drag = None;
+                            if !moved {
+                                ed.menu_open = !ed.menu_open;
+                                ed.props_open = false;
                             }
-                            let dw = (w - 20.0).clamp(300.0, 620.0);
-                            let max_kb_scroll = (880.0 - (dw - 28.0)).max(0.0);
-                            ed.kb_scroll_x = (ed.kb_scroll_x - dx_k).clamp(0.0, max_kb_scroll);
-                            if ended {
-                                ed.active_drag = None;
-                                if !moved
-                                    && let PickerStep::Keyboard { event_slot } = ed.picker_step
-                                {
-                                    let is_mcpe = tc.settings.control_style == ControlStyle::Mcpe;
-                                    let dh = (h - 20.0).clamp(235.0, 340.0);
-                                    let dx = (w - dw) * 0.5;
-                                    let dy = (h - dh) * 0.5;
-                                    let kb_top = dy + 40.0;
-                                    let kb_h = dh - 56.0;
-                                    let row_h = ((kb_h - 25.0) / 6.0).clamp(24.0, 38.0);
-                                    let key_unit = 38.0;
-                                    let gap = 4.0;
-                                    for (r_idx, row) in KB_ROWS.iter().enumerate() {
-                                        let ry = kb_top + r_idx as f32 * (row_h + 4.0);
-                                        let mut kx = dx + 14.0 - ed.kb_scroll_x;
-                                        for (lbl, tok, width_mult) in *row {
-                                            let kw = key_unit * (*width_mult)
-                                                + (*width_mult - 1.0).max(0.0) * gap;
-                                            if inside([kx, ry, kw, row_h])
-                                                && p[0] >= dx + 10.0
-                                                && p[0] <= dx + dw - 10.0
+                            let _ = tc.settings.save();
+                        } else {
+                            ed.active_drag =
+                                Some((drag_id, EditorDragKind::FloatingPod { offset, moved }));
+                        }
+                    }
+                    EditorDragKind::KeyboardScroll { last_x, mut moved } => {
+                        let dx_k = p[0] - last_x;
+                        if dx_k.abs() > 3.5 {
+                            moved = true;
+                        }
+                        let dw = (w - 20.0).clamp(300.0, 620.0);
+                        let max_kb_scroll = (880.0 - (dw - 28.0)).max(0.0);
+                        ed.kb_scroll_x = (ed.kb_scroll_x - dx_k).clamp(0.0, max_kb_scroll);
+                        if ended {
+                            ed.active_drag = None;
+                            if !moved
+                                && let PickerStep::Keyboard { event_slot } = ed.picker_step
+                            {
+                                let is_mcpe = tc.settings.control_style == ControlStyle::Mcpe;
+                                let dh = (h - 20.0).clamp(235.0, 340.0);
+                                let dx = (w - dw) * 0.5;
+                                let dy = (h - dh) * 0.5;
+                                let kb_top = dy + 40.0;
+                                let kb_h = dh - 56.0;
+                                let row_h = ((kb_h - 25.0) / 6.0).clamp(24.0, 38.0);
+                                let key_unit = 38.0;
+                                let gap = 4.0;
+                                for (r_idx, row) in KB_ROWS.iter().enumerate() {
+                                    let ry = kb_top + r_idx as f32 * (row_h + 4.0);
+                                    let mut kx = dx + 14.0 - ed.kb_scroll_x;
+                                    for (lbl, tok, width_mult) in *row {
+                                        let kw = key_unit * (*width_mult)
+                                            + (*width_mult - 1.0).max(0.0) * gap;
+                                        if inside([kx, ry, kw, row_h])
+                                            && p[0] >= dx + 10.0
+                                            && p[0] <= dx + dw - 10.0
+                                        {
+                                            push_undo_snapshot(&mut ed, &tc.settings);
+                                            if let Some(idx) = ed.selected_custom
+                                                && let Some(btn) =
+                                                    tc.settings.custom_buttons.get_mut(idx)
                                             {
-                                                push_undo_snapshot(&mut ed, &tc.settings);
-                                                if let Some(idx) = ed.selected_custom
-                                                    && let Some(btn) =
-                                                        tc.settings.custom_buttons.get_mut(idx)
-                                                {
-                                                    if is_mcpe {
-                                                        btn.set_exclusive_binding(
-                                                            (*tok).to_owned(),
-                                                        );
-                                                        btn.custom_label = (*lbl).to_owned();
-                                                    } else {
-                                                        btn.set_event_slot(
-                                                            event_slot,
-                                                            (*tok).to_owned(),
-                                                        );
-                                                        if event_slot == 0
-                                                            && (btn.custom_label.is_empty()
-                                                                || btn.custom_label == "BTN")
-                                                        {
-                                                            btn.custom_label = (*lbl).to_owned();
-                                                        }
-                                                    }
-                                                    let _ = tc.settings.save();
-                                                }
-                                                ed.picker_step = PickerStep::None;
-                                                ed.status_msg = Some(if is_mcpe {
-                                                    format!(
-                                                        "Bound key '{lbl}' (exclusive — mouse binding cleared)."
-                                                    )
+                                                if is_mcpe {
+                                                    btn.set_exclusive_binding(
+                                                        (*tok).to_owned(),
+                                                    );
+                                                    btn.custom_label = (*lbl).to_owned();
                                                 } else {
-                                                    format!(
-                                                        "Assigned key '{lbl}' to Event Slot #{}.",
-                                                        event_slot + 1
-                                                    )
-                                                });
-                                                tc.clicked = true;
-                                                break;
+                                                    btn.set_event_slot(
+                                                        event_slot,
+                                                        (*tok).to_owned(),
+                                                    );
+                                                    if event_slot == 0
+                                                        && (btn.custom_label.is_empty()
+                                                            || btn.custom_label == "BTN")
+                                                    {
+                                                        btn.custom_label = (*lbl).to_owned();
+                                                    }
+                                                }
+                                                let _ = tc.settings.save();
                                             }
-                                            kx += kw + gap;
+                                            ed.picker_step = PickerStep::None;
+                                            ed.status_msg = Some(if is_mcpe {
+                                                format!(
+                                                    "Bound key '{lbl}' (exclusive — mouse binding cleared)."
+                                                )
+                                            } else {
+                                                format!(
+                                                    "Assigned key '{lbl}' to Event Slot #{}.",
+                                                    event_slot + 1
+                                                )
+                                            });
+                                            tc.clicked = true;
+                                            break;
                                         }
+                                        kx += kw + gap;
                                     }
                                 }
-                            } else {
-                                ed.active_drag = Some((
-                                    drag_id,
-                                    EditorDragKind::KeyboardScroll {
-                                        last_x: p[0],
-                                        moved,
-                                    },
-                                ));
                             }
+                        } else {
+                            ed.active_drag = Some((
+                                drag_id,
+                                EditorDragKind::KeyboardScroll {
+                                    last_x: p[0],
+                                    moved,
+                                },
+                            ));
                         }
-                        EditorDragKind::Move { offset } => {
-                            let aspect = tc.aspect();
-                            let mut center = [point[0] - offset[0], point[1] - offset[1]];
-                            if tc.settings.left_handed {
-                                center[0] = 1.0 - center[0];
-                            }
-                            if tc.settings.snap_to_grid {
-                                center = center.map(|v| (v * 40.0).round() / 40.0);
-                            }
-                            let mode_idx = tc.settings.mode.index();
-                            if let Some(idx) = ed.selected_custom {
-                                if let Some(btn) = tc.settings.custom_buttons.get_mut(idx) {
-                                    let pl = &mut btn.layouts[mode_idx];
-                                    let [_, _, rw, rh] = pl.rect(aspect);
-                                    pl.center = [
-                                        center[0].clamp(rw * 0.5, (1.0 - rw * 0.5).max(rw * 0.5)),
-                                        center[1].clamp(rh * 0.5, (1.0 - rh * 0.5).max(rh * 0.5)),
-                                    ];
-                                }
-                            } else if let Some(c) = ed.selected {
-                                let slot = tc.settings.slot(c);
-                                let pl = &mut tc.settings.layouts[mode_idx][slot];
+                    }
+                    EditorDragKind::Move { offset } => {
+                        let aspect = tc.aspect();
+                        let mut center = [point[0] - offset[0], point[1] - offset[1]];
+                        if tc.settings.left_handed {
+                            center[0] = 1.0 - center[0];
+                        }
+                        if tc.settings.snap_to_grid {
+                            center = center.map(|v| (v * 40.0).round() / 40.0);
+                        }
+                        let mode_idx = tc.settings.mode.index();
+                        if let Some(idx) = ed.selected_custom {
+                            if let Some(btn) = tc.settings.custom_buttons.get_mut(idx) {
+                                let pl = &mut btn.layouts[mode_idx];
                                 let [_, _, rw, rh] = pl.rect(aspect);
                                 pl.center = [
                                     center[0].clamp(rw * 0.5, (1.0 - rw * 0.5).max(rw * 0.5)),
                                     center[1].clamp(rh * 0.5, (1.0 - rh * 0.5).max(rh * 0.5)),
                                 ];
                             }
-                            if ended {
-                                ed.active_drag = None;
-                                let _ = tc.settings.save();
-                            }
+                        } else if let Some(c) = ed.selected {
+                            let slot = tc.settings.slot(c);
+                            let pl = &mut tc.settings.layouts[mode_idx][slot];
+                            let [_, _, rw, rh] = pl.rect(aspect);
+                            pl.center = [
+                                center[0].clamp(rw * 0.5, (1.0 - rw * 0.5).max(rw * 0.5)),
+                                center[1].clamp(rh * 0.5, (1.0 - rh * 0.5).max(rh * 0.5)),
+                            ];
                         }
-                        EditorDragKind::Resize {
-                            mask,
-                            start_pos,
-                            start_size,
-                            start_wr,
-                            start_hr,
-                        } => {
-                            let dx = point[0] - start_pos[0];
-                            let dy = point[1] - start_pos[1];
-                            let mode_idx = tc.settings.mode.index();
-                            let apply_resize = |pl: &mut crate::horizon_touch::Placement| {
-                                if mask == 1 || mask == 2 {
-                                    // Horizontal right/left edge handle: adjust width_ratio
-                                    let dir = if mask == 1 { 1.0 } else { -1.0 };
-                                    pl.width_ratio = (start_wr + dir * dx * 8.5).clamp(0.45, 3.0);
-                                } else if mask == 4 || mask == 8 {
-                                    // Vertical bottom/top edge handle: adjust height_ratio
-                                    let dir = if mask == 4 { 1.0 } else { -1.0 };
-                                    pl.height_ratio = (start_hr + dir * dy * 8.5).clamp(0.45, 3.0);
-                                } else {
-                                    // Corner handle: scale overall size + aspect ratio
-                                    let sx = if (mask & 1) != 0 { dx } else { -dx };
-                                    let sy = if (mask & 4) != 0 { dy } else { -dy };
-                                    let diag = (sx + sy) * 0.85;
-                                    pl.size = (start_size + diag).clamp(0.05, 0.44);
-                                }
-                            };
-                            if let Some(idx) = ed.selected_custom {
-                                if let Some(btn) = tc.settings.custom_buttons.get_mut(idx) {
-                                    apply_resize(&mut btn.layouts[mode_idx]);
-                                }
-                            } else if let Some(c) = ed.selected {
-                                let slot = tc.settings.slot(c);
-                                apply_resize(&mut tc.settings.layouts[mode_idx][slot]);
-                            }
-                            if ended {
-                                ed.active_drag = None;
-                                let _ = tc.settings.save();
-                            }
+                        if ended {
+                            ed.active_drag = None;
+                            let _ = tc.settings.save();
                         }
-                        EditorDragKind::PropsSlider { tab, index, rect } => {
-                            let pad = if rect[3] >= 52.0 { 12.0 } else { 10.0 };
-                            let track_x = rect[0] + pad;
-                            let track_w = (rect[2] - pad * 2.0).max(16.0);
-                            let t = ((p[0] - track_x) / track_w).clamp(0.0, 1.0);
-                            apply_props_slider(tc, &ed, tab, index, t);
-                            if ended {
-                                ed.active_drag = None;
-                                let _ = tc.settings.save();
+                    }
+                    EditorDragKind::Resize {
+                        mask,
+                        start_pos,
+                        start_size,
+                        start_wr,
+                        start_hr,
+                    } => {
+                        let dx = point[0] - start_pos[0];
+                        let dy = point[1] - start_pos[1];
+                        let mode_idx = tc.settings.mode.index();
+                        let apply_resize = |pl: &mut crate::horizon_touch::Placement| {
+                            if mask == 1 || mask == 2 {
+                                // Horizontal right/left edge handle: adjust width_ratio
+                                let dir = if mask == 1 { 1.0 } else { -1.0 };
+                                pl.width_ratio = (start_wr + dir * dx * 8.5).clamp(0.45, 3.0);
+                            } else if mask == 4 || mask == 8 {
+                                // Vertical bottom/top edge handle: adjust height_ratio
+                                let dir = if mask == 4 { 1.0 } else { -1.0 };
+                                pl.height_ratio = (start_hr + dir * dy * 8.5).clamp(0.45, 3.0);
+                            } else {
+                                // Corner handle: scale overall size + aspect ratio
+                                let sx = if (mask & 1) != 0 { dx } else { -dx };
+                                let sy = if (mask & 4) != 0 { dy } else { -dy };
+                                let diag = (sx + sy) * 0.85;
+                                pl.size = (start_size + diag).clamp(0.05, 0.44);
                             }
+                        };
+                        if let Some(idx) = ed.selected_custom {
+                            if let Some(btn) = tc.settings.custom_buttons.get_mut(idx) {
+                                apply_resize(&mut btn.layouts[mode_idx]);
+                            }
+                        } else if let Some(c) = ed.selected {
+                            let slot = tc.settings.slot(c);
+                            apply_resize(&mut tc.settings.layouts[mode_idx][slot]);
+                        }
+                        if ended {
+                            ed.active_drag = None;
+                            let _ = tc.settings.save();
+                        }
+                    }
+                    EditorDragKind::PropsSlider { tab, index, rect } => {
+                        let pad = if rect[3] >= 52.0 { 12.0 } else { 10.0 };
+                        let track_x = rect[0] + pad;
+                        let track_w = (rect[2] - pad * 2.0).max(16.0);
+                        let t = ((p[0] - track_x) / track_w).clamp(0.0, 1.0);
+                        apply_props_slider(tc, &ed, tab, index, t);
+                        if ended {
+                            ed.active_drag = None;
+                            let _ = tc.settings.save();
                         }
                     }
                 }
@@ -7875,11 +7837,20 @@ mod tests {
     #[test]
     fn mcpe_extra_keys_leave_a_separate_slot_for_the_control_hub() {
         let mut ui = TouchUi::default();
-        assert!(matches!(ui.action(400.0, 240.0, [10.0, 10.0], false), Some(Action::More)));
+        assert!(matches!(
+            ui.action(400.0, 240.0, [10.0, 10.0], false),
+            Some(Action::More)
+        ));
         assert!(ui.action(400.0, 240.0, [50.0, 10.0], false).is_none());
         ui.expanded = true;
-        assert!(matches!(ui.action(400.0, 240.0, [80.0, 10.0], false), Some(Action::Key(KeyCode::F3))));
-        assert!(matches!(ui.action(400.0, 240.0, [160.0, 30.0], false), Some(Action::Key(KeyCode::F4))));
+        assert!(matches!(
+            ui.action(400.0, 240.0, [80.0, 10.0], false),
+            Some(Action::Key(KeyCode::F3))
+        ));
+        assert!(matches!(
+            ui.action(400.0, 240.0, [160.0, 30.0], false),
+            Some(Action::Key(KeyCode::F4))
+        ));
         ui.expanded = false;
         ui.goy_mode = true;
         assert!(ui.action(400.0, 240.0, [10.0, 10.0], false).is_none());

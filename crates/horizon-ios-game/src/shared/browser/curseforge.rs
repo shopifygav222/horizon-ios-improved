@@ -232,7 +232,7 @@ impl Source for CurseForge {
             .filter(|f| f["isAvailable"].as_bool() != Some(false))
             .filter_map(parse_file)
             .collect();
-        all.sort_by(|a, b| b.published.cmp(&a.published));
+        all.sort_by(|a, b| a.published.cmp(&b.published).reverse());
         Ok(all)
     }
 }

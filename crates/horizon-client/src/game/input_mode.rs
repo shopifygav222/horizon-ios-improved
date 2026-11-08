@@ -12,11 +12,37 @@ use winit::{
     event::{DeviceId, ElementState, MouseScrollDelta, TouchPhase, WindowEvent},
 };
 
+/// What the game starts in: on iOS the input the launcher fixes (its settings' Input), else the
+/// platform's own.
+pub(super) fn first() -> InputMode {
+    #[cfg(target_os = "ios")]
+    if let Some(fixed) = launcher_fixed() {
+        return fixed;
+    }
+    InputMode::first(horizon_client::PHONE)
+}
+
+/// The input Horizon Android's launcher fixes on iOS, unless it is left on Auto.
+#[cfg(target_os = "ios")]
+fn launcher_fixed() -> Option<InputMode> {
+    use horizon_client::android_gamepad::InputMode as Launcher;
+    match horizon_client::android_runtime::input_mode() {
+        Launcher::Auto => None,
+        Launcher::Touch => Some(InputMode::Touch),
+        Launcher::KeyboardMouse => Some(InputMode::KeyboardMouse),
+        Launcher::Controller => Some(InputMode::Pad),
+    }
+}
+
 impl Game<'_> {
     /// The player used `input`. Off the touch screen the fingers let go of what they held and the
     /// on-screen keyboard goes (touch_frame); any input but a controller takes the menus back
-    /// from the pad's pointer.
+    /// from the pad's pointer. On iOS an input the launcher fixes is the only one taken.
     pub(super) fn input_used(&mut self, input: InputMode) {
+        #[cfg(target_os = "ios")]
+        if launcher_fixed().is_some_and(|fixed| fixed != input) {
+            return;
+        }
         let mode = self.input_mode.after(input, horizon_client::PHONE);
         if mode == self.input_mode {
             return;

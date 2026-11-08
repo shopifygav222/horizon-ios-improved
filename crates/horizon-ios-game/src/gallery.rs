@@ -5,7 +5,9 @@ use std::{path::Path, sync::Mutex};
 static RESULTS: Mutex<Vec<std::result::Result<String, String>>> = Mutex::new(Vec::new());
 
 pub fn save(file: &Path) -> std::result::Result<(), String> {
-    let path = file.to_str().ok_or("The screenshot's path is not valid text")?;
+    let path = file
+        .to_str()
+        .ok_or("The screenshot's path is not valid text")?;
     let result = if horizon_gamecontroller::save_to_photos(path) {
         Ok("Saved the screenshot to Photos".to_owned())
     } else {

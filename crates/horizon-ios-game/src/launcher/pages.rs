@@ -3909,8 +3909,9 @@ impl Launcher {
 
         let game_home = self.catalog.config.game_home(&self.home);
         let opts = horizon_client::settings::Settings::load(&game_home.join("options.txt"));
-        let touch_cfg =
-            horizon_client::horizon_touch::Settings::load_from(&game_home.join("horizon-touch.json"));
+        let touch_cfg = horizon_client::horizon_touch::Settings::load_from(
+            &game_home.join("horizon-touch.json"),
+        );
 
         match cat {
             SettingsCategory::Video => {
@@ -4781,7 +4782,8 @@ impl Launcher {
                 let is_mcpe = style == horizon_client::horizon_touch::ControlStyle::Mcpe;
                 let is_goy = style == horizon_client::horizon_touch::ControlStyle::GoyControl;
                 let sys_name = style.label();
-                let sys_presets = horizon_client::horizon_touch::Settings::list_presets(&game_home, style);
+                let sys_presets =
+                    horizon_client::horizon_touch::Settings::list_presets(&game_home, style);
                 let preset_label = format!(
                     "{} ({} presets) v",
                     touch_cfg.preset_name,
@@ -5073,7 +5075,9 @@ impl Launcher {
                             "Vanilla touch sprites, D-Pad & thumbstick",
                             "CLASSIC HUD",
                             is_mcpe,
-                            Action::SelectControlMode(horizon_client::horizon_touch::ControlStyle::Mcpe),
+                            Action::SelectControlMode(
+                                horizon_client::horizon_touch::ControlStyle::Mcpe,
+                            ),
                         ),
                         (
                             "GoyControl",
@@ -5385,6 +5389,27 @@ impl Launcher {
             }
             // Not reachable from the category grid yet.
             SettingsCategory::Overview | SettingsCategory::Account => {}
+        }
+    }
+
+    /// The accounts: the selector when signed in, else the providers to sign in with.
+    pub(super) fn open_accounts(&mut self) {
+        self.catalog.editing = None;
+        crate::platform::hide();
+        self.login.refresh_status();
+        self.login.visible = true;
+        self.login.offline = false;
+        self.login.ely = false;
+        if self.login.signed_in {
+            // Already signed in: open the selector, with the current
+            // Microsoft/Ely.by account called out, instead of asking
+            // the player to choose a provider again.
+            self.login.providers = false;
+            self.login.choosing = true;
+            self.login.account_offset = 0;
+        } else {
+            self.login.providers = true;
+            self.login.choosing = false;
         }
     }
 
@@ -5730,7 +5755,8 @@ impl Launcher {
                     &game_home.join("horizon-touch.json"),
                 );
                 let style = touch.control_style;
-                let presets = horizon_client::horizon_touch::Settings::list_presets(&game_home, style);
+                let presets =
+                    horizon_client::horizon_touch::Settings::list_presets(&game_home, style);
                 if let Some(meta) = presets.get(idx as usize) {
                     touch.select_preset(&game_home, style, &meta.id);
                     self.catalog.status = format!(
@@ -5858,9 +5884,15 @@ impl Launcher {
             Some(Action::ToggleControlScheme) => {
                 self.modify_touch_settings(|t| {
                     t.mode = match t.mode {
-                        horizon_client::horizon_touch::Mode::Crosshair => horizon_client::horizon_touch::Mode::Tap,
-                        horizon_client::horizon_touch::Mode::Tap => horizon_client::horizon_touch::Mode::Dpad,
-                        horizon_client::horizon_touch::Mode::Dpad => horizon_client::horizon_touch::Mode::Crosshair,
+                        horizon_client::horizon_touch::Mode::Crosshair => {
+                            horizon_client::horizon_touch::Mode::Tap
+                        }
+                        horizon_client::horizon_touch::Mode::Tap => {
+                            horizon_client::horizon_touch::Mode::Dpad
+                        }
+                        horizon_client::horizon_touch::Mode::Dpad => {
+                            horizon_client::horizon_touch::Mode::Crosshair
+                        }
                     };
                 });
             }
@@ -6050,25 +6082,7 @@ impl Launcher {
                 }
                 .into();
             }
-            Some(Action::Account) => {
-                self.catalog.editing = None;
-                crate::platform::hide();
-                self.login.refresh_status();
-                self.login.visible = true;
-                self.login.offline = false;
-                self.login.ely = false;
-                if self.login.signed_in {
-                    // Already signed in: open the selector, with the current
-                    // Microsoft/Ely.by account called out, instead of asking
-                    // the player to choose a provider again.
-                    self.login.providers = false;
-                    self.login.choosing = true;
-                    self.login.account_offset = 0;
-                } else {
-                    self.login.providers = true;
-                    self.login.choosing = false;
-                }
-            }
+            Some(Action::Account) => self.open_accounts(),
             Some(Action::AddAccount) => {
                 self.login.choosing = false;
                 self.login.providers = true;
@@ -6836,11 +6850,15 @@ impl Launcher {
         s.save(&path);
     }
 
-    fn modify_touch_settings(&mut self, f: impl FnOnce(&mut horizon_client::horizon_touch::Settings)) {
+    fn modify_touch_settings(
+        &mut self,
+        f: impl FnOnce(&mut horizon_client::horizon_touch::Settings),
+    ) {
         let game_home = self.catalog.config.game_home(&self.home);
         let _ = std::fs::create_dir_all(&game_home);
-        let mut t =
-            horizon_client::horizon_touch::Settings::load_from(&game_home.join("horizon-touch.json"));
+        let mut t = horizon_client::horizon_touch::Settings::load_from(
+            &game_home.join("horizon-touch.json"),
+        );
         f(&mut t);
         if !t.is_default_preset() {
             let _ = t.save_replace_preset(&game_home);

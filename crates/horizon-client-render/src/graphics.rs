@@ -980,6 +980,14 @@ impl Graphics {
     }
     /// Worker threads for chunk generation and meshing.
     pub fn worker_threads(&self) -> usize {
+        let requested = self.requested_worker_threads();
+        // The iOS launcher's worker limit (its settings; 0 leaves the count as it is).
+        #[cfg(target_os = "ios")]
+        return crate::android_runtime::limit_workers(requested);
+        #[cfg(not(target_os = "ios"))]
+        requested
+    }
+    fn requested_worker_threads(&self) -> usize {
         if self.workers > 0 {
             return self.workers as usize;
         }

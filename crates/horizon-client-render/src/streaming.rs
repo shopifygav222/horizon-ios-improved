@@ -352,6 +352,7 @@ struct MeshPool {
     bytes: usize,
 }
 impl MeshPool {
+    #[cfg(any(test, not(target_os = "ios")))]
     const BYTES: usize = 16 << 20;
     const COUNT: usize = 128;
     fn take(&mut self) -> SectionMesh {
@@ -362,7 +363,15 @@ impl MeshPool {
     /// A rejected mesh is dropped by the caller, after releasing the lock.
     fn put(&mut self, mut mesh: SectionMesh) -> Option<SectionMesh> {
         let bytes = mesh.capacity_bytes();
-        if bytes == 0 || self.meshes.len() == Self::COUNT || bytes > Self::BYTES - self.bytes {
+        // The iOS launcher's cache budget (its settings): 16 MiB unless the player set one.
+        #[cfg(target_os = "ios")]
+        let budget = crate::android_runtime::mesh_cache_budget();
+        #[cfg(not(target_os = "ios"))]
+        let budget = Self::BYTES;
+        if bytes == 0
+            || self.meshes.len() == Self::COUNT
+            || bytes > budget.saturating_sub(self.bytes)
+        {
             return Some(mesh);
         }
         mesh.clear();

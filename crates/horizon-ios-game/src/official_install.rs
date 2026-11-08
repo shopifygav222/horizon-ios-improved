@@ -110,9 +110,7 @@ pub fn install_with_progress(
                 let (done, total) = counts(&line);
                 report(InstallStage::WorldData, done, total);
             }
-            Stage::Idle | Stage::Java(..) | Stage::Unpacking => {
-                report(InstallStage::Extract, 0, 0)
-            }
+            Stage::Idle | Stage::Java(..) | Stage::Unpacking => report(InstallStage::Extract, 0, 0),
         }
         std::thread::sleep(Duration::from_millis(100));
     }

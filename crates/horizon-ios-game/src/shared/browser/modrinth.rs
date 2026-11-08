@@ -254,7 +254,7 @@ impl Source for Modrinth {
             .filter_map(parse_version)
             .collect();
         // Modrinth lists newest first already; ISO dates sort as text.
-        all.sort_by(|a, b| b.published.cmp(&a.published));
+        all.sort_by(|a, b| a.published.cmp(&b.published).reverse());
         Ok(all)
     }
 

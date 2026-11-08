@@ -232,14 +232,11 @@ impl TouchControls {
     /// Handles touch input for `visible_in_menu` GoyControl buttons & auxiliary controls while any
     /// menu (Main Title Menu, Inventory, Container, Pause, Options) is open.
     pub fn menu_update(&mut self, id: u64, point: [f32; 2], started: bool, ended: bool) -> bool {
-        let handled = if self.custom_fingers.contains_key(&id)
-            || (started && self.custom_at(point).is_some())
-        {
+        if self.custom_fingers.contains_key(&id) || (started && self.custom_at(point).is_some()) {
             self.custom_update(id, point, started, ended)
         } else {
             self.inventory_update(id, point, started, ended)
-        };
-        handled
+        }
     }
     pub fn fit_placement(&self, mut p: Placement) -> Placement {
         p.size = (p.size * self.settings.button_scale)
@@ -337,31 +334,32 @@ impl TouchControls {
             return true;
         }
         // Swipeable custom buttons activate when a moving finger slides over them.
-        if !started && !ended {
-            if let Some(index) = self.custom_at(point) {
-                let placement = self.custom_placement(index);
-                if placement.swipeable
-                    && let Some(btn) = self.settings.custom_buttons.get(index)
+        if !started
+            && !ended
+            && let Some(index) = self.custom_at(point)
+        {
+            let placement = self.custom_placement(index);
+            if placement.swipeable
+                && let Some(btn) = self.settings.custom_buttons.get(index)
+            {
+                let key = btn.key.clone();
+                let second_key = btn.second_key.clone();
+                let third_key = btn.third_key.clone();
+                if key != "key.keyboard.unknown"
+                    && !self.custom_fingers.values().any(|k| *k == key)
+                    && !self.latched_custom.contains(&key)
                 {
-                    let key = btn.key.clone();
-                    let second_key = btn.second_key.clone();
-                    let third_key = btn.third_key.clone();
-                    if key != "key.keyboard.unknown"
-                        && !self.custom_fingers.values().any(|k| *k == key)
-                        && !self.latched_custom.contains(&key)
-                    {
-                        self.custom_fingers.insert(id, key.clone());
-                        self.custom_events.push((key, true));
-                        for extra in [second_key, third_key] {
-                            if !extra.is_empty()
-                                && CustomButton::valid_token(&extra)
-                                && extra != "key.keyboard.unknown"
-                            {
-                                self.custom_events.push((extra, true));
-                            }
+                    self.custom_fingers.insert(id, key.clone());
+                    self.custom_events.push((key, true));
+                    for extra in [second_key, third_key] {
+                        if !extra.is_empty()
+                            && CustomButton::valid_token(&extra)
+                            && extra != "key.keyboard.unknown"
+                        {
+                            self.custom_events.push((extra, true));
                         }
-                        self.clicked = true;
                     }
+                    self.clicked = true;
                 }
             }
         }

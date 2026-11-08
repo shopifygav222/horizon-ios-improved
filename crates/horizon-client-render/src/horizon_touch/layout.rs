@@ -1013,19 +1013,18 @@ impl Settings {
                 }
                 if let Ok(bytes) = std::fs::read(entry.path())
                     && let Ok(mut parsed) = serde_json::from_slice::<Self>(&bytes)
+                    && parsed.control_style == style
                 {
-                    if parsed.control_style == style {
-                        parsed.preset_id = clean.clone();
-                        parsed.active_profile = clean.clone();
-                        if parsed.preset_name.trim().is_empty() || parsed.preset_name == "Default" {
-                            parsed.preset_name = stem.to_owned();
-                        }
-                        if parsed.preset_description.trim().is_empty() {
-                            parsed.preset_description = format!("Saved {} preset", style.label());
-                        }
-                        parsed.sanitize();
-                        let _ = parsed.save_to(&target);
+                    parsed.preset_id = clean.clone();
+                    parsed.active_profile = clean.clone();
+                    if parsed.preset_name.trim().is_empty() || parsed.preset_name == "Default" {
+                        parsed.preset_name = stem.to_owned();
                     }
+                    if parsed.preset_description.trim().is_empty() {
+                        parsed.preset_description = format!("Saved {} preset", style.label());
+                    }
+                    parsed.sanitize();
+                    let _ = parsed.save_to(&target);
                 }
             }
         }
@@ -1083,7 +1082,7 @@ impl Settings {
                 });
             }
         }
-        user_presets.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        user_presets.sort_by_key(|preset| preset.name.to_lowercase());
         user_presets.dedup_by(|a, b| a.id == b.id);
         out.extend(user_presets);
         out

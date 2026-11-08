@@ -186,7 +186,11 @@ pub fn export(home: &Path) -> std::result::Result<(), String> {
     } else {
         Err(format!(
             "Open the system Files app, then Horizon {} / Reports.",
-            if cfg!(target_os = "ios") { "iOS" } else { "Android" }
+            if cfg!(target_os = "ios") {
+                "iOS"
+            } else {
+                "Android"
+            }
         ))
     }
 }

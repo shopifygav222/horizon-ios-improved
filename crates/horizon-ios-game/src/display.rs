@@ -124,8 +124,8 @@ fn apply_scale(window: &winit::window::Window) -> bool {
     if size.width == 0 || size.height == 0 || !factor.is_finite() || factor <= 0.0 {
         return false;
     }
-    let view = [size.width, size.height]
-        .map(|v| (f64::from(v) / factor * native).round().max(1.0) as u32);
+    let view =
+        [size.width, size.height].map(|v| (f64::from(v) / factor * native).round().max(1.0) as u32);
     let target = RenderScale::new(REQUESTED_SCALE.load(Ordering::Relaxed)).buffer_size(view);
     let wanted = native * f64::from(target[0]) / f64::from(view[0]);
     if (wanted - factor).abs() < 1e-3 {

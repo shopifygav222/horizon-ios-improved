@@ -264,8 +264,13 @@ pub fn summary(home: &Path) -> String {
         .ok()
         .and_then(|b| serde_json::from_slice::<Value>(&b).ok());
     match previous {
-        Some(v) if v["clean_exit"] != true => format!("Previous session ended without a clean exit; last phase: {}. This may be a crash or an {PLATFORM} process kill. Export diagnostics before reporting.", v["phase"].as_str().unwrap_or("unknown")),
-        _ => format!("Export one diagnostic ZIP to send with your report. It includes local logs, {PLATFORM} exit history and retained performance recordings. Review before sharing."),
+        Some(v) if v["clean_exit"] != true => format!(
+            "Previous session ended without a clean exit; last phase: {}. This may be a crash or an {PLATFORM} process kill. Export diagnostics before reporting.",
+            v["phase"].as_str().unwrap_or("unknown")
+        ),
+        _ => format!(
+            "Export one diagnostic ZIP to send with your report. It includes local logs, {PLATFORM} exit history and retained performance recordings. Review before sharing."
+        ),
     }
 }
 /// Best-effort redaction, not a promise that arbitrary third-party text is public.
@@ -325,7 +330,9 @@ pub fn export(home: &Path) -> Result<PathBuf, String> {
     let stage = path.with_extension("partial");
     let result = (|| -> Result<(), Box<dyn std::error::Error>> {
         let mut files = Vec::new();
-        for folder in [&dir, &home.join("crash-reports")] {
+        // Starling's own logs too: its log (logs/latest.log) and standard error, this run's and
+        // the last one's (app.rs).
+        for folder in [&dir, &home.join("crash-reports"), &home.join("logs")] {
             if let Ok(entries) = fs::read_dir(folder) {
                 for entry in entries.flatten() {
                     let name = entry.file_name().to_string_lossy().into_owned();

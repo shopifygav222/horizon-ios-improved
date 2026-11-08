@@ -21,7 +21,9 @@ pub fn attach_window(window: &Arc<Window>) {
 }
 
 pub(crate) fn with_window<R>(f: impl FnOnce(&Window) -> R) -> Option<R> {
-    WINDOW.with(|slot| slot.borrow().upgrade()).map(|window| f(&window))
+    WINDOW
+        .with(|slot| slot.borrow().upgrade())
+        .map(|window| f(&window))
 }
 
 pub fn vibrate(pulse: horizon_client::gamepad::Pulse) {
