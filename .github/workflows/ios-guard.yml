@@ -1,0 +1,59 @@
+name: ios-guard
+# The iOS work must leave Starling's desktop and Android builds as Starling has them: rustfmt, and clippy with
+# warnings as errors over the client for the desktop and over the Android library, on every push to starling-ios.
+# The iOS build itself is ios.yml.
+on:
+  push:
+    branches: [starling-ios]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-guard-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  # Checks never reach Starling's telemetry server (docs/telemetry.md).
+  HORIZON_TELEMETRY_URL: "off"
+  CARGO_TERM_COLOR: never
+
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust and the ALSA and udev headers the client links against
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: guard-desktop
+          cache-on-failure: true
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      # --keep-going: every crate that fails is reported in one run, not only the first.
+      - name: Lint the client for the desktop
+        run: cargo clippy --keep-going -p horizon-client --lib --bins -- -D warnings
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the NDK Starling's APK pins
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;28.2.13676358" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Install Rust for Android and cargo-ndk
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy --target aarch64-linux-android
+          rustup default stable
+          cargo install cargo-ndk --version 3.5.4 --locked
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: guard-android
+          cache-on-failure: true
+      - name: Lint the Android library
+        run: cargo ndk -t arm64-v8a clippy --keep-going -p horizon-android -- -D warnings
