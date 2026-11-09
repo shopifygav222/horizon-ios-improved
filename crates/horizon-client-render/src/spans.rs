@@ -12,6 +12,43 @@ use std::{
 };
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
+/// The iOS launcher's performance recordings (Horizon Android's): every thread's spans, summed
+/// per stage while it records.
+static RECORDING: AtomicBool = AtomicBool::new(false);
+type Totals = (u64, f64, f64, f32);
+type Trace = std::collections::BTreeMap<(&'static str, &'static str), Totals>;
+static TRACE: std::sync::Mutex<Trace> = std::sync::Mutex::new(Trace::new());
+
+/// Opt-in bounded, aggregate timings. Names are engine constants, never world data.
+pub fn record_timings(on: bool) {
+    RECORDING.store(on, Ordering::Relaxed);
+    TRACE.lock().unwrap_or_else(|e| e.into_inner()).clear();
+}
+fn collect(role: &'static str, span: Span) {
+    let mut trace = TRACE.lock().unwrap_or_else(|e| e.into_inner());
+    // Bounds the registry even if future instrumentation adds dynamic stages.
+    if trace.len() >= 256 && !trace.contains_key(&(role, span.name)) {
+        return;
+    }
+    let total = trace.entry((role, span.name)).or_default();
+    total.0 += 1;
+    total.1 += f64::from(span.ms);
+    total.2 += f64::from(span.cpu_ms);
+    total.3 = total.3.max(span.ms);
+}
+/// The timings recorded since [`record_timings`], per thread role and stage; clears them.
+pub fn drain_timings() -> serde_json::Value {
+    let trace = std::mem::take(&mut *TRACE.lock().unwrap_or_else(|e| e.into_inner()));
+    serde_json::Value::Array(
+        trace
+            .into_iter()
+            .map(|((role, stage), (calls, wall, cpu, max))| {
+                serde_json::json!({"role": role, "stage": stage, "calls": calls,
+                    "wall_ms": wall, "thread_cpu_ms": cpu, "max_ms": max})
+            })
+            .collect(),
+    )
+}
 thread_local! {
     static SPANS: RefCell<Vec<Span>> = const { RefCell::new(Vec::new()) };
     /// Spans recorded on this thread alone, wall time only ([`record_here`]).
@@ -146,7 +183,18 @@ pub fn thread_cpu() -> Option<Duration> {
 
 /// The frame's spans as they were recorded, each after the spans inside it; clears them.
 pub fn take_raw() -> Vec<Span> {
-    SPANS.with(|s| std::mem::take(&mut *s.borrow_mut()))
+    let raw = SPANS.with(|s| std::mem::take(&mut *s.borrow_mut()));
+    if RECORDING.load(Ordering::Relaxed) {
+        let role = if std::thread::current().name() == Some("Server thread") {
+            "server"
+        } else {
+            "frame"
+        };
+        for span in merge(&raw) {
+            collect(role, span);
+        }
+    }
+    raw
 }
 /// The frame's spans, summed by name, slowest first; clears them.
 pub fn take() -> Vec<Span> {

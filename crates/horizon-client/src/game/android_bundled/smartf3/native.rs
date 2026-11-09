@@ -129,31 +129,21 @@ fn resident_bytes() -> Option<u64> {
 }
 
 impl Game<'_> {
-    /// `Game::hud`'s HEAD, while F3 is open and SmartF3 draws it: the
-    /// game's own `hud` with SmartF3's screen where `draw_debug_overlay`
-    /// draws the vanilla one (after the screen and the toasts, before
-    /// Horizon's frame graph and the controller cursor). None runs the
-    /// game's `hud` (F3 closed, SmartF3 off in Options > Mods, set to
-    /// vanilla F3, or its file broken).
-    pub(in crate::game) fn smartf3_hud(&mut self, size: [u32; 2]) -> Option<HudBatch> {
-        if self.code_of_conduct.is_some() || !self.debug || !on(self) || !config(self).enabled {
-            return None;
-        }
-        let mut batch = if (self.server_packs.prompt.is_some() || self.dialog_open())
-            && self.player.is_none()
+    /// SmartF3's screen where `Game::hud` draws the vanilla debug overlay, while F3 is open and
+    /// SmartF3 draws it: true when it did. False leaves the vanilla overlay (F3 closed, SmartF3
+    /// off in Options > Mods, set to vanilla F3, or its file broken).
+    pub(in crate::game) fn smartf3_overlay(&self, batch: &mut HudBatch, size: [u32; 2]) -> bool {
+        // Starling's Debug Options screen shows no overlay under it.
+        if self.code_of_conduct.is_some()
+            || self.screen == Screen::DebugOptions
+            || !self.debug
+            || !on(self)
+            || !config(self).enabled
         {
-            HudBatch::new(size)
-        } else {
-            self.hud_layers(size)
-        };
-        self.draw_dialog(&mut batch);
-        self.draw_pack_prompt(&mut batch);
-        self.draw_link_prompt(&mut batch);
-        self.smartf3_draw(&mut batch, size);
-        self.frame_graph
-            .draw(self.settings.horizon.overlay, &mut batch, &self.gui.atlas);
-        self.draw_pad_cursor(&mut batch);
-        Some(batch)
+            return false;
+        }
+        self.smartf3_draw(batch, size);
+        true
     }
 
     /// SmartF3's screen in place of `draw_debug_overlay`'s: on the same

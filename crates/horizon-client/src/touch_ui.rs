@@ -1803,8 +1803,7 @@ impl TouchUi {
                     }
                     TouchPhase::Ended => {
                         self.custom_kb_drag = None;
-                        if !moved
-                            && matches!(self.custom_input_picker, PickerStep::Keyboard { .. })
+                        if !moved && matches!(self.custom_input_picker, PickerStep::Keyboard { .. })
                         {
                             let mdw = (w - 20.0).clamp(300.0, 620.0);
                             let mdh = (h - 20.0).clamp(235.0, 340.0);
@@ -6447,8 +6446,8 @@ pub fn touch_hud_editor(
                         let pod_w = if ed.pod_expanded { 356.0 } else { 52.0 };
                         let cur_x = (tc.settings.floating_menu_pos[0] * w)
                             .clamp(8.0, (w - pod_w - 8.0).max(8.0));
-                        let cur_y = (tc.settings.floating_menu_pos[1] * h)
-                            .clamp(6.0, (h - 54.0).max(6.0));
+                        let cur_y =
+                            (tc.settings.floating_menu_pos[1] * h).clamp(6.0, (h - 54.0).max(6.0));
                         let nx = (p[0] - offset[0]).clamp(8.0, (w - pod_w - 8.0).max(8.0));
                         let ny = (p[1] - offset[1]).clamp(6.0, (h - 54.0).max(6.0));
                         if (nx - cur_x).hypot(ny - cur_y) > 4.0 {
@@ -6482,9 +6481,7 @@ pub fn touch_hud_editor(
                         ed.kb_scroll_x = (ed.kb_scroll_x - dx_k).clamp(0.0, max_kb_scroll);
                         if ended {
                             ed.active_drag = None;
-                            if !moved
-                                && let PickerStep::Keyboard { event_slot } = ed.picker_step
-                            {
+                            if !moved && let PickerStep::Keyboard { event_slot } = ed.picker_step {
                                 let is_mcpe = tc.settings.control_style == ControlStyle::Mcpe;
                                 let dh = (h - 20.0).clamp(235.0, 340.0);
                                 let dx = (w - dw) * 0.5;
@@ -6510,9 +6507,7 @@ pub fn touch_hud_editor(
                                                     tc.settings.custom_buttons.get_mut(idx)
                                             {
                                                 if is_mcpe {
-                                                    btn.set_exclusive_binding(
-                                                        (*tok).to_owned(),
-                                                    );
+                                                    btn.set_exclusive_binding((*tok).to_owned());
                                                     btn.custom_label = (*lbl).to_owned();
                                                 } else {
                                                     btn.set_event_slot(

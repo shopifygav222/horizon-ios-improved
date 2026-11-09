@@ -8300,8 +8300,15 @@ impl Game<'_> {
         // options included: the narrator's toast follows the player there.
         self.draw_narrator_toast(&mut batch);
         // Gui.extractRenderState: the debug overlay comes after the screen
-        // and the toasts, so it is over everything, menus included.
-        self.draw_debug_overlay(&mut batch, size);
+        // and the toasts, so it is over everything, menus included. On iOS the bundled Smart F3
+        // draws its screen in the vanilla one's place while it is on.
+        #[cfg(target_os = "ios")]
+        let smartf3 = self.smartf3_overlay(&mut batch, size);
+        #[cfg(not(target_os = "ios"))]
+        let smartf3 = false;
+        if !smartf3 {
+            self.draw_debug_overlay(&mut batch, size);
+        }
         self.frame_graph
             .draw(self.settings.horizon.overlay, &mut batch, &self.gui.atlas);
         self.draw_stats_overlay(&mut batch);
