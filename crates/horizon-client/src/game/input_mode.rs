@@ -43,9 +43,10 @@ impl Game<'_> {
             WindowEvent::KeyboardInput { .. } => {
                 !self.touch_keyboard_asked() && horizon_gamecontroller::keyboard_connected()
             }
+            // Only a pointer that is there: nothing else makes these on a phone.
             WindowEvent::CursorMoved { .. }
             | WindowEvent::MouseInput { .. }
-            | WindowEvent::MouseWheel { .. } => true,
+            | WindowEvent::MouseWheel { .. } => horizon_gamecontroller::mouse_connected(),
             _ => false,
         };
         if keyboard_mouse {

@@ -17160,6 +17160,11 @@ impl ApplicationHandler for Game<'_> {
         } else {
             None
         };
+        // iOS: which input the player plays with now (game/input_mode.rs). Here, where only the
+        // window's own events come: the control system makes pointer events of its own for the
+        // menus, which are fingers, not a mouse.
+        #[cfg(target_os = "ios")]
+        self.ios_input(&event);
         self.handle_window_event(event_loop, id, event, input_trace::InputOrigin::User);
         if let Some((event, modifiers)) = key {
             self.native_input_key(&event, modifiers);
@@ -23151,9 +23156,6 @@ impl Game<'_> {
         ) {
             self.modifiers = horizon_client::input_mode::held_modifiers(&self.physical_keys);
         }
-        // iOS: which input the player plays with now (game/input_mode.rs).
-        #[cfg(target_os = "ios")]
-        self.ios_input(_event);
     }
     fn platform_frame_hint(&self, _rendered: bool, _cpu: Duration) {
         #[cfg(target_os = "android")]
