@@ -130,6 +130,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ar_archive_writer"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "523e5e187fff36fcb8d1d19ccf0ca4ca43ec3d158316057f66dc6f72716bc5ec"
+dependencies = [
+ "object",
+]
+
+[[package]]
 name = "arboard"
 version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1366,9 +1375,11 @@ version = "0.1.0"
 dependencies = [
  "ab_glyph",
  "bytemuck",
+ "chacha20poly1305",
  "chrono",
  "flate2",
  "fs4",
+ "getrandom 0.3.4",
  "gilrs",
  "glam",
  "horizon-anticheat",
@@ -1384,6 +1395,7 @@ dependencies = [
  "horizon-cosmetics",
  "horizon-dualsense",
  "horizon-friends",
+ "horizon-gamecontroller",
  "horizon-hdr",
  "horizon-items",
  "horizon-mods",
@@ -1465,6 +1477,7 @@ dependencies = [
  "horizon-dualsense",
  "horizon-friends",
  "horizon-hdr",
+ "horizon-ios-prepare",
  "horizon-items",
  "horizon-mcp",
  "horizon-mods",
@@ -1605,6 +1618,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "horizon-gamecontroller"
+version = "0.1.0"
+dependencies = [
+ "objc2 0.6.5",
+ "objc2-foundation 0.3.2",
+ "objc2-game-controller",
+ "objc2-ui-kit 0.3.2",
+]
+
+[[package]]
 name = "horizon-hdr"
 version = "0.1.0"
 dependencies = [
@@ -1613,6 +1636,33 @@ dependencies = [
  "wayland-client",
  "wayland-protocols",
  "wgpu",
+]
+
+[[package]]
+name = "horizon-ios-game"
+version = "0.1.0"
+dependencies = [
+ "horizon-client",
+ "horizon-gamecontroller",
+ "horizon-mods",
+ "horizon-protocol",
+ "horizon-threads",
+ "libc",
+ "log",
+ "serde_json",
+ "stacker",
+ "winit",
+]
+
+[[package]]
+name = "horizon-ios-prepare"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "sha1",
+ "sha2",
+ "ureq",
+ "zip",
 ]
 
 [[package]]
@@ -2770,6 +2820,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-game-controller"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1962c1882c5abcedb18e5f01acffeaad7b3cbd0a9d4cd8f5ca259ba8a64cb9a3"
+dependencies = [
+ "objc2 0.6.5",
+ "objc2-foundation 0.3.2",
+]
+
+[[package]]
 name = "objc2-io-kit"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2886,6 +2946,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-ui-kit"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d87d638e33c06f577498cbcc50491496a3ed4246998a7fbba7ccb98b1e7eab22"
+dependencies = [
+ "objc2 0.6.5",
+ "objc2-foundation 0.3.2",
+]
+
+[[package]]
 name = "objc2-uniform-type-identifiers"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2907,6 +2977,15 @@ dependencies = [
  "objc2 0.5.3",
  "objc2-core-location",
  "objc2-foundation 0.2.2",
+]
+
+[[package]]
+name = "object"
+version = "0.39.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -3253,6 +3332,16 @@ name = "profiling"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5"
+
+[[package]]
+name = "psm"
+version = "0.1.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dcd034599e63b970727f70d79e02d62390a4a84f7c6b827c27c46d5ac3fa622"
+dependencies = [
+ "ar_archive_writer",
+ "cc",
+]
 
 [[package]]
 name = "pxfm"
@@ -3817,6 +3906,19 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "stacker"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "707f49d46706bacf8a2b00d51dace3f9de527c13eec3778f570c411f89e69967"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "psm",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "starling-account"
@@ -5157,7 +5259,7 @@ dependencies = [
  "objc2 0.5.3",
  "objc2-app-kit 0.2.2",
  "objc2-foundation 0.2.2",
- "objc2-ui-kit",
+ "objc2-ui-kit 0.2.2",
  "orbclient",
  "percent-encoding",
  "pin-project",
