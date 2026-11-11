@@ -24,14 +24,6 @@ pub fn folder_id(profile: u32, folder: &str) -> String {
         format!("p{profile}/{folder}")
     }
 }
-pub fn profile(home: &Path) -> u32 {
-    fs::read(home.join("config.json"))
-        .ok()
-        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
-        .and_then(|v| v["profile"].as_u64())
-        .and_then(|v| u32::try_from(v).ok())
-        .unwrap_or(0)
-}
 
 // ---- Integrated Mini File Manager Backend (Real Filesystem Operations) ----
 

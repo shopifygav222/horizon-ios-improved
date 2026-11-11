@@ -245,6 +245,12 @@ pub struct Settings {
     pub extras: crate::extras::Extras,
     /// The Horizon mods turned on (`horizon-mods.txt`), all off by default.
     pub mods: crate::mod_list::ModList,
+    /// iOS: Horizon Android's touch controls (`horizon-touch.json`), the Horizon scheme.
+    #[cfg(target_os = "ios")]
+    pub touch: crate::horizon_touch::Settings,
+    /// iOS: Horizon Android's keypad profile (`horizon-keypad.json`).
+    #[cfg(target_os = "ios")]
+    pub keypad: crate::keypad::Settings,
     /// The packs in `shaderpacks/`, listed when the Shader Packs page opens; the pick is
     /// `horizon.shader_pack`.
     pub shader_packs: Vec<crate::shader_pack_list::Entry>,
@@ -335,6 +341,10 @@ impl Default for Settings {
             controller: Default::default(),
             extras: Default::default(),
             mods: Default::default(),
+            #[cfg(target_os = "ios")]
+            touch: Default::default(),
+            #[cfg(target_os = "ios")]
+            keypad: Default::default(),
             shader_packs: Vec::new(),
             shader_options: None,
             custom_buttons: Vec::new(),
@@ -411,6 +421,15 @@ impl Settings {
                 mods,
                 ..Self::default()
             },
+        };
+        // iOS: Horizon Android's touch controls and keypad profile, from their own files.
+        #[cfg(target_os = "ios")]
+        let settings = Self {
+            touch: crate::horizon_touch::Settings::load_from(
+                &path.with_file_name("horizon-touch.json"),
+            ),
+            keypad: crate::keypad::Settings::load(&path.with_file_name("horizon-keypad.json")),
+            ..settings
         };
         settings.describe_for_crashes();
         // Options.load: the backend asked for at startup, what a restart is measured from.
@@ -523,6 +542,10 @@ impl Settings {
             controller: Default::default(),
             extras: Default::default(),
             mods: Default::default(),
+            #[cfg(target_os = "ios")]
+            touch: Default::default(),
+            #[cfg(target_os = "ios")]
+            keypad: Default::default(),
             shader_packs: Vec::new(),
             shader_options: None,
             custom_buttons: Vec::new(),
@@ -691,6 +714,10 @@ impl Settings {
             controller: self.controller.clone(),
             extras: self.extras.clone(),
             mods: self.mods.clone(),
+            #[cfg(target_os = "ios")]
+            touch: self.touch.clone(),
+            #[cfg(target_os = "ios")]
+            keypad: self.keypad.clone(),
             video_modes: self.video_modes.clone(),
             ..Self::from_file(file)
         })
@@ -707,6 +734,11 @@ impl Settings {
             self.controller.save(dir);
             self.extras.save(dir);
             self.mods.save(&crate::logging::shared_dir(dir));
+            #[cfg(target_os = "ios")]
+            {
+                let _ = self.touch.save_to(&dir.join("horizon-touch.json"));
+                let _ = self.keypad.save(&dir.join("horizon-keypad.json"));
+            }
         }
     }
     /// Volume of a sound source (master excluded).

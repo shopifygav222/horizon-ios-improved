@@ -81,6 +81,54 @@ pub fn take_restart() -> bool {
 }
 
 /// The app's version, from its Info.plist; never a build that updates itself.
+/// The launcher's performance recordings (Horizon Android's: Settings > Diagnostics), which it
+/// registers at the start: the launcher is the app's program and the game a library under it,
+/// so the game reaches them through these.
+pub struct PerformanceHooks {
+    /// A recording runs.
+    pub active: fn() -> bool,
+    /// A frame's times (frame, CPU, the GPU's stages, the four phases): its row, when kept.
+    pub record: fn(f32, f32, &[f32], [f32; 4]) -> Option<serde_json::Value>,
+    /// A kept row and what the game was doing then.
+    pub submit: fn(serde_json::Value, serde_json::Value),
+    /// A slow frame's spans.
+    pub slow_frame: fn(f32, &[crate::spans::Span]),
+    /// Once per loop iteration (the GPU profile setting starts and stops its recording).
+    pub frame: fn(),
+}
+static PERFORMANCE: std::sync::OnceLock<PerformanceHooks> = std::sync::OnceLock::new();
+pub fn set_performance_hooks(hooks: PerformanceHooks) {
+    let _ = PERFORMANCE.set(hooks);
+}
+pub fn performance_active() -> bool {
+    PERFORMANCE.get().is_some_and(|hooks| (hooks.active)())
+}
+pub fn performance_record(
+    frame: f32,
+    cpu: f32,
+    gpu: &[f32],
+    phases: [f32; 4],
+) -> Option<serde_json::Value> {
+    PERFORMANCE
+        .get()
+        .and_then(|hooks| (hooks.record)(frame, cpu, gpu, phases))
+}
+pub fn performance_submit(row: serde_json::Value, context: serde_json::Value) {
+    if let Some(hooks) = PERFORMANCE.get() {
+        (hooks.submit)(row, context);
+    }
+}
+pub fn performance_slow_frame(cpu: f32, spans: &[crate::spans::Span]) {
+    if let Some(hooks) = PERFORMANCE.get() {
+        (hooks.slow_frame)(cpu, spans);
+    }
+}
+pub fn performance_frame() {
+    if let Some(hooks) = PERFORMANCE.get() {
+        (hooks.frame)();
+    }
+}
+
 pub fn app_version() -> Option<(String, bool)> {
     horizon_gamecontroller::app_version()
         .filter(|v| !v.is_empty())

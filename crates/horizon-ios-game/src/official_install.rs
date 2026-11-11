@@ -70,11 +70,6 @@ pub fn ready(_home: &Path) -> bool {
     }
 }
 
-/// Nothing to clean: the preparing removes the official files once they are laid out.
-pub fn cleanup_completed_downloads(_home: &Path) -> Result<(), String> {
-    Ok(())
-}
-
 /// Fetch the official files (each checked), then lay the game out, reporting each stage.
 pub fn install_with_progress(
     _home: &Path,

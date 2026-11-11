@@ -9298,7 +9298,17 @@ impl Game<'_> {
         }
     }
 
-    fn remote_start_attack(&mut self) -> bool {
+    /// iOS: the local player's block breaking progress, for the Horizon controls' break ring.
+    #[cfg(target_os = "ios")]
+    pub(super) fn touch_mining_progress(&self) -> f32 {
+        self.remote
+            .as_ref()
+            .and_then(|r| r.destroying.map(|d| d.2))
+            .or_else(|| self.mining.as_ref().map(|m| m.progress))
+            .unwrap_or(0.0)
+    }
+
+    pub(super) fn remote_start_attack(&mut self) -> bool {
         if self.clicks.miss_time > 0 {
             return false;
         }
@@ -10850,7 +10860,7 @@ fn remote_use_swings(held: &ItemStack, consumable: bool) -> bool {
 /// server decides; this is the client's guess of whether to go on. A carrot or warped fungus
 /// on a stick is not here: `FoodOnAStickItem.use` passes on a client, and only the server's
 /// answer to a boost that can run swings the hand.
-fn item_has_use(info: &horizon_client::items::ItemInfo) -> bool {
+pub(super) fn item_has_use(info: &horizon_client::items::ItemInfo) -> bool {
     let id = info.id.trim_start_matches("minecraft:");
     id.ends_with("_spear")
         || info.consumable.is_some()

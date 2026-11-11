@@ -356,6 +356,9 @@ mod titles;
 mod tnt;
 mod totem;
 mod touch;
+// iOS: Horizon Android's touch controls, the Horizon scheme (horizon_touch.rs).
+#[cfg(target_os = "ios")]
+mod horizon_touch;
 mod trading;
 mod transient_blocks;
 mod trial_spawner;
@@ -7688,6 +7691,12 @@ impl Game<'_> {
     /// Shifts, or both Controls, are.
     fn heal_hold_latches(&mut self) {
         let (shift, control) = (self.modifiers.shift_key(), self.modifiers.control_key());
+        // iOS: a Horizon custom button holding Shift or Control holds them as the keyboard would.
+        #[cfg(target_os = "ios")]
+        let (shift, control) = (
+            shift || self.horizon_custom_holds(true),
+            control || self.horizon_custom_holds(false),
+        );
         if !shift {
             for key in [KeyCode::ShiftLeft, KeyCode::ShiftRight] {
                 self.physical_keys.remove(&key);
@@ -7749,6 +7758,11 @@ impl Game<'_> {
     /// A key event after rebinding, as the default key of its mapping (the
     /// keyboard and controllers both end here).
     fn mapped_key(&mut self, key: KeyCode, pressed: bool, repeat: bool) -> Result<()> {
+        // iOS: a key a Horizon custom button still holds stays down.
+        #[cfg(target_os = "ios")]
+        if !pressed && self.horizon_scheme() && self.android_custom_key_held(key) {
+            return Ok(());
+        }
         // Sneak and sprint are ToggleKeyMappings: a press (or a key
         // repeat) flips them when toggling; only releases reach them
         // behind a screen (KeyboardHandler.keyPress).
@@ -10323,10 +10337,19 @@ impl Game<'_> {
     /// and a sneak the key no longer held: #4166's in-game report), so a
     /// cached key set is not vanilla's answer.
     pub(super) fn has_shift_down(&self) -> bool {
+        // iOS: the Horizon controls' Shift (a custom button, the latch, the inventory's sneak).
+        #[cfg(target_os = "ios")]
+        if self.horizon_scheme() && self.horizon_holds_modifier(true) {
+            return true;
+        }
         self.modifiers.shift_key()
     }
     /// The same live word for Control (`InputWithModifiers.hasControlDown`).
     pub(super) fn has_control_down(&self) -> bool {
+        #[cfg(target_os = "ios")]
+        if self.horizon_scheme() && self.horizon_holds_modifier(false) {
+            return true;
+        }
         self.modifiers.control_key()
     }
     /// Real events word the modifiers by their own `ModifiersChanged`; a
@@ -14255,6 +14278,9 @@ impl Game<'_> {
         )
     }
     fn apply_settings(&mut self) {
+        // iOS: the Horizon controls' settings follow the game's (horizon_touch.rs).
+        #[cfg(target_os = "ios")]
+        self.horizon_apply_settings();
         // LocalPlayer.refreshChatAbilities: the chat shows what the Chat option allows.
         let abilities = self.chat_abilities();
         self.ui.chat.set_abilities(&self.gui.atlas.font, abilities);
@@ -15900,6 +15926,11 @@ impl Game<'_> {
             Vec::new()
         };
         let mut hud = horizon_client::spans::time("hud", || self.hud(size));
+        // iOS: the Horizon controls over the HUD (horizon_touch.rs).
+        #[cfg(target_os = "ios")]
+        if self.horizon_scheme() {
+            self.horizon_draw(&mut hud);
+        }
         self.flush_ime(&mut hud);
         let title = self.shows_panorama();
         let (yaw, pitch) = if title {
@@ -16574,6 +16605,11 @@ impl Game<'_> {
     }
     /// A mouse button while playing (window or control socket).
     fn play_mouse(&mut self, button: MouseButton, pressed: bool) -> Result<()> {
+        // iOS: a button a Horizon custom button still holds stays down.
+        #[cfg(target_os = "ios")]
+        if !pressed && self.horizon_scheme() && self.android_custom_mouse_held(button) {
+            return Ok(());
+        }
         if self.sleeping.is_some() {
             return Ok(());
         }
@@ -17063,6 +17099,38 @@ impl Game<'_> {
 fn autosave_interval(rate: f32) -> i64 {
     i64::from((rate * 300.0) as i32).max(100)
 }
+/// iOS: what the launcher's performance recording keeps beside each frame's row (Horizon
+/// Android's performance context, from what Starling's game knows).
+#[cfg(target_os = "ios")]
+impl Game<'_> {
+    fn ios_performance_context(&self) -> serde_json::Value {
+        let renderer = self.renderer.as_ref().map(|r| {
+            serde_json::json!({
+                "gpu": r.info.name,
+                "backend": format!("{:?}", r.info.backend),
+                "surface": [r.config.width, r.config.height],
+                "present": format!("{:?}", r.config.present_mode),
+                "wait_ms": r.last_wait.as_secs_f32() * 1000.0,
+            })
+        });
+        serde_json::json!({
+            "renderer": renderer,
+            "shader_pack_active": !self.settings.horizon.shader_pack.is_empty(),
+            "render_distance": self.settings.render_distance,
+            "simulation_distance": self.settings.simulation_distance,
+            "fps_limit": self.framerate_limit(),
+            "focused": self.focused,
+            "paused": self.pause,
+            "in_world": self.player.is_some(),
+            "playing_screen": self.screen == Screen::Playing,
+            "idle_seconds": self.last_input.elapsed().as_secs(),
+            "camera_angles": [self.yaw, self.pitch],
+            "chunks": self.world.chunks.len(),
+            "touch_scheme": if self.horizon_scheme() { "horizon" } else { "starling" },
+        })
+    }
+}
+
 impl ApplicationHandler for Game<'_> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(window) = &self.window {
@@ -17189,6 +17257,11 @@ impl Game<'_> {
             None => self.options.headless,
         };
         if !ours {
+            return;
+        }
+        // iOS: the Horizon controls take their touches and keys first (horizon_touch.rs).
+        #[cfg(target_os = "ios")]
+        if self.horizon_scheme() && self.horizon_window_event(event_loop, id, &mut event) {
             return;
         }
         // The focus goes first when the game leaves the screen (home, the recent apps, a call),
@@ -18531,6 +18604,9 @@ impl Game<'_> {
                         let cpu = now.elapsed().saturating_sub(r.last_wait).as_secs_f32() * 1000.0;
                         // Spans timed between frames (`idle`) come first.
                         let spans = horizon_client::spans::merge(&frame_spans);
+                        // iOS: the launcher's performance recording keeps the slow ones.
+                        #[cfg(target_os = "ios")]
+                        crate::ios::performance_slow_frame(cpu, &spans);
                         let between = between.as_secs_f32() * 1000.0;
                         if cpu > threshold || between > threshold {
                             // The render thread's own CPU time in the frame:
@@ -18551,6 +18627,9 @@ impl Game<'_> {
                             );
                         }
                     }
+                    // iOS: this frame's row for the launcher's performance recording.
+                    #[cfg(target_os = "ios")]
+                    let mut performance_sample = None;
                     if let Some(r) = self.renderer.as_mut() {
                         let cpu = now.elapsed().saturating_sub(r.last_wait);
                         if rendered {
@@ -18566,12 +18645,22 @@ impl Game<'_> {
                             }
                             self.frame_stats.record_cpu(ms(cpu));
                             let render = r.last_encode;
-                            self.frame_stats.record_phases([
+                            let phases = [
                                 ms(updated - now),
                                 ms(ticked - updated),
                                 ms(ticked.elapsed().saturating_sub(r.last_wait + render)),
                                 ms(render),
-                            ]);
+                            ];
+                            self.frame_stats.record_phases(phases);
+                            #[cfg(target_os = "ios")]
+                            {
+                                performance_sample = crate::ios::performance_record(
+                                    ms(elapsed),
+                                    ms(cpu),
+                                    &r.gpu_times,
+                                    phases,
+                                );
+                            }
                             self.frame_stats
                                 .record_block_entities(r.static_block_entity_frame_stats());
                         }
@@ -18581,6 +18670,10 @@ impl Game<'_> {
                         if rendered {
                             crate::android::frame_hint(cpu, self.framerate_limit());
                         }
+                    }
+                    #[cfg(target_os = "ios")]
+                    if let Some(sample) = performance_sample {
+                        crate::ios::performance_submit(sample, self.ios_performance_context());
                     }
                     horizon_client::ram_limit::frame();
                     self.limit_frame();
@@ -18720,6 +18813,15 @@ impl Game<'_> {
     /// winit's `about_to_wait`: what happens between frames (stop requests, the closing
     /// save, world entry, the control socket, pads), then the next frame.
     pub(super) fn idle(&mut self, event_loop: &dyn EventLoopCtl) {
+        // iOS: the Horizon controls' custom buttons, pointer and gyroscope (horizon_touch.rs),
+        // and the launcher's GPU profile recording.
+        #[cfg(target_os = "ios")]
+        {
+            if self.horizon_scheme() {
+                self.horizon_frame();
+            }
+            crate::ios::performance_frame();
+        }
         // A splitscreen player's game has nothing to save: P1's shuts the process down.
         if horizon_threads::stop_requests() > 0
             && !self.options.split_guest
@@ -21909,6 +22011,11 @@ pub fn run_with() -> Result<()> {
         && options.execution_role == execution_role::ExecutionRole::DedicatedServer
     {
         options.spikes = Some(dedicated::SLOW_TICK_MS);
+    }
+    // iOS: the launcher's performance recording times the frames' spans (Horizon Android's).
+    #[cfg(target_os = "ios")]
+    if options.spikes.is_none() && crate::ios::performance_active() {
+        options.spikes = Some(50.0);
     }
     horizon_client::spans::enable(options.spikes.is_some());
     // A player who allows performance statistics also says what their slow frames spent their

@@ -26,27 +26,6 @@ pub(crate) fn with_window<R>(f: impl FnOnce(&Window) -> R) -> Option<R> {
         .map(|window| f(&window))
 }
 
-pub fn vibrate(pulse: horizon_client::gamepad::Pulse) {
-    let intensity = pulse.strong.max(pulse.weak).clamp(0.0, 1.0);
-    if intensity < 0.01 || pulse.millis == 0 {
-        return;
-    }
-    if intensity < 0.33 {
-        horizon_gamecontroller::haptic_light();
-    } else if intensity < 0.66 {
-        horizon_gamecontroller::haptic_medium();
-    } else {
-        horizon_gamecontroller::haptic_rigid();
-    }
-}
-
-/// A UIKit impact is one tap; there is nothing still running to cancel.
-pub fn cancel_vibration() {}
-
-pub fn clipboard_get() -> Option<String> {
-    horizon_gamecontroller::clipboard_text()
-}
-
 pub fn set_orientation(orientation: crate::catalog::Orientation) {
     crate::display::request_orientation(orientation);
 }
@@ -108,17 +87,6 @@ pub fn open_url(url: &str) -> bool {
     horizon_gamecontroller::open_url(url)
 }
 
-/// Public iOS power and thermal status; no device identifiers.
-pub fn performance_power() -> serde_json::Value {
-    horizon_gamecontroller::power().map_or(serde_json::Value::Null, |(low_power, thermal)| {
-        serde_json::json!({"low_power_mode": low_power, "thermal_state": thermal})
-    })
-}
-
-pub fn clipboard_set(text: &str) {
-    let _ = horizon_gamecontroller::set_clipboard_text(text);
-}
-
 pub fn copy_login_code(text: &str) -> bool {
     horizon_gamecontroller::set_clipboard_text(text)
 }
@@ -145,10 +113,6 @@ pub fn show_secret(text: &str) {
 
 pub fn show(text: &str) {
     show_editor(text, false);
-}
-
-pub fn show_multiline(text: &str) {
-    show_editor(text, true);
 }
 
 fn show_editor(text: &str, multiline: bool) {
@@ -183,16 +147,6 @@ pub fn poll() -> Vec<Output> {
             horizon_client::ime_edit::editor_changes(old, &new, MULTILINE.with(|mode| mode.get()));
         *old = new;
         out
-    })
-}
-
-/// Field hit tests use the same GUI coordinates as the touch menus.
-pub fn field_at(p: [f32; 2]) -> bool {
-    horizon_client::widgets::last_targets().iter().any(|t| {
-        let [x, y, w, h] = t.rect;
-        t.kind == horizon_client::widgets::Kind::Field
-            && (x..x + w).contains(&p[0])
-            && (y..y + h).contains(&p[1])
     })
 }
 
@@ -284,9 +238,4 @@ pub fn display_density() -> f32 {
         .filter(|scale| scale.is_finite())
         .map_or(2.0, |scale| scale as f32)
         .clamp(1.0, 5.0)
-}
-
-/// The interface's rotation, as Android's `Display.getRotation`; read only while gyro aiming is on.
-pub fn display_rotation() -> i32 {
-    horizon_gamecontroller::interface_rotation()
 }

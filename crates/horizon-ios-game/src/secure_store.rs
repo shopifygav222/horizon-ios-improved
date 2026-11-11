@@ -47,10 +47,3 @@ impl SecretStore for IosStore {
         true
     }
 }
-
-/// Android's development probe exercises its Keystore across two launches; the Keychain needs no
-/// such check, so a development build starts normally.
-#[cfg(debug_assertions)]
-pub fn development_probe() -> bool {
-    false
-}

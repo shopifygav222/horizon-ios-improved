@@ -189,6 +189,9 @@ jobs:
       - name: Bundle it for the Simulator
         run: |
           set -euo pipefail
+          # The menu art and shader pack the app carries (no game tables: the launcher starts on
+          # its installer, as on a phone before the game files are fetched).
+          python3 tools/ios_prepare.py --art-only
           command -v xcodegen >/dev/null || brew install xcodegen
           ( cd packaging/ios && xcodegen generate )
           HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/StarlingIOS.xcodeproj \

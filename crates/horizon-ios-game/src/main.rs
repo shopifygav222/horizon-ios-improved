@@ -13,8 +13,6 @@ mod app;
 #[cfg(target_os = "ios")]
 mod catalog;
 #[cfg(target_os = "ios")]
-mod device_math;
-#[cfg(target_os = "ios")]
 mod device_preferences;
 #[cfg(target_os = "ios")]
 mod device_runtime;

@@ -517,6 +517,10 @@ pub struct Settings {
     pub snap_to_grid: bool,
     #[serde(deserialize_with = "deserialize_layouts")]
     pub layouts: [[Placement; 14]; 3],
+    /// Starling's own Bedrock-style touch controls in place of these (the iOS port's scheme:
+    /// Options > Controls); off, these play.
+    #[serde(default)]
+    pub starling_controls: bool,
 }
 fn default_profile_name() -> String {
     "default".into()
@@ -650,6 +654,7 @@ impl Default for Settings {
             floating_menu_pos: default_floating_pos(),
             snap_to_grid: false,
             layouts,
+            starling_controls: false,
         }
     }
 }

@@ -1595,6 +1595,9 @@ enum Act {
     BedrockInventory,
     /// The touch layout editor (phones).
     TouchLayout,
+    /// iOS: the touch scheme, Horizon Android's controls or Starling's own.
+    #[cfg(target_os = "ios")]
+    TouchScheme,
     /// Credits & Attribution's Credits button (WinScreen without the poem).
     Credits,
     CopyAgentDetails,
@@ -3243,6 +3246,24 @@ impl OptionsUi {
                         310.0,
                         Text::literal("Bedrock Inventory: ").append(on_off(s.bedrock_inventory)),
                         Act::BedrockInventory,
+                    ),
+                    None,
+                ));
+                // iOS: which touch controls play, Horizon Android's (the default) or Starling's.
+                #[cfg(target_os = "ios")]
+                rows.push(Row::Buttons(
+                    button(
+                        0.0,
+                        0.0,
+                        310.0,
+                        Text::literal("Touch Scheme: ").append(Text::literal(
+                            if s.touch.starling_controls {
+                                "Starling"
+                            } else {
+                                "Horizon"
+                            },
+                        )),
+                        Act::TouchScheme,
                     ),
                     None,
                 ));
@@ -5423,6 +5444,10 @@ impl OptionsUi {
                             }
                         }
                         Act::TouchLayout => events.push(Event::TouchLayout),
+                        #[cfg(target_os = "ios")]
+                        Act::TouchScheme => {
+                            s.touch.starling_controls = !s.touch.starling_controls;
+                        }
                         Act::BedrockInventory => s.bedrock_inventory = !s.bedrock_inventory,
                         Act::Credits => events.push(Event::Credits),
                         Act::CopyAgentDetails => events.push(Event::CopyAgentDetails),
@@ -6512,6 +6537,8 @@ impl OptionsUi {
                         | Act::PickSkin
                         | Act::OpenSkinFolder
                         | Act::ElyBySkins => {}
+                        #[cfg(target_os = "ios")]
+                        Act::TouchScheme => {}
                         Act::None => {}
                     }
                     return events;

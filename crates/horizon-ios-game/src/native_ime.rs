@@ -31,6 +31,6 @@ pub fn viewport_bottom() -> Option<u32> {
     horizon_gamecontroller::keyboard_top()
 }
 
-pub fn configure_screen(immersive: bool, avoid_cutout: bool) {
-    crate::display::configure_screen(immersive, avoid_cutout);
+pub fn configure_screen(immersive: bool, avoid_cutout: bool, aspect: crate::display::Aspect) {
+    crate::display::configure_screen(immersive, avoid_cutout, aspect);
 }

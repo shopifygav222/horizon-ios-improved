@@ -108,12 +108,12 @@ pub(super) struct Touch {
     /// The press held on the view uses (a mob, the air) rather than breaks.
     hold_uses: bool,
     /// The gyroscope is listened to (the layout aims with it and the controls play).
-    gyro_on: bool,
+    pub(super) gyro_on: bool,
     /// The on-screen keyboard was asked for.
-    keyboard: bool,
+    pub(super) keyboard: bool,
     /// The keyboard is wanted over the text field shown now: a typing screen opened, or a tap
     /// landed on the field; a tap beside it, the back key or the field going away end it.
-    wanted: bool,
+    pub(super) wanted: bool,
     /// The text field the keyboard was last decided for (`text_context`).
     context: Option<&'static str>,
     /// Where the last finger landed: lifted about there, it was a tap (`keyboard_after_tap`).
@@ -509,6 +509,11 @@ impl Game<'_> {
     /// Taps and presses on the view act on what is under the finger now: tap to interact, the
     /// touch controls in play, in first person (the ray goes through the finger from the eyes).
     pub(super) fn touch_taps(&self) -> bool {
+        // iOS: with the Horizon controls, theirs (horizon_touch.rs).
+        #[cfg(target_os = "ios")]
+        if self.horizon_scheme() {
+            return self.horizon_taps();
+        }
         self.touch.live
             && self.touch.editor.is_none()
             && self.touch_shown()
@@ -525,6 +530,10 @@ impl Game<'_> {
     fn touch_aim_point(&self) -> Option<[f32; 2]> {
         if !self.touch_taps() {
             return None;
+        }
+        #[cfg(target_os = "ios")]
+        if self.horizon_scheme() {
+            return self.horizon_aim_point();
         }
         self.touch.controls.aim().or_else(|| {
             self.touch
@@ -795,9 +804,9 @@ impl Game<'_> {
         true
     }
 
-    /// Once per loop iteration, before the pads are read.
-    pub(super) fn touch_frame(&mut self, event_loop: &dyn EventLoopCtl) {
-        let now = Instant::now();
+    /// Starling's own touch controls, once per loop iteration: their layout and mod buttons,
+    /// the pointer's events, the slots' touches, the fingers' actions and the gyroscope.
+    fn touch_controls_frame(&mut self, event_loop: &dyn EventLoopCtl, now: Instant) {
         if self.touch.config.is_none() {
             let text = Self::touch_layout_path()
                 .ok()
@@ -858,6 +867,20 @@ impl Game<'_> {
             self.touch.tapped = None;
         }
         self.touch_gyro();
+    }
+
+    /// Once per loop iteration, before the pads are read.
+    pub(super) fn touch_frame(&mut self, event_loop: &dyn EventLoopCtl) {
+        let now = Instant::now();
+        // iOS: with the Horizon controls, theirs play (horizon_touch.rs); the keyboard below is
+        // the same for both.
+        #[cfg(target_os = "ios")]
+        let starling = !self.horizon_scheme();
+        #[cfg(not(target_os = "ios"))]
+        let starling = true;
+        if starling {
+            self.touch_controls_frame(event_loop, now);
+        }
         // The on-screen keyboard (its keys arrive as key events; on Android an editor behind it
         // holds the field, text_mirror.rs). The screens made for typing
         // (chat, sign, book, command block) open it with them; the other text fields on a tap on
@@ -979,7 +1002,7 @@ impl Game<'_> {
 
     /// Whether the cursor (where a tap just landed) is on the text field shown now; None where
     /// the field's place is not known.
-    fn on_text_field(&mut self) -> Option<bool> {
+    pub(super) fn on_text_field(&mut self) -> Option<bool> {
         let (size, cursor) = (self.gui_size(), self.cursor);
         let inside = |r: [f32; 4]| {
             cursor.0 >= r[0] && cursor.0 < r[0] + r[2] && cursor.1 >= r[1] && cursor.1 < r[1] + r[3]
@@ -1197,6 +1220,11 @@ impl Game<'_> {
         if !self.touch_shown() {
             return;
         }
+        // iOS: the Horizon controls draw their own (horizon_touch.rs).
+        #[cfg(target_os = "ios")]
+        if self.horizon_scheme() {
+            return;
+        }
         let (playing, closable) = (self.touch_playing(), self.touch_closable());
         // F1 hides the buttons with the HUD; they still work, and F3 held shows them again.
         if playing && self.ui.hide_gui && !self.touch.controls.held(Button::Debug) {
@@ -1405,6 +1433,9 @@ impl Game<'_> {
         }
         // The system put the keyboard away: ask for it again when the chat is back.
         self.touch.keyboard = false;
+        // iOS: the Horizon controls let go too (their keys, mouse buttons, editor).
+        #[cfg(target_os = "ios")]
+        self.android_release_touch_keys(true);
     }
 
     /// The extra button under window pixel `p` while playing (not in the layout editor): its
@@ -1445,6 +1476,11 @@ impl Game<'_> {
     /// The chat bar: vanilla buttons for ↑ ↓ Tab ← → and Paste, the one just tapped lit.
     pub(super) fn draw_chat_bar(&self, batch: &mut HudBatch) {
         if !self.chat_bar_shown() {
+            return;
+        }
+        // iOS: the Horizon controls take the touches the bar's keys would.
+        #[cfg(target_os = "ios")]
+        if self.horizon_scheme() {
             return;
         }
         let atlas = &self.gui.atlas;

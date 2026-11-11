@@ -56,6 +56,8 @@ impl RenderScale {
 static REQUESTED_SCALE: AtomicU32 = AtomicU32::new(100);
 static ORIENTATION: AtomicU8 = AtomicU8::new(0);
 static IMMERSIVE: AtomicBool = AtomicBool::new(false);
+/// The content's shape, `width << 16 | height` (0: the screen's own).
+static ASPECT: AtomicU32 = AtomicU32::new(0);
 
 /// What was last applied to which window, so a new window (the game's, then the launcher's again)
 /// gets the choices too and an unchanged one is left alone.
@@ -64,6 +66,7 @@ struct Applied {
     window: winit::window::WindowId,
     orientation: u8,
     immersive: bool,
+    aspect: u32,
 }
 
 thread_local! {
@@ -85,9 +88,13 @@ pub fn request_orientation(orientation: crate::catalog::Orientation) {
 }
 
 /// Immersive hides the status bar and home indicator and keeps the first swipe from an edge for
-/// the game. iOS draws under the sensor housing either way; the image is never cut for it.
-pub fn configure_screen(immersive: bool, _avoid_cutout: bool) {
+/// the game. iOS draws under the sensor housing either way; the image is never cut for it. The
+/// aspect letterboxes the game in the screen (winit's `set_content_aspect`): rendering and
+/// touches share those bounds.
+pub fn configure_screen(immersive: bool, _avoid_cutout: bool, aspect: Aspect) {
     IMMERSIVE.store(immersive, Ordering::Relaxed);
+    let [w, h] = aspect.ratio();
+    ASPECT.store((w << 16) | h, Ordering::Relaxed);
 }
 
 fn apply_choices(window: &winit::window::Window) {
@@ -95,6 +102,7 @@ fn apply_choices(window: &winit::window::Window) {
         window: window.id(),
         orientation: ORIENTATION.load(Ordering::Relaxed),
         immersive: IMMERSIVE.load(Ordering::Relaxed),
+        aspect: ASPECT.load(Ordering::Relaxed),
     };
     let previous = APPLIED.with(|applied| applied.replace(Some(wanted)));
     let fresh = previous.is_none_or(|p| p.window != wanted.window);
@@ -104,6 +112,10 @@ fn apply_choices(window: &winit::window::Window) {
             1 => ValidOrientations::Portrait,
             _ => ValidOrientations::LandscapeAndPortrait,
         });
+    }
+    if fresh || previous.is_some_and(|p| p.aspect != wanted.aspect) {
+        let (w, h) = (wanted.aspect >> 16, wanted.aspect & 0xffff);
+        window.set_content_aspect((w > 0 && h > 0).then_some((w, h)));
     }
     if fresh || previous.is_some_and(|p| p.immersive != wanted.immersive) {
         window.set_prefers_status_bar_hidden(wanted.immersive);

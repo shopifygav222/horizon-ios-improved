@@ -125,6 +125,14 @@ pub fn main() {
         horizon_client::android_runtime::configure_cache_dir(cache);
     }
     horizon_client::ios::install();
+    // The game's frames reach the launcher's performance recordings (Settings > Diagnostics).
+    horizon_client::ios::set_performance_hooks(horizon_client::ios::PerformanceHooks {
+        active: crate::performance::active,
+        record: crate::performance::record,
+        submit: performance_submit,
+        slow_frame: crate::performance::slow_frame,
+        frame: performance_frame,
+    });
     horizon_protocol::install_system_srv_lookup(crate::dns::query_srv);
     horizon_client::crash::install(home.clone(), "client");
     crate::exit_reports::install(&home);
@@ -142,6 +150,20 @@ pub fn main() {
         let _ = std::fs::write(home.join("ios-error.txt"), error.to_string());
     }
     crate::diagnostics::finish();
+}
+
+/// A recorded frame's row, with the device's own state beside the game's.
+fn performance_submit(row: serde_json::Value, mut context: serde_json::Value) {
+    context["ios_device"] = crate::device_runtime::diagnostics();
+    crate::performance::submit(row, context);
+}
+
+/// The launcher's GPU profile setting starts and stops a recording of its own.
+fn performance_frame() {
+    crate::performance::configure_gpu_profile(
+        crate::device_runtime::preferences().gpu_profile,
+        &crate::backend::game_home(),
+    );
 }
 
 /// The event loop's handler: the launcher, on the game's stack.
@@ -192,6 +214,9 @@ impl ApplicationHandler for App {
     }
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
         self.run(|launcher| launcher.suspended(event_loop));
+        // In the background iOS may end the app without a word: the diagnostics so far reach
+        // the disk now.
+        crate::diagnostics::request_flush();
     }
     fn exiting(&mut self, event_loop: &ActiveEventLoop) {
         on_game_stack(|| self.launcher.exiting(event_loop));

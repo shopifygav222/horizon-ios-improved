@@ -9,11 +9,10 @@ mod login;
 mod pages;
 mod wardrobe;
 
-/// The menu atlas, the panorama and the menu sounds the launcher draws and plays with.
+/// The menu atlas and the panorama the launcher draws with.
 pub(super) struct Gui {
     pub atlas: HudAtlas,
     pub panorama: Arc<horizon_client::gfx::panorama::Faces>,
-    pub sounds: Option<horizon_client::sound_events::SoundRegistry>,
 }
 use horizon_client::{
     Result,
@@ -299,8 +298,9 @@ impl Launcher {
         crate::native_ime::configure_screen(
             self.catalog.config.screen.immersive,
             self.catalog.config.screen.avoid_cutout,
+            self.catalog.config.screen.aspect,
         );
-        // iOS does not use native content aspect; orientation is managed by UIKit.
+        // Orientation is UIKit's (display.rs asks for the chosen ones).
     }
     fn fail(&mut self, error: impl std::fmt::Display) {
         log::error!("{error}");
@@ -343,9 +343,6 @@ impl Launcher {
         let gui = Gui {
             atlas: HudAtlas::build(&atlas_root)?,
             panorama: Arc::new(horizon_client::gfx::panorama::Faces::colour([0; 4])),
-            sounds: Some(horizon_client::sound_events::SoundRegistry::load(
-                &atlas_root,
-            )),
         };
         let renderer = game::loading_renderer(
             window.clone(),

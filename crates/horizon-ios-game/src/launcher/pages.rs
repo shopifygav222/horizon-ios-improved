@@ -247,7 +247,6 @@ pub(super) enum Action {
     InstallModalProject,
     Import(horizon_client::content_files::Kind),
     OpenFolder(horizon_client::content_files::Kind),
-    ToggleSection(usize),
     ToggleLocal(usize),
     DeleteLocal(usize),
     ConfirmDeleteLocal,
@@ -279,7 +278,6 @@ pub(super) enum Action {
     WardrobeUseCloud,
     WardrobeModel,
     WardrobeRotate(i8),
-    WardrobeZoom(bool),
     WardrobeHideCape,
     DeviceSignIn,
     CopyLoginCode,
@@ -290,7 +288,6 @@ pub(super) enum Action {
     LoginLink,
     CloseLogin,
     Renderer,
-    RenderScale,
     ChooseRenderScale(crate::display::RenderScale),
     UiScale,
     ChooseUiScale(u32),
@@ -324,8 +321,6 @@ pub(super) enum Action {
     CycleMaxFps,
     CycleGraphicsPreset,
     ToggleVsync,
-    ToggleSmoothLighting,
-    CycleClouds,
     ToggleMenuBlur,
     FovDelta(f32),
     // Animation & Diagnostics Modal actions
@@ -342,15 +337,11 @@ pub(super) enum Action {
     ToggleExperimentalLeaves,
     // Controls & Control Editor actions
     OpenControlEditor,
-    CloseControlEditor,
     ControlProfileChooser,
     ChooseControlProfile(u32),
-    SaveControlProfileAsNew,
     ExportControlProfile,
-    ImportControlProfile,
     MouseSensDelta(f32),
     TouchSensDelta(f32),
-    VirtualMouseSpeedDelta(f32),
     ButtonScaleDelta(f32),
     ToggleControlScheme,
     SelectControlMode(horizon_client::horizon_touch::ControlStyle),
@@ -379,8 +370,6 @@ pub(super) enum Action {
     StepGradientMidPos(i8),
     SelectAccentSwatch(u32),
     SelectBgSwatch(u32),
-    SelectGradStartSwatch(u32),
-    SelectGradEndSwatch(u32),
     ResetTheme,
     // Intro & Installed / File Manager actions
     SkipIntro,
@@ -647,37 +636,6 @@ fn draw_setting_card(
                 targets.push((c, action));
             }
         }
-        SettingControl::Stepper(value_label, minus_action, plus_action) => {
-            let right_x = x + w - 14.0;
-            let plus_rect = [right_x - 36.0, y + (h - 36.0) * 0.5, 36.0, 36.0];
-            let val_w = 88.0;
-            let val_x = plus_rect[0] - val_w - 6.0;
-            let minus_rect = [val_x - 36.0 - 6.0, y + (h - 36.0) * 0.5, 36.0, 36.0];
-
-            ui.rounded(
-                val_x,
-                y + (h - 36.0) * 0.5,
-                val_w,
-                36.0,
-                12.0,
-                my3_surface(),
-            );
-            ui.border(val_x, y + (h - 36.0) * 0.5, val_w, 36.0, 12.0, my3_border());
-            let fitted_v = ui.fit_text(Face::Semibold, 13.5, value_label, val_w - 10.0);
-            let tw = ui.measure(Face::Semibold, 13.5, &fitted_v);
-            ui.text(
-                Face::Semibold,
-                13.5,
-                val_x + (val_w - tw) * 0.5,
-                y + (h - 20.0) * 0.5,
-                my3_accent(),
-                &fitted_v,
-            );
-            list_targets.push((minus_rect, minus_action));
-            list_targets.push((plus_rect, plus_action));
-            button(ui, targets, minus_rect, "-", minus_action, false);
-            button(ui, targets, plus_rect, "+", plus_action, true);
-        }
         SettingControl::Slider {
             value_label,
             fraction,
@@ -748,7 +706,6 @@ enum SettingControl<'a> {
         active: bool,
         action: Action,
     },
-    Stepper(&'a str, Action, Action),
     Slider {
         value_label: &'a str,
         fraction: f32,
@@ -5388,7 +5345,7 @@ impl Launcher {
                 ui.set_clip(None);
             }
             // Not reachable from the category grid yet.
-            SettingsCategory::Overview | SettingsCategory::Account => {}
+            SettingsCategory::Overview => {}
         }
     }
 
@@ -5616,18 +5573,6 @@ impl Launcher {
             Some(Action::ToggleVsync) => {
                 self.modify_game_settings(|s| s.vsync = !s.vsync);
             }
-            Some(Action::ToggleSmoothLighting) => {
-                self.modify_game_settings(|s| s.smooth_lighting = !s.smooth_lighting);
-            }
-            Some(Action::CycleClouds) => {
-                self.modify_game_settings(|s| {
-                    s.clouds = match s.clouds.as_str() {
-                        "false" => "fast".into(),
-                        "fast" => "true".into(),
-                        _ => "false".into(),
-                    };
-                });
-            }
             Some(Action::ToggleMenuBlur) => {
                 self.modify_game_settings(|s| {
                     s.menu_blur = if s.menu_blur > 0 { 0 } else { 4 };
@@ -5731,21 +5676,6 @@ impl Launcher {
                 tc.open_editor();
                 self.control_editor = Some(tc);
             }
-            Some(Action::CloseControlEditor) => {
-                if let Some(mut tc) = self.control_editor.take() {
-                    let game_home = self.catalog.config.game_home(&self.home);
-                    if !tc.settings.is_default_preset() {
-                        let _ = tc.settings.save_replace_preset(&game_home);
-                    } else {
-                        let _ = tc.settings.save_to(&game_home.join("horizon-touch.json"));
-                    }
-                    self.catalog.status = format!(
-                        "Saved {} preset '{}'.",
-                        tc.settings.control_style.label(),
-                        tc.settings.preset_name
-                    );
-                }
-            }
             Some(Action::ControlProfileChooser) => {
                 self.open_chooser(chooser::Kind::ControlProfile);
             }
@@ -5805,21 +5735,6 @@ impl Launcher {
                     );
                 }
             }
-            Some(Action::SaveControlProfileAsNew) => {
-                let game_home = self.catalog.config.game_home(&self.home);
-                let touch = horizon_client::horizon_touch::Settings::load_from(
-                    &game_home.join("horizon-touch.json"),
-                );
-                self.catalog.config.preset_edit_mode = "copy".into();
-                self.catalog.config.custom_profile_name = format!("{} Copy", touch.preset_name);
-                self.catalog.config.custom_profile_desc = touch.preset_description.clone();
-                self.catalog.editing = Some("profile_name");
-                crate::platform::show(&self.catalog.config.custom_profile_name);
-                self.catalog.status = format!(
-                    "Step 1/2: Enter new {} preset name and press Enter.",
-                    touch.control_style.label()
-                );
-            }
             Some(Action::ExportControlProfile) => {
                 let game_home = self.catalog.config.game_home(&self.home);
                 let touch = horizon_client::horizon_touch::Settings::load_from(
@@ -5843,23 +5758,6 @@ impl Launcher {
                     Err(e) => self.catalog.status = e.to_string(),
                 }
             }
-            Some(Action::ImportControlProfile) => {
-                let game_home = self.catalog.config.game_home(&self.home);
-                let touch = horizon_client::horizon_touch::Settings::load_from(
-                    &game_home.join("horizon-touch.json"),
-                );
-                let _ = std::fs::create_dir_all(
-                    game_home
-                        .join("controls")
-                        .join(touch.control_style.storage_subdir()),
-                );
-                let _ = crate::platform::open_documents(crate::document_store::ROOT);
-                self.catalog.status = format!(
-                    "Place any .json preset file in controls/{}/ and select it under {} Preset Selector.",
-                    touch.control_style.storage_subdir(),
-                    touch.control_style.label()
-                );
-            }
             Some(Action::MouseSensDelta(delta)) => {
                 self.modify_game_settings(|s| {
                     s.sensitivity = (s.sensitivity + delta).clamp(0.05, 1.0);
@@ -5868,12 +5766,6 @@ impl Launcher {
             Some(Action::TouchSensDelta(delta)) => {
                 self.modify_touch_settings(|t| {
                     t.sensitivity = (t.sensitivity + delta).clamp(0.10, 3.0);
-                });
-            }
-            Some(Action::VirtualMouseSpeedDelta(delta)) => {
-                self.modify_touch_settings(|t| {
-                    t.virtual_mouse_sensitivity =
-                        (t.virtual_mouse_sensitivity + delta).clamp(0.25, 3.0);
                 });
             }
             Some(Action::ButtonScaleDelta(delta)) => {
@@ -6059,10 +5951,6 @@ impl Launcher {
                     self.catalog.status = e;
                 }
             }
-            Some(Action::ToggleSection(i)) => {
-                self.catalog.sections[i] = !self.catalog.sections[i];
-                self.catalog.scroll = 0.0;
-            }
             Some(Action::ToggleLocal(i)) => self.catalog.toggle_local(&self.home, i),
             Some(Action::DeleteLocal(i)) => {
                 self.catalog.pending_delete = self.catalog.local.get(i).cloned();
@@ -6234,12 +6122,6 @@ impl Launcher {
                 self.wardrobe.camera.rotate(-direction as f32 * 25.0, 0.0);
                 self.wardrobe.preview();
             }
-            Some(Action::WardrobeZoom(inward)) => {
-                self.wardrobe
-                    .camera
-                    .zoom(if inward { 1.15 } else { 1.0 / 1.15 });
-                self.wardrobe.preview();
-            }
             Some(Action::WardrobeHideCape) => self.wardrobe.hide_cape(),
             Some(Action::Search) => {
                 crate::platform::hide();
@@ -6301,7 +6183,6 @@ impl Launcher {
             }
             Some(Action::Profile) => self.open_chooser(chooser::Kind::Profile),
             Some(Action::Renderer) => self.open_chooser(chooser::Kind::Renderer),
-            Some(Action::RenderScale) => self.open_chooser(chooser::Kind::RenderScale),
             Some(Action::ChooseRenderScale(scale)) => {
                 self.catalog.config.render_scale = scale;
                 self.catalog.config.save(&self.home)?;
@@ -6513,26 +6394,6 @@ impl Launcher {
                 self.catalog.config.theme.preset = horizon_client::ui_theme::ThemePreset::Custom;
                 self.catalog.config.theme.background_mode =
                     horizon_client::ui_theme::BackgroundMode::Solid;
-                horizon_client::ui_theme::set_active_theme(self.catalog.config.theme.resolve());
-                self.anim.trigger_theme_pulse();
-                self.catalog.config.save(&self.home)?;
-            }
-            Some(Action::SelectGradStartSwatch(rgb)) => {
-                self.catalog.config.theme.gradient_start_hex =
-                    horizon_client::ui_theme::format_hex_color(rgb);
-                self.catalog.config.theme.preset = horizon_client::ui_theme::ThemePreset::Custom;
-                self.catalog.config.theme.background_mode =
-                    horizon_client::ui_theme::BackgroundMode::Gradient;
-                horizon_client::ui_theme::set_active_theme(self.catalog.config.theme.resolve());
-                self.anim.trigger_theme_pulse();
-                self.catalog.config.save(&self.home)?;
-            }
-            Some(Action::SelectGradEndSwatch(rgb)) => {
-                self.catalog.config.theme.gradient_end_hex =
-                    horizon_client::ui_theme::format_hex_color(rgb);
-                self.catalog.config.theme.preset = horizon_client::ui_theme::ThemePreset::Custom;
-                self.catalog.config.theme.background_mode =
-                    horizon_client::ui_theme::BackgroundMode::Gradient;
                 horizon_client::ui_theme::set_active_theme(self.catalog.config.theme.resolve());
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;

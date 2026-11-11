@@ -12,11 +12,6 @@ use std::{
     time::Duration,
 };
 
-pub fn source_only_mod(project: &Project) -> bool {
-    project.source == browser::SourceId::Horizon
-        && project.loaders.iter().any(|loader| loader == "hnmod")
-}
-
 /// Temporary dev registration published as Minecraft Nintendo Switch by PrismarineJS.
 /// Account tokens and client secrets are never bundled.
 pub const MICROSOFT_CLIENT_ID: &str = "00000000441cc96b";
@@ -144,15 +139,6 @@ impl Orientation {
             Self::Auto => "Automatic rotation",
         }
     }
-    pub fn android_value(self) -> i32 {
-        match self {
-            Self::Landscape => 6,
-            Self::Portrait => 7,
-            Self::ReverseLandscape => 8,
-            Self::ReversePortrait => 9,
-            Self::Auto => 10,
-        }
-    }
 }
 impl Config {
     pub fn load(home: &Path) -> Self {
@@ -227,13 +213,6 @@ impl Config {
         let m = if mp < 10 { mp + 3 } else { mp - 9 };
         let year = if m <= 2 { y + 1 } else { y };
         self.last_name_changed = format!("{year:04}-{m:02}-{d:02} at {hh:02}:{mm:02} UTC");
-    }
-    pub fn last_name_changed_label(&self) -> &str {
-        if self.last_name_changed.trim().is_empty() {
-            "Default profile (Never changed)"
-        } else {
-            &self.last_name_changed
-        }
     }
     pub fn ui_scale_label(&self) -> &'static str {
         match self.ui_scale_percent {
@@ -356,7 +335,6 @@ pub enum SettingsCategory {
     Controls,
     Experimental,
     Diagnostics,
-    Account,
 }
 impl SettingsCategory {
     pub fn title(self) -> &'static str {

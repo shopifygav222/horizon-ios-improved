@@ -42,6 +42,9 @@ pub(super) struct Pads {
     /// make the pad the active input, so menus stay pointer-driven.
     touch: PadState,
     touch_taps: Vec<Button>,
+    /// iOS: Horizon Android's touch controls, the Horizon scheme (horizon_touch.rs).
+    #[cfg(target_os = "ios")]
+    pub(super) horizon: super::horizon_touch::HorizonPad,
     edges: Edges,
     /// The game tick each button went down in, and releases held back until
     /// a tick has passed: vanilla samples keys once per tick, so a click
@@ -179,6 +182,11 @@ impl Pads {
 
     /// Include releases delayed until the next simulation tick.
     pub(super) fn holds_action(&self, settings: &gamepad::PadSettings, action: &str) -> bool {
+        // iOS: a Horizon custom button holding sneak or sprint (or the key they are on).
+        #[cfg(target_os = "ios")]
+        if self.horizon.holds_action(action) {
+            return true;
+        }
         settings.binding(action).is_some_and(|button| {
             self.edges.is_held(button) || self.late_releases.contains(&button)
         })
@@ -209,6 +217,13 @@ impl Pads {
 impl Game<'_> {
     /// Once per loop iteration: read the pads and act on button changes.
     pub(super) fn poll_pads(&mut self, event_loop: &dyn EventLoopCtl) {
+        // iOS: the Horizon controls' state before the pads are read (horizon_touch.rs).
+        #[cfg(target_os = "ios")]
+        let horizon = self.horizon_scheme();
+        #[cfg(target_os = "ios")]
+        if horizon {
+            self.horizon_pad_prelude(event_loop);
+        }
         // Off leaves the controllers out; the touch controls play through the pad all the same.
         let enabled = self.settings.controller.enabled;
         let hardware = if enabled {
@@ -244,7 +259,16 @@ impl Game<'_> {
             self.input_used(InputMode::Pad);
             self.pad.in_use = true;
         }
-        let state = state.merge(&self.pad.touch);
+        // The touch controls' pad: Starling's, or on iOS the Horizon controls'.
+        #[cfg(target_os = "ios")]
+        let touch = if horizon {
+            self.horizon_pad_state()
+        } else {
+            self.pad.touch
+        };
+        #[cfg(not(target_os = "ios"))]
+        let touch = self.pad.touch;
+        let state = state.merge(&touch);
         for button in std::mem::take(&mut self.pad.touch_taps) {
             self.pad.touch.set(button, false);
         }
@@ -278,6 +302,11 @@ impl Game<'_> {
             self.pad_edge(event_loop, button, down);
         }
         self.pad_menu_frame(event_loop);
+        #[cfg(target_os = "ios")]
+        if horizon {
+            let late = !self.pad.late_releases.is_empty();
+            self.horizon_pad_after(&state, late);
+        }
     }
 
     fn pad_edge(&mut self, event_loop: &dyn EventLoopCtl, button: Button, down: bool) {
@@ -408,6 +437,20 @@ impl Game<'_> {
         let settings = &self.settings.controller;
         if self.pad_in_menu() || !self.pad_focused() {
             return None;
+        }
+        // iOS: the Horizon controls' stick is in the merged state. It moves as a controller
+        // does with analog movement (and a controller), else as the keys (Horizon Android's).
+        #[cfg(target_os = "ios")]
+        if self.horizon_scheme() {
+            let touch = &self.pad.horizon.touch.settings;
+            let analog = self.input_mode == InputMode::Pad
+                || (touch.analog_movement
+                    && touch.mode != horizon_client::horizon_touch::Mode::Dpad);
+            return if analog {
+                gamepad::move_vector(self.pad.state.left, settings.move_deadzone)
+            } else {
+                gamepad::java_move_vector(self.pad.state.left, settings.move_deadzone)
+            };
         }
         let stick = if settings.enabled {
             self.pad.state.left

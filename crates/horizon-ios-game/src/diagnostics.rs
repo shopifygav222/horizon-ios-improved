@@ -54,6 +54,8 @@ pub fn timestamp() -> u64 {
         .unwrap_or_default()
         .as_millis() as u64
 }
+/// Android's exit reasons, as its exit history names them (iOS keeps none: tests only).
+#[cfg(test)]
 pub fn reason_name(reason: i32) -> &'static str {
     match reason {
         1 => "exit_self",

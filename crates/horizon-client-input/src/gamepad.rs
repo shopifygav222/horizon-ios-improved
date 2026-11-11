@@ -662,6 +662,22 @@ pub fn radial(v: [f32; 2], deadzone: f32) -> [f32; 2] {
 
 /// The left stick as the player's move vector, in `KeyboardInput`'s layout
 /// (`[left, forward]`, length at most 1); `None` inside the deadzone.
+/// Java servers receive boolean directional input, so the iOS port's Horizon touch controls (as
+/// Horizon Android's) move by the same keyboard vector for prediction and for the input packet.
+/// The stick deadzone is applied before this conversion.
+pub fn java_move_vector(stick: [f32; 2], deadzone: f32) -> Option<[f32; 2]> {
+    move_vector(stick, deadzone).map(|[left, forward]| {
+        // Eight 45-degree sectors: small sideways finger jitter stays forward.
+        let threshold = left.abs().max(forward.abs()) * (std::f32::consts::SQRT_2 - 1.0);
+        crate::input::keyboard_direction(
+            forward > threshold,
+            forward < -threshold,
+            left > threshold,
+            left < -threshold,
+        )
+    })
+}
+
 pub fn move_vector(stick: [f32; 2], deadzone: f32) -> Option<[f32; 2]> {
     let v = radial(stick, deadzone);
     (v != [0.0, 0.0]).then_some([-v[0], v[1]])

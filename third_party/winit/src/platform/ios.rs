@@ -128,6 +128,12 @@ pub trait WindowExtIOS {
     /// This only has an effect on iOS 11.0+.
     fn set_prefers_home_indicator_hidden(&self, hidden: bool);
 
+    /// Horizon's addition: presents the window's content at `aspect` (width, height, turned to
+    /// the window's orientation), centred and letterboxed in the window, or at the window's own
+    /// shape with `None`. The view's bounds, its Metal layer and its touches all follow, so
+    /// [`Window::inner_size`] is the content's size.
+    fn set_content_aspect(&self, aspect: Option<(u32, u32)>);
+
     /// Sets the screen edges for which the system gestures will take a lower priority than the
     /// application's touch handling.
     ///
@@ -208,6 +214,11 @@ impl WindowExtIOS for Window {
     #[inline]
     fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
         self.window.maybe_queue_on_main(move |w| w.set_prefers_home_indicator_hidden(hidden))
+    }
+
+    #[inline]
+    fn set_content_aspect(&self, aspect: Option<(u32, u32)>) {
+        self.window.maybe_queue_on_main(move |w| w.set_content_aspect(aspect))
     }
 
     #[inline]

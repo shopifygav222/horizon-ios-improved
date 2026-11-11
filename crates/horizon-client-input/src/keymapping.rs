@@ -169,6 +169,19 @@ impl ToggleKeys {
             self.0[slot].click();
         }
     }
+    /// Ends a pad toggle of `slot` (the iOS port's Horizon touch controls: a crouch toggled on
+    /// land that would keep sinking the player once they swim, fly or ride). True when one was on.
+    pub fn drop_pad_toggle(&mut self, slot: usize) -> bool {
+        let key = &mut self.0[slot];
+        if !key.pad_toggled {
+            return false;
+        }
+        key.pad_toggled = false;
+        key.is_down = false;
+        // A screen that released it must not restore it when it closes.
+        key.released_by_screen_when_down = false;
+        true
+    }
     /// `MouseHandler.onButton` for a button bound to `slot`: only without a
     /// screen or overlay.
     pub fn button(&mut self, slot: usize, pressed: bool, screen_open: bool, needs_toggle: bool) {
