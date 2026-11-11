@@ -851,7 +851,11 @@ impl Game<'_> {
         self.catalog.notice = Some(match result {
             Ok(done) => {
                 match done {
+                    #[cfg(target_os = "android")]
                     Done::NativeMod => self.list_new_native_mods(),
+                    // iOS: the catalog offers no native mod (it could not be built or loaded).
+                    #[cfg(target_os = "ios")]
+                    Done::NativeMod => {}
                     Done::ShaderPack => {
                         self.settings.shader_packs =
                             horizon_client::shader_pack_list::scan(&Self::shader_packs_dir());

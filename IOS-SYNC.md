@@ -1,10 +1,13 @@
 # Starling on iOS: the sync ledger
 
-This branch (`starling-ios` of shopifygav222/horizon-ios-improved) is Starling with an iOS layer and the Horizon Android
-features Starling has not taken yet. `main` of the same repository is the Horizon Android iOS port; it stays as it is.
+This branch (`starling-ios` of shopifygav222/horizon-ios-improved) is Starling with an iOS layer: the iOS app is
+Starling's phone build, as its Android one. `main` of the same repository is the older Horizon Android iOS port; it
+stays as it is.
 
-- **Base:** starling-client/starling `starling` @ `7c38f33c1` ("Starling 0.2.3: bring your worlds over from Horizon
-  Android"), the same commit as JuanLuci/starling `android`. Remote: `starling`.
+- **Base:** starling-client/starling `starling` @ `ac874422ed` (tag `v0.8.0`, "the first release of Starling and
+  Horizon Android together"). Remote: `starling`. Starling 0.8.0 took Horizon Android's control system, account
+  profiles with Ely.by, skins, catalog and Diagnostics itself, so this port carries none of its own: the work on the
+  0.2.3 base (a hand port of those) is in history under `archive/starling-ios-0.2.3`.
 - **Branch name:** `starling-ios`, not `starling`: Starling's `android.yml` and `ci.yml` run on pushes to `starling`,
   and they need Starling's secrets and runners. Under this name none of Starling's workflows start here; ours are
   `ios.yml` and `ios-guard.yml`.
@@ -19,8 +22,8 @@ features Starling has not taken yet. `main` of the same repository is the Horizo
    Foundation, Security or CoreMotion is in `crates/horizon-gamecontroller`, behind safe functions.
 3. A behaviour both phones share is gated `any(target_os = "android", target_os = "ios")`; what only Android's JNI
    can do stays `target_os = "android"` and gets an iOS counterpart where the game needs one.
-4. Horizon Android features come from `main` of this repository (the Horizon Android port), unchanged where they
-   fit, so a later diff against Horizon Android stays readable.
+4. The app follows Starling's phone build: where Starling's Android code is not JNI, iOS shares it; nothing is
+   added that Starling's Android build does not have.
 
 ## Sync procedure
 
@@ -33,30 +36,19 @@ features Starling has not taken yet. `main` of the same repository is the Horizo
 5. When Starling takes one of the features below itself, switch to Starling's and mark the row "upstream"; ours goes
    once Starling's passes the same checks.
 
-## Feature ledger
+## What iOS shares with Starling's Android build, and what it cannot
 
-The Horizon Android features Starling lacks (all approved for this port).
-
-| # | Feature | Phase | Status |
-|---|---|---|---|
-| 1 | Material You launcher pages | S3 | to do |
-| 2 | Catalog: mods, packs, shaders (Horizon index + Modrinth) | S3 | to do |
-| 3 | Built-in file manager | S3 | to do |
-| 4 | Multiple game profiles | S3 | to do |
-| 5 | Launcher settings (renderer, theme, UI scale, cache, workers, GPU profile, experimental) | S3 | to do |
-| 6 | Diagnostics ZIP, performance recordings, exit reports | S3 | to do |
-| 7 | Ely.by sign-in and account switching | S4 | to do |
-| 8 | Wardrobe: local and cloud skins, 3D preview | S4 | to do |
-| 9 | GoyControl and MCPE control styles with presets | S5 | to do |
-| 10 | Virtual mouse / touchpad | S5 | to do |
-| 11 | Dynamic joystick spawn area | S5 | to do |
-| 12 | Layout profiles, snap to grid, control hub, shield button | S5 | to do |
-| 13 | Keypad profile | S5 | to do |
-| 14 | WebAssembly `.hmod` mods (wasmtime's Pulley interpreter on iOS) | S6 | to do |
-| 15 | Bundled Smart F3 and recipes mods | S6 | to do |
-| 16 | Screen aspect and immersive toggle | S7 | to do |
-| 17 | F2 screenshots to Photos | S7 | to do |
-| 18 | Game files without Java (bundled tables + verified Mojang downloads) | S2 | to do |
+| Starling 0.8.0 | iOS |
+|---|---|
+| Control system (MCPE, GoyControl, editor, hub, virtual mouse, keypad, gyroscope) | shared (`game/mobile_controls.rs`); its keyboard and haptics are `mobile_controls/mobile_platform_ios.rs` |
+| Accounts (Microsoft, Ely.by, offline profiles), skins per profile | shared; secrets sealed with a Keychain key (`ios.rs`) |
+| Catalog (mods, resource packs, shader packs) | shared; native mods are not offered (`starling-catalog`) |
+| Diagnostics (Options > Diagnostics, performance recordings, ZIP) | shared; the ZIP is shared through Files' sheet; no exit history or recovery window (Android's `ApplicationExitInfo` and activity) |
+| Setup: sign-in, download, prepare | shared; preparing lays out the tables CI made (`horizon-ios-prepare`), since iOS runs no Java |
+| Bring worlds over from Horizon Android | shared; the folder is picked in Files |
+| Game folder in the Files app | the app's Documents (UIFileSharingEnabled) |
+| Native mods (`.hnmod`) compiled on the build server | not on iOS: it runs no code it did not ship with. The Mods page says so |
+| Folder offer, in-app APK update, architecture APKs, Adreno/Mali/PowerVR paths | Android's own |
 
 ## Engine-edit ledger
 

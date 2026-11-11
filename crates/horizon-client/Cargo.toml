@@ -92,6 +92,8 @@ jni = "0.21.1"
 starling-catalog = { path = "../starling-catalog" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
+# The mods, resource packs and shader packs catalog (game/mod_catalog.rs), as Android's.
+starling-catalog = { path = "../starling-catalog" }
 # UIKit, GameController, CoreMotion, the Keychain and Files' picker (ios.rs, game/pad/ios.rs):
 # the calls this crate, which forbids unsafe code, can't make itself.
 horizon-gamecontroller = { path = "../horizon-gamecontroller" }
