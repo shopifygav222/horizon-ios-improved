@@ -459,7 +459,7 @@ impl Game<'_> {
         &self,
         ui: &mut horizon_client::options_ui::OptionsUi,
     ) -> (f32, f32) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             // The port tracks its finger/virtual mouse in TouchUi; release clears direct-touch
             // hover there. The legacy touch.pointer is always idle in this path.
@@ -475,7 +475,7 @@ impl Game<'_> {
     /// The player plays with a touch screen: a touch was seen, and on Android no keyboard, mouse
     /// or controller took over since (game/input_mode.rs).
     pub(super) fn has_touch(&self) -> bool {
-        (cfg!(target_os = "android") || self.touch.seen) && self.touch_shown()
+        (horizon_client::PHONE || self.touch.seen) && self.touch_shown()
     }
     fn touch_playing(&self) -> bool {
         self.screen == Screen::Playing
@@ -502,7 +502,7 @@ impl Game<'_> {
 
     /// The touch controls turn the view as a grabbed pointer does (mouse.rs).
     pub(super) fn touch_turns(&self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             return self.touch.live
                 && self.touch_shown()
@@ -541,7 +541,7 @@ impl Game<'_> {
     /// Taps and presses on the view act on what is under the finger now: tap to interact, the
     /// touch controls in play, in first person (the ray goes through the finger from the eyes).
     pub(super) fn touch_taps(&self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             return self.touch.live
                 && self.touch_shown()
@@ -566,7 +566,7 @@ impl Game<'_> {
         if !self.touch_taps() {
             return None;
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             return self.mobile.controls.aim.or(self.mobile.touch_aim).map(|p| {
                 let [w, h] = self.touch_size();
@@ -638,9 +638,9 @@ impl Game<'_> {
     /// A short buzz of the phone (Bedrock's "Vibrate when breaking blocks" and "when splitting
     /// items"): while the touch screen plays and the layout leaves vibration on.
     pub(super) fn touch_vibrate(&self, millis: u32) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let on = self.mobile.controls.settings.vibrate;
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let on = self.touch.config.as_ref().is_none_or(|c| c.vibrate);
         if !on || !self.has_touch() {
             return;
@@ -655,18 +655,18 @@ impl Game<'_> {
     /// controls play (the sensor is listened to only then). Its turn goes on the view as the
     /// mouse's would (`Entity.turn`).
     pub(in crate::game) fn touch_gyro(&mut self) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         let wanted = self.touch.live
             && self.mobile.controls.editor.is_none()
             && self.has_touch()
             && self.mobile.controls.settings.gyroscope;
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let wanted = self.touch.live
             && self.touch.editor.is_none()
             && self.has_touch()
             && self.player.is_some()
             && self.touch.config.as_ref().is_some_and(|c| c.gyro);
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             if wanted != self.touch.gyro_on {
                 // A phone without a gyroscope says so; it is not asked again until the next change.
@@ -739,6 +739,12 @@ impl Game<'_> {
         self.input_used(InputMode::Touch);
         self.last_input = Instant::now();
         // The offer of the Starling folder, over the title, takes the touches while it shows.
+        // iOS: the catalog alone (its folder needs no offer, and it has no updates or native
+        // builds of its own).
+        #[cfg(target_os = "ios")]
+        if self.catalog_touch(t) {
+            return true;
+        }
         #[cfg(target_os = "android")]
         if self.files_offer_touch(t)
             || self.update_offer_touch(t)
@@ -771,7 +777,7 @@ impl Game<'_> {
             }
             return true;
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             self.mobile_touch(t, event_loop, id);
             return true;
@@ -860,15 +866,15 @@ impl Game<'_> {
         true
     }
 
-    /// The catalog is only on Android (`mod_catalog`): elsewhere Back has none to close.
-    #[cfg(not(target_os = "android"))]
+    /// The catalog is only on phones (`mod_catalog`): elsewhere Back has none to close.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn catalog_back(&mut self) -> bool {
         false
     }
 
     /// Android's back key: Escape (pause, close a screen), or Done in the layout editor.
     pub(super) fn touch_back_key(&mut self, event: &KeyEvent) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_back_key(event) {
             return true;
         }
@@ -889,7 +895,7 @@ impl Game<'_> {
 
     /// Once per loop iteration, before the pads are read.
     pub(super) fn touch_frame(&mut self, event_loop: &dyn EventLoopCtl) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             self.touch.live = self.touch_playing();
             self.mobile_frame(event_loop);
@@ -964,6 +970,7 @@ impl Game<'_> {
     }
 
     fn touch_keyboard_frame(&mut self) {
+        // Android's editor shows the keyboard for the control system's own fields.
         #[cfg(target_os = "android")]
         if self.mobile_keyboard_active() {
             return;
@@ -996,6 +1003,10 @@ impl Game<'_> {
             }
         }
         let keyboard = self.touch_shown() && self.touch.wanted && self.focused;
+        // iOS: the window's own keyboard, for the control system's fields too (its preset names,
+        // a custom button's text), which type through key events there.
+        #[cfg(target_os = "ios")]
+        let keyboard = keyboard || (self.mobile_keyboard_active() && self.focused);
         // On Android the keyboard's editor shows it (text_mirror.rs).
         #[cfg(target_os = "android")]
         if self.window.is_some() {
@@ -1067,7 +1078,7 @@ impl Game<'_> {
     /// name, the creative and recipe searches, the title's forms, the options' searches, the
     /// world options' number boxes.
     /// Whether the keyboard opened for context was put away with its field still up.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn keyboard_put_away(&self, context: &str) -> bool {
         self.touch.context == Some(context) && !self.touch.wanted
     }
@@ -1080,7 +1091,15 @@ impl Game<'_> {
         self.android_keyboard(true);
     }
 
-    #[cfg(target_os = "android")]
+    /// iOS: the same request; the window's keyboard comes up at the next frame.
+    #[cfg(target_os = "ios")]
+    pub(super) fn touch_request_keyboard(&mut self) {
+        self.touch.context = self.text_context().or(Some("manual"));
+        self.touch.wanted = true;
+        self.touch.keyboard_request = true;
+    }
+
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn touch_field_click(&mut self) {
         self.touch.field_tap = Some([self.cursor.0, self.cursor.1]);
     }
@@ -1096,7 +1115,7 @@ impl Game<'_> {
             && py >= y
             && py < y + h
         {
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             self.touch_request_keyboard();
         }
     }
@@ -1106,7 +1125,7 @@ impl Game<'_> {
     }
 
     pub(super) fn text_context(&mut self) -> Option<&'static str> {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.catalog_typing() {
             return Some("catalog");
         }
@@ -1345,7 +1364,7 @@ impl Game<'_> {
 
     /// Whether the touch Sneak button holds sneak now (`sync_toggle` adds it to the key's state).
     pub(super) fn touch_sneaking(&self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             return self
                 .mobile
@@ -1387,7 +1406,7 @@ impl Game<'_> {
     }
 
     pub(super) fn open_touch_editor(&mut self) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             self.mobile_open_editor();
             return;
@@ -1400,7 +1419,7 @@ impl Game<'_> {
     /// The controls over the HUD while playing (or the layout editor), the close button over
     /// screens.
     pub(super) fn draw_touch(&self, batch: &mut HudBatch) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             self.mobile_draw(batch);
             return;
@@ -1605,7 +1624,7 @@ impl Game<'_> {
     /// Let go of everything the fingers held (the app went to the background, or the player took
     /// up a keyboard, a mouse or a controller).
     pub(super) fn touch_release_all(&mut self) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         self.android_release_touch_keys(true);
         let actions = self.touch.controls.reset();
         self.touch_apply(actions);
@@ -1776,7 +1795,7 @@ impl Game<'_> {
         if words.first() != Some(&"touch-layout") {
             return Ok(None);
         }
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile_controls_enabled() {
             return self.mobile_layout_command(words);
         }

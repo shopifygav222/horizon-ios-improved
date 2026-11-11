@@ -179,7 +179,7 @@ pub fn start(mods: crate::mod_api::Mods, after_log: impl FnOnce()) {
     if let Err(error) = game::run_with() {
         // A bad command line is the caller's mistake, not a crash: no report.
         let usage = error.is::<game::UsageError>();
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if !usage {
             crate::diagnostics::fatal_error(&error.to_string());
         }

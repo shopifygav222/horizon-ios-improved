@@ -72,6 +72,19 @@ fn command_line(private: &Path) -> (Vec<String>, Vec<(String, String)>) {
     (args, env)
 }
 
+/// The RAM limit Starling's governor keeps the game under (ram_limit.rs: far terrain off, then a
+/// lower render distance, before the game would hold more), in MiB: 85% of what iOS lets this
+/// app hold, which iOS enforces by ending the app without a word. Empty when iOS doesn't say.
+fn ram_limit_mb() -> String {
+    // What the app holds now (its start: little), and what iOS lets it take beyond that.
+    let held = 64 << 20;
+    horizon_gamecontroller::available_memory()
+        .filter(|&available| available > 0)
+        .map_or_else(String::new, |available| {
+            (((available + held) / 100 * 85) >> 20).to_string()
+        })
+}
+
 pub fn main() {
     std::hint::black_box(&MOD_API_LEVEL);
     let (home, private) = folders();
@@ -79,6 +92,7 @@ pub fn main() {
     let _ = std::fs::create_dir_all(&private);
     capture_stderr(&home);
     let (args, env) = command_line(&private);
+    let ram_limit = ram_limit_mb();
     // SAFETY: no other thread of this program runs yet; the game reads these from its threads
     // afterwards.
     unsafe {
@@ -92,8 +106,9 @@ pub fn main() {
         for (name, value) in [
             ("HORIZON_TELEMETRY_URL", "off"),
             ("HORIZON_NO_DISCORD", "1"),
+            ("HORIZON_MEMORY_LIMIT_MB", ram_limit.as_str()),
         ] {
-            if std::env::var_os(name).is_none() {
+            if std::env::var_os(name).is_none() && !value.is_empty() {
                 std::env::set_var(name, value);
             }
         }
@@ -104,6 +119,13 @@ pub fn main() {
     horizon_client::ios::install();
     horizon_protocol::install_system_srv_lookup(crate::dns::query_srv);
     horizon_client::ios::set_args(args);
+    // Options > Diagnostics, as Android's: the session's checkpoints, from the start.
+    if let Err(error) = horizon_client::diagnostics::initialize(
+        &private,
+        serde_json::json!({"abi": std::env::consts::ARCH, "system": "ios"}),
+    ) {
+        eprintln!("Horizon: could not initialize diagnostics: {error}");
+    }
     let event_loop = match EventLoop::new() {
         Ok(event_loop) => event_loop,
         Err(e) => {
@@ -178,6 +200,11 @@ impl App {
                 drop(game);
             });
         }
+        // The game ended as it meant to: the recording stops and the session is marked clean.
+        horizon_client::performance::stop();
+        if !restart {
+            horizon_client::diagnostics::finish();
+        }
         if restart {
             self.start_game(event_loop);
         }
@@ -242,7 +269,11 @@ impl ApplicationHandler for App {
         }
     }
 
+    /// iOS is short of memory: the allocators give back every free page now, before iOS ends
+    /// the app for what they keep.
     fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+        log::warn!("Horizon: iOS is short of memory: freeing what the game does not use");
+        horizon_threads::release_free_memory();
         self.with_game(event_loop, |game| game.memory_warning(event_loop));
     }
 }

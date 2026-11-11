@@ -43,7 +43,7 @@ impl Game<'_> {
         context
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn diagnostic_heartbeat(&self) {
         let phase = if !self.focused {
             "background"
@@ -120,7 +120,8 @@ pub(super) fn export_diagnostics() {
 pub(super) fn open_diagnostics() {
     let dir = logging::private_home().join("performance");
     let _ = std::fs::create_dir_all(&dir);
-    #[cfg(target_os = "android")]
+    // A phone shares the newest ZIP (Android's share chooser, iOS's Files sheet).
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     let opened = std::fs::read_dir(&dir)
         .ok()
         .and_then(|entries| {
@@ -131,7 +132,7 @@ pub(super) fn open_diagnostics() {
                 .max()
         })
         .is_some_and(|name| crate::android::share_diagnostic(&name));
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let opened = horizon_client::platform::open_folder(&dir) == Some(true);
     if !opened {
         *NOTICE.lock().unwrap_or_else(|e| e.into_inner()) = Some("starling.diagnostics.failed");

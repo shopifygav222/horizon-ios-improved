@@ -336,7 +336,7 @@ impl Game<'_> {
                 }
                 edit_box_field(("port", 0), self.world_options_port()?, DONE)
             }
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             "catalog" => field(("catalog", 0), self.catalog_query(), None, 0, SEARCH),
             "title" => {
                 // Create New World's game rules, which `focused_field` leaves out.
@@ -458,7 +458,7 @@ impl Game<'_> {
             Some("anvil") => self.station_text(Some(text), false),
             Some("creative") => self.creative_search_edit(Some(text)),
             Some("title") => self.title_edit(Some(text), false),
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             Some("catalog") => self.catalog_type(text),
             _ => {}
         }
@@ -490,7 +490,7 @@ impl Game<'_> {
                     let _ = self.options_key(key, None);
                 }
             }
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             Some("catalog") => match key {
                 KeyCode::Enter | KeyCode::NumpadEnter => self.catalog_submit(),
                 KeyCode::Backspace => self.catalog_backspace(),

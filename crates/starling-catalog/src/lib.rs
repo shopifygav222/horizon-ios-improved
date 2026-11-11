@@ -27,7 +27,11 @@ use std::{fs, path::Path};
 const MODRINTH_API: &str = "https://api.modrinth.com/v2/search";
 const USER_AGENT: &str = "starling-client/starling (github.com/starling-client/starling)";
 /// The build service makes ARM64 libraries only, so a native mod would stay unbuilt elsewhere.
-const NATIVE_MODS_BUILD: bool = cfg!(any(target_arch = "aarch64", not(target_os = "android")));
+/// iOS runs no code it did not ship with: no native mod can be built for it or loaded there.
+const NATIVE_MODS_BUILD: bool = cfg!(all(
+    not(target_os = "ios"),
+    any(target_arch = "aarch64", not(target_os = "android"))
+));
 /// The largest shader pack the catalog downloads.
 const LARGEST_SHADER_PACK: u64 = 256 << 20;
 

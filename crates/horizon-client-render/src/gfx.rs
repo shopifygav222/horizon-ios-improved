@@ -2200,7 +2200,14 @@ impl Renderer {
             if previous.is_none() {
                 clear_surface(&device, &queue, surface, config.format);
             }
-            let hdr_output = hdr::output(&caps);
+            // iOS: not offered. Its extended-range swapchain was never checked on a phone (the
+            // colour-space fix in third_party/wgpu-hal is macOS's), and Horizon Android's iOS
+            // port offered none either.
+            let hdr_output = if cfg!(target_os = "ios") {
+                None
+            } else {
+                hdr::output(&caps)
+            };
             crate::graphics::offer_hdr(hdr_output.is_some());
             if previous.is_none() {
                 log::info!(

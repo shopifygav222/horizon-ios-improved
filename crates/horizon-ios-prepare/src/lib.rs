@@ -21,6 +21,9 @@ use std::path::{Component, Path, PathBuf};
 
 /// The recipe inside the zip.
 pub const RECIPE: &str = "ios-recipe.json";
+/// Which tables a zip holds (the recipe's SHA-256), in the zip and, once laid out, in the folder:
+/// the app's tables changed (an update) when they differ.
+pub const ENGINE_ID: &str = "ios-engine-id";
 /// What the recipe's format is: bump when it changes.
 const FORMAT: u64 = 1;
 /// Where Mojang serves asset objects by their hash.
@@ -36,7 +39,7 @@ pub fn work_file(path: &str) -> bool {
         || name.ends_with(".class")
         || matches!(
             name,
-            ".horizon-prepare.lock" | "horizon-data.bin" | "horizon-sprites.cache"
+            ".horizon-prepare.lock" | "horizon-data.bin" | "horizon-sprites.cache" | ENGINE_ID
         )
 }
 
@@ -196,8 +199,13 @@ pub fn pack(
         "version": version,
         "files": recipe,
     });
+    let recipe = recipe.to_string();
     zip.start_file(RECIPE, options).map_err(|e| e.to_string())?;
-    zip.write_all(recipe.to_string().as_bytes())
+    zip.write_all(recipe.as_bytes())
+        .map_err(|e| e.to_string())?;
+    zip.start_file(ENGINE_ID, options)
+        .map_err(|e| e.to_string())?;
+    zip.write_all(format!("{:x}", Sha256::digest(recipe.as_bytes())).as_bytes())
         .map_err(|e| e.to_string())?;
     zip.finish().map_err(|e| e.to_string())?;
     Ok(packed)
@@ -350,11 +358,31 @@ pub fn assemble(
         }
         progress(done + 1, total);
     }
+    if let Some(id) = zip_text(&mut engine, ENGINE_ID) {
+        fs::write(stage.join(ENGINE_ID), id).map_err(|e| format!("{ENGINE_ID}: {e}"))?;
+    }
     if out.exists() {
         fs::remove_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
     }
     fs::rename(&stage, out).map_err(|e| format!("{}: {e}", out.display()))?;
     Ok(())
+}
+
+fn zip_text(zip: &mut zip::ZipArchive<File>, name: &str) -> Option<String> {
+    let mut text = String::new();
+    zip.by_name(name).ok()?.read_to_string(&mut text).ok()?;
+    Some(text)
+}
+
+/// Which tables the zip `engine` holds.
+pub fn engine_id(engine: &Path) -> Option<String> {
+    let mut zip = zip::ZipArchive::new(File::open(engine).ok()?).ok()?;
+    zip_text(&mut zip, ENGINE_ID)
+}
+
+/// Which tables the folder `resources` was laid out from; None when [`assemble`] did not make it.
+pub fn assembled_id(resources: &Path) -> Option<String> {
+    fs::read_to_string(resources.join(ENGINE_ID)).ok()
 }
 
 /// Whether `built` holds what `reference` does, file for file and byte for byte (the work files
@@ -486,6 +514,8 @@ mod tests {
         let built = dir.join("built");
         assemble(&engine, &minecraft, &built, &|_, _| {}).unwrap();
         assert!(compare(&resources, &built, 10).unwrap().is_empty());
+        assert!(engine_id(&engine).is_some());
+        assert_eq!(assembled_id(&built), engine_id(&engine));
         assert!(!built.join("export.log").exists());
         // A damaged object is fetched again, never laid out: here, with no such object at
         // Mojang, that is an error rather than a wrong file.

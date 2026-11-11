@@ -1479,9 +1479,9 @@ fn set_filtering(s: &mut Settings, anisotropy_bit: i32, filtering: i32) {
 
 /// `Options.preferredGraphicsBackend`'s tooltip: the restart note once the choice differs from
 /// the startup one, the description, and Vulkan's warning.
-/// Android's own rows. A constant: horizon-mixins only reads `format!`, `matches!` and `vec!` in
-/// a function it hooks.
-const ON_A_PHONE: bool = cfg!(target_os = "android");
+/// Android's own rows (iOS's too: this port follows Starling's phone build). A constant:
+/// horizon-mixins only reads `format!`, `matches!` and `vec!` in a function it hooks.
+const ON_A_PHONE: bool = crate::PHONE;
 
 /// The Options page's entries, with Diagnostics on a phone. Apart from `OptionsUi::layout`:
 /// horizon-mixins refuses to hook a function with a `#[cfg]` in it (E_UNSUPPORTED_CFG).
@@ -3797,7 +3797,7 @@ impl OptionsUi {
                 rows
             }
             Page::Controls => {
-                let android = cfg!(target_os = "android");
+                let android = crate::PHONE;
                 let mut rows = Vec::new();
                 if android {
                     rows.push(Row::Big(Opt::AndroidInputSelection));
@@ -10647,7 +10647,7 @@ mod tests {
     fn only_a_phone_takes_the_offer_of_the_catalog() {
         let mut ui = OptionsUi::default();
         ui.offer_catalog();
-        assert_eq!(ui.catalog_buttons, cfg!(target_os = "android"));
+        assert_eq!(ui.catalog_buttons, crate::PHONE);
     }
 
     #[test]

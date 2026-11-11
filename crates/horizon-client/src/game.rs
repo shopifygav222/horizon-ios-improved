@@ -209,11 +209,11 @@ mod mob_gear;
 mod mob_index;
 mod mob_looting;
 mod mob_sounds;
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 mod mobile_controls;
 mod mod_api_host;
 mod mod_assets;
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 mod mod_catalog;
 mod mods;
 mod mount_menu;
@@ -2545,7 +2545,7 @@ struct Game<'a> {
     pad: pad::Pads,
     /// The touch controls (game/touch.rs).
     touch: touch::Touch,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     mobile: mobile_controls::MobileControls,
     /// What the player plays with: the touch controls show while it is the touch screen
     /// (game/input_mode.rs).
@@ -2955,7 +2955,7 @@ struct Game<'a> {
     update_offer: update_offer::UpdateOffer,
     #[cfg(target_os = "android")]
     native_builds: native_builds::NativeBuilds,
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     catalog: mod_catalog::Catalog,
     /// Bedrock Inventory with the pointer on its inventory window: the item tab the other window
     /// shows (the creative screen's selected tab is then the Survival Inventory, so every click
@@ -8269,7 +8269,13 @@ impl Game<'_> {
         self.draw_catalog(batch);
         self.draw_native_builds(batch);
     }
-    #[cfg(not(target_os = "android"))]
+    // iOS: the catalog, as on Android. Its game folder needs no offer (the Files app shows it),
+    // the App Store's way updates it, and it runs no code built elsewhere (no native builds).
+    #[cfg(target_os = "ios")]
+    fn draw_phone_offers(&mut self, batch: &mut HudBatch) {
+        self.draw_catalog(batch);
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn draw_phone_offers(&mut self, _batch: &mut HudBatch) {}
     fn hud(&mut self, size: [u32; 2]) -> HudBatch {
         // The pack prompt replaces the connecting screen (setScreen), but
@@ -17172,7 +17178,7 @@ impl ApplicationHandler for Game<'_> {
     /// already, since the system may end the process at any time from here on. Android's UI
     /// thread waits for this to return, so nothing here waits for the world's writes.
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             crate::diagnostics::heartbeat("suspended", || serde_json::json!({}));
             crate::diagnostics::request_flush();
@@ -18814,8 +18820,9 @@ impl Game<'_> {
             self.poll_files_offer();
             self.poll_update_offer();
             self.poll_native_builds();
-            self.poll_catalog();
         }
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        self.poll_catalog();
         horizon_client::spans::time("pads", || self.poll_pads(event_loop));
         self.pause_if_inactive();
         if self.options.frames.is_some() && self.started.elapsed() > self.options.timeout {
@@ -19060,9 +19067,9 @@ impl<'a> Game<'a> {
             last_input: now,
             pad: Default::default(),
             touch: Default::default(),
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             mobile: Default::default(),
-            input_mode: horizon_client::input_mode::InputMode::first(cfg!(target_os = "android")),
+            input_mode: horizon_client::input_mode::InputMode::first(horizon_client::PHONE),
             frames: 0,
             glint_frame: Default::default(),
             kept_block_entities: Default::default(),
@@ -19318,7 +19325,7 @@ impl<'a> Game<'a> {
             update_offer: Default::default(),
             #[cfg(target_os = "android")]
             native_builds: Default::default(),
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             catalog: Default::default(),
             bedrock_items: None,
             bedrock_held: false,
@@ -20729,7 +20736,7 @@ fn build_renderer(
     // Made here when the worker did not: the renderer's own fallback has no LabPBR maps.
     let prepared = Some(prepared.unwrap_or_else(|| prepare_renderer_textures(pack)));
     let atlas_pixels = atlas.pixels();
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     crate::diagnostics::checkpoint(
         "renderer_init",
         || serde_json::json!({"api":format!("{:?}",api)}),
@@ -20803,7 +20810,7 @@ fn loading_renderer(
     if let Some(atlas) = atlas {
         atlas.font.reset_cache();
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     crate::diagnostics::checkpoint(
         "renderer_init",
         || serde_json::json!({"api":format!("{:?}",api)}),
@@ -21322,7 +21329,7 @@ impl Loading {
     /// The window is going away (Android): its surface goes with it, and the log is flushed
     /// before the system may end the process.
     fn suspended(&mut self) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             crate::diagnostics::heartbeat("suspended", || serde_json::json!({}));
             crate::diagnostics::request_flush();
@@ -21549,7 +21556,7 @@ impl Loading {
         } else {
             Vec::new()
         };
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         crate::diagnostics::heartbeat(
             if self.failure.is_some() {
                 "setup_failure"
@@ -22053,7 +22060,7 @@ pub fn run_with() -> Result<()> {
     // Bedrock's touch buttons, fetched from Mojang once (bedrock_touch.rs) where the resources
     // came without them (prepared on a computer, or no network then): drawn from the next start,
     // or this one's if they come before its GUI atlas.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     if options.execution_role.is_client()
         && vanilla_root.join("horizon-resources.json").is_file()
         && let Err(e) = horizon_client::android_control_assets::fetch(&vanilla_root, |_, _| {})
@@ -22101,7 +22108,7 @@ pub fn run_with() -> Result<()> {
     Behaviours::set_cache_dir(horizon_client::logging::cache_dir());
     // Android's windowed harnesses need the same early adapter discovery as a
     // normal launch: packing before the window opens cannot know the GPU limit.
-    let android_windowed = cfg!(target_os = "android")
+    let android_windowed = horizon_client::PHONE
         && options.execution_role.is_client()
         && !options.headless
         && !options.offscreen;
@@ -23077,38 +23084,38 @@ fn write_level_for_role(
     }
 }
 
-const MOBILE_PLATFORM: bool = cfg!(target_os = "android");
+const MOBILE_PLATFORM: bool = horizon_client::PHONE;
 impl Game<'_> {
     fn mobile_holds_key(&self, _value: KeyCode, _pressed: bool) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             !_pressed && self.android_custom_key_held(_value)
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         false
     }
     fn mobile_holds_mouse(&self, _value: MouseButton, _pressed: bool) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             !_pressed && self.android_custom_mouse_held(_value)
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         false
     }
     fn platform_shift_down(&self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             self.mobile_shift_down()
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         false
     }
     fn platform_control_down(&self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             self.mobile_control_down()
         }
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         false
     }
     fn platform_keypad_event(
@@ -23116,7 +23123,7 @@ impl Game<'_> {
         _events: &dyn EventLoopCtl,
         _event: &mut WindowEvent,
     ) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if let WindowEvent::KeyboardInput { event: key, .. } = _event {
             if let Some(code) =
                 horizon_client::keypad::resolve_key(key.physical_key, &key.logical_key)
@@ -23126,6 +23133,13 @@ impl Game<'_> {
             if self.mobile_keypad_key(_events, key) {
                 return true;
             }
+        }
+        // iOS: the keyboard's keys for the control system's fields and the catalog's search.
+        #[cfg(target_os = "ios")]
+        if let WindowEvent::KeyboardInput { event: key, .. } = _event
+            && self.mobile_ios_key(key)
+        {
+            return true;
         }
         false
     }
@@ -23137,6 +23151,9 @@ impl Game<'_> {
         ) {
             self.modifiers = horizon_client::input_mode::held_modifiers(&self.physical_keys);
         }
+        // iOS: which input the player plays with now (game/input_mode.rs).
+        #[cfg(target_os = "ios")]
+        self.ios_input(_event);
     }
     fn platform_frame_hint(&self, _rendered: bool, _cpu: Duration) {
         #[cfg(target_os = "android")]
@@ -23145,7 +23162,7 @@ impl Game<'_> {
         }
     }
     fn platform_diagnostic_heartbeat(&mut self) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         self.diagnostic_heartbeat();
     }
     fn platform_first_frame(&self) {

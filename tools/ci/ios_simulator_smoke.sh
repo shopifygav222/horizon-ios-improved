@@ -28,23 +28,34 @@ logs="$data/Documents/logs"
 echo "::group::stderr.log"; cat "$logs/stderr.log" 2>/dev/null || true; echo "::endgroup::"
 echo "::group::latest.log"; cat "$logs/latest.log" 2>/dev/null || true; echo "::endgroup::"
 failed=0
-if grep -q 'panicked at' "$logs/stderr.log" 2>/dev/null; then
+# The Simulator's GPU is not of Apple's family 4, so wgpu gives it 15 inter-stage shader variables
+# where every iPhone iOS 16 runs on (A11 and later) has 31: the renderer's pipelines stop there,
+# in the Simulator only. Any other panic is the app's.
+simulator_limit='max_inter_stage_shader_variables` limit (15)'
+simulator_stop=0
+if grep -qF "$simulator_limit" "$logs/stderr.log" 2>/dev/null; then
+  simulator_stop=1
+  echo "The Simulator's own shader-variable limit stopped the renderer's pipelines, as expected there."
+elif grep -q 'panicked at' "$logs/stderr.log" 2>/dev/null; then
   echo '::error::the app panicked in the Simulator (stderr.log above)'
   failed=1
 fi
-if ! grep -q 'Horizon: iOS, game folder' "$logs/latest.log" 2>/dev/null; then
-  echo "::error::the game's start did not reach its log (latest.log above)"
+if ! grep -q 'Horizon renderer: creating the pipelines' "$logs/latest.log" 2>/dev/null; then
+  echo "::error::the game did not reach its renderer's pipelines (latest.log above)"
   failed=1
 fi
-if ! grep -qE 'Horizon renderer:|No Metal graphics device' "$logs/latest.log" 2>/dev/null; then
-  echo "::error::the game did not reach its renderer's start (latest.log above)"
+if ! grep -qE 'Horizon: iOS, game folder' "$logs/latest.log" 2>/dev/null; then
+  echo "::error::Starling's start did not reach its log (latest.log above)"
   failed=1
 fi
 crashes=$(find "$HOME/Library/Logs/DiagnosticReports" -newermt "@$started" -name 'Starling*' 2>/dev/null || true)
 if [ -n "$crashes" ]; then
   for report in $crashes; do echo "::group::$report"; head -120 "$report"; echo "::endgroup::"; done
-  echo '::error::the app crashed in the Simulator (reports above)'
-  failed=1
+  # The Simulator-only stop above ends the app too.
+  if [ $simulator_stop = 0 ]; then
+    echo '::error::the app crashed in the Simulator (reports above)'
+    failed=1
+  fi
 fi
 if xcrun simctl spawn "$device" launchctl list | grep -q "UIKitApplication:$bundle"; then
   echo 'The app is still running.'

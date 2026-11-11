@@ -78,6 +78,11 @@ impl Form {
     pub fn reveal(&mut self) {
         self.show_password = !self.show_password;
     }
+    /// iOS: a field has the focus, so the window's keyboard is wanted (its keys reach `key`).
+    #[cfg(target_os = "ios")]
+    pub fn typing(&self) -> bool {
+        self.focus.is_some()
+    }
     #[cfg(any(target_os = "android", test))]
     pub fn replace(&mut self, text: &str, cursor: usize, anchor: usize, generation: i32) {
         if generation != self.generation {

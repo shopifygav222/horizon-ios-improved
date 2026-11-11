@@ -40,14 +40,14 @@ impl Game<'_> {
             }
             _ => false,
         };
-        focused || cfg!(target_os = "android") && self.widget_text_focused()
+        focused || horizon_client::PHONE && self.widget_text_focused()
     }
 
     /// Allow the input method only while a text box has focus.
     pub(super) fn sync_ime(&mut self) {
         // On Android asking for the input method shows the keyboard: there a tap on the field
         // decides (touch.rs), not its focus.
-        if cfg!(target_os = "android") {
+        if horizon_client::PHONE {
             return;
         }
         let want = self.text_field_focused();

@@ -4,6 +4,7 @@
 //! `starling-catalog` crate); this is its screen. The list's pages and the finger on it are
 //! `starling_catalog::list`, where they have tests.
 use super::Game;
+#[cfg(target_os = "android")]
 use super::native_builds::{density, wrapped};
 use horizon_client::{
     hud::HudBatch,
@@ -19,6 +20,33 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 use winit::event::{Touch, TouchPhase};
+
+/// iOS has no native builds (it runs no code built elsewhere): their card's scale, here.
+#[cfg(target_os = "ios")]
+fn density(w: f32, h: f32) -> f32 {
+    (w / 1040.0).min(h / 700.0).clamp(1.0, 4.0)
+}
+
+/// iOS: `text` in lines of at most `width`, as the native builds' card wraps it.
+#[cfg(target_os = "ios")]
+fn wrapped(ui: &Ui<'_>, face: Face, size: f32, width: f32, text: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut line = String::new();
+    for word in text.split(' ') {
+        let next = if line.is_empty() {
+            word.to_owned()
+        } else {
+            format!("{line} {word}")
+        };
+        if !line.is_empty() && ui.measure(face, size, &next) > width {
+            lines.push(std::mem::replace(&mut line, word.to_owned()));
+        } else {
+            line = next;
+        }
+    }
+    lines.push(line);
+    lines
+}
 
 const SHELVES: [(Shelf, &str); 3] = [
     (Shelf::Mods, "Mods"),

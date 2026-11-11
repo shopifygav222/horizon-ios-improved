@@ -225,7 +225,7 @@ pub fn default_path() -> PathBuf {
     if let Some(path) = std::env::var_os("HORIZON_CONTROL") {
         return path.into();
     }
-    if cfg!(target_os = "android") {
+    if cfg!(any(target_os = "android", target_os = "ios")) {
         return crate::logging::private_home().join("horizon-control.json");
     }
     if !cfg!(unix) {

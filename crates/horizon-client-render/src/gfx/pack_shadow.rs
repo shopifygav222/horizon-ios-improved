@@ -83,9 +83,14 @@ impl ShadowTargets {
         colors: u16,
         depth1: bool,
     ) -> Self {
-        let size = shadow
-            .resolution
-            .clamp(1, device.limits().max_texture_dimension_2d);
+        // iOS: at most 4096, as on Horizon Android's phones; a pack's 8192 shadow map alone is
+        // 256 MiB of depth, past what iOS lets an app keep.
+        let max_shadow = if cfg!(target_os = "ios") {
+            device.limits().max_texture_dimension_2d.min(4096)
+        } else {
+            device.limits().max_texture_dimension_2d
+        };
+        let size = shadow.resolution.clamp(1, max_shadow);
         let copy = wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST;
         let depth = wgpu::TextureFormat::Depth32Float;
         let color = std::array::from_fn(|n| {

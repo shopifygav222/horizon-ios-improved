@@ -118,6 +118,9 @@ pub(super) struct Setup {
     horizon_picked: bool,
     /// Play offline tapped: the question shows.
     offline_asked: bool,
+    /// iOS: the window's keyboard is up for the account form.
+    #[cfg(target_os = "ios")]
+    form_keyboard: bool,
     form: Option<Form>,
     provider: Option<Kind>,
     dismiss_signin_error: bool,
@@ -487,6 +490,18 @@ impl Loading {
         if self.setup.form.as_mut().is_some_and(Form::poll) {
             self.setup_action(Action::SubmitForm);
         }
+        // iOS: the window's keyboard while a field of the account form has the focus (Android's
+        // text editor shows its own).
+        #[cfg(target_os = "ios")]
+        {
+            let typing = self.setup.form.as_ref().is_some_and(Form::typing);
+            if typing != self.setup.form_keyboard
+                && let Some(window) = &self.window
+            {
+                window.set_ime_allowed(typing);
+                self.setup.form_keyboard = typing;
+            }
+        }
         if self.setup.offline_saved && matches!(accounts::state(), State::OfflineProfile(_)) {
             self.setup.offline_saved = false;
             accounts::download_files();
@@ -552,10 +567,10 @@ impl Loading {
         if let Some(form) = &self.setup.form {
             ui.fill(0., 0., w, h, color::BG);
             let mut drawn = [None; 5];
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             let available_h =
                 (h - horizon_client::android::ime_height() as f32 / ui.density).max(320.);
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             let available_h = h;
             form.draw(&mut ui, &mut drawn, available_h);
             let rect = [(w - 160.).max(16.), 8., 144., 32.];

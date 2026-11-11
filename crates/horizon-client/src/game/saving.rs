@@ -92,7 +92,7 @@ impl Game<'_> {
     /// saved at once, as Bedrock does. Apart from `handle_window_event`: horizon-mixins refuses to
     /// hook a function with a `#[cfg]` in it (E_UNSUPPORTED_CFG).
     pub(super) fn save_when_focus_leaves(&mut self, event: &winit::event::WindowEvent) {
-        if !cfg!(target_os = "android") {
+        if !horizon_client::PHONE {
             return;
         }
         if let winit::event::WindowEvent::Focused(focused) = event {

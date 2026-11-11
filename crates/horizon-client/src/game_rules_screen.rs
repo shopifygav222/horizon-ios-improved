@@ -389,7 +389,7 @@ impl RulesScreen {
             return None;
         }
         // On a phone a tap elsewhere lets go of the box, which closes the keyboard.
-        if cfg!(target_os = "android") {
+        if crate::PHONE {
             self.unfocus();
         }
         let rows = self.rows();

@@ -81,6 +81,15 @@ pub fn take_restart() -> bool {
 }
 
 /// The app's version, from its Info.plist; never a build that updates itself.
+/// Shares a finished diagnostic ZIP (Options > Diagnostics): Files' sheet saves a copy where the
+/// player chooses, from where it can be sent on. Only that file leaves the app's own folder.
+pub fn share_diagnostic(name: &str) -> bool {
+    let file = crate::logging::private_home()
+        .join("performance")
+        .join(name);
+    file.is_file() && horizon_gamecontroller::export(&[file])
+}
+
 pub fn app_version() -> Option<(String, bool)> {
     horizon_gamecontroller::app_version()
         .filter(|v| !v.is_empty())

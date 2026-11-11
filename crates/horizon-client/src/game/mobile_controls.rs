@@ -10,6 +10,11 @@ use horizon_client::{
     debug_keys::KeyAction,
 };
 use winit::event::{Touch, TouchPhase};
+#[cfg(target_os = "android")]
+mod mobile_platform;
+// iOS: the window's keyboard and UIKit's haptics in place of Android's (IOS-SYNC.md).
+#[cfg(target_os = "ios")]
+#[path = "mobile_controls/mobile_platform_ios.rs"]
 mod mobile_platform;
 
 #[derive(Default)]
@@ -86,8 +91,35 @@ impl Game<'_> {
                             .is_some_and(super::remote::item_has_use)
                 })
     }
+    /// iOS: a key from the window's keyboard for a field that has no key path of its own, which
+    /// Android's text editor types into: the control system's fields (`mobile_platform`), and the
+    /// catalog's search box. True when the key was the field's.
+    #[cfg(target_os = "ios")]
+    pub(in crate::game) fn mobile_ios_key(&mut self, event: &winit::event::KeyEvent) -> bool {
+        use winit::keyboard::{Key, NamedKey};
+        if mobile_platform::key(event) {
+            return true;
+        }
+        if !self.catalog_typing() {
+            return false;
+        }
+        if event.state == ElementState::Pressed {
+            match &event.logical_key {
+                Key::Named(NamedKey::Backspace) => self.catalog_backspace(),
+                Key::Named(NamedKey::Enter) => self.catalog_submit(),
+                // The keyboard away; Back closes the catalog, not this.
+                Key::Named(NamedKey::Escape) => self.touch.wanted = false,
+                _ => {
+                    if let Some(text) = event.text.as_ref() {
+                        self.catalog_type(text);
+                    }
+                }
+            }
+        }
+        true
+    }
     pub(in crate::game) fn mobile_controls_enabled(&self) -> bool {
-        cfg!(target_os = "android")
+        horizon_client::PHONE
     }
     pub(in crate::game) fn mobile_pad_end(&mut self, released: bool) {
         if released {

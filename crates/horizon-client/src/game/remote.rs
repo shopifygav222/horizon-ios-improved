@@ -868,7 +868,7 @@ fn number_format(f: &play::NumberFormat) -> horizon_client::scoreboard::NumberFo
 }
 
 impl Game<'_> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn touch_mining_progress(&self) -> f32 {
         self.remote
             .as_ref()
@@ -8989,7 +8989,7 @@ impl Game<'_> {
     /// the main hand's item, then the off hand's turn (its block, its item).
     /// The server does each packet's part with that packet's hand only.
     fn remote_use_hands(&mut self) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.mobile.touch_shield {
             let hand = if self
                 .offhand
@@ -10964,14 +10964,14 @@ struct RemoteUseWorld<'g, 'a>(&'g mut Game<'a>);
 
 impl horizon_client::interaction_input::TargetUseWorld for RemoteUseWorld<'_, '_> {
     fn use_entity(&mut self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.0.mobile.touch_shield {
             return false;
         }
         self.0.remote_use_entity(Hand::Main)
     }
     fn use_block(&mut self) -> bool {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         if self.0.mobile.touch_shield {
             let transformer = self
                 .0

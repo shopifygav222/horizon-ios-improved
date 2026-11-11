@@ -33,15 +33,7 @@ sys.path.insert(0, str(ROOT / 'tools'))
 sys.path.insert(0, str(ROOT / 'packaging' / 'android'))
 import lab  # noqa: E402
 
-MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
 OBJECTS = 'https://resources.download.minecraft.net'
-
-
-def fetch_json(url):
-    import urllib.request
-    request = urllib.request.Request(url, headers={'User-Agent': 'horizon/0.1'})
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return json.load(response)
 
 
 def inside(base, value):
@@ -72,12 +64,12 @@ def download_game(version, directory):
     pins = json.loads((ROOT / 'research-lock.json').read_text())['minecraft']
     if version != pins['version']:
         raise ValueError(f"This engine implements {pins['version']}; {version} is unsupported")
-    entry = next((v for v in fetch_json(MANIFEST)['versions'] if v['id'] == version), None)
-    if entry is None:
-        raise ValueError(f'Mojang does not list Minecraft {version}')
+    # The version file research-lock.json pins, by its hash: Mojang republishes it now and then,
+    # and horizon-prepare accepts only the pinned ones (as the phone's download fetches it).
     versions = directory / 'versions' / version
     manifest_path = versions / f'{version}.json'
-    lab.download(entry['url'], manifest_path, entry['sha1'])
+    pinned = pins['manifest_sha1']
+    lab.download(f'https://piston-meta.mojang.com/v1/packages/{pinned}/{version}.json', manifest_path, pinned)
     manifest = json.loads(manifest_path.read_text())
     files = []
     for side in ['client', 'server']:
@@ -105,21 +97,37 @@ def cargo(*args, env=None):
     subprocess.run(['cargo', *[str(a) for a in args]], cwd=ROOT, env=env, check=True)
 
 
+def art(out):
+    """The menu art and the shader pack the app carries: Starling's own, no Mojang file."""
+    import build_apk  # noqa: E402  (its zips, byte for byte the APK's)
+    build_apk.zip_folder(ROOT / 'packaging' / 'lowbudget' / 'pack', out / 'lowbudget.zip')
+    build_apk.zip_folder(ROOT / 'packaging' / 'shaderpacks' / 'starling-visuals', out / 'StarlingVisuals.zip')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--java-home', type=Path, required=True, help='A JDK of the pinned version')
-    parser.add_argument('--minecraft', type=Path, required=True,
+    parser.add_argument('--art-only', action='store_true',
+                        help='Only the menu art and the shader pack (the Simulator check, which has no game tables)')
+    parser.add_argument('--java-home', type=Path, help='A JDK of the pinned version')
+    parser.add_argument('--minecraft', type=Path,
                         help='Where the official files go (kept between runs: each is checked again)')
-    parser.add_argument('--work', type=Path, required=True,
+    parser.add_argument('--work', type=Path,
                         help='A folder on a case-sensitive volume for the preparation')
     args = parser.parse_args()
+    out = ROOT / '.local' / 'ios' / 'assets'
+    out.mkdir(parents=True, exist_ok=True)
+    if args.art_only:
+        art(out)
+        for name in sorted(p.name for p in out.iterdir()):
+            print(f'iOS app asset: {name} ({(out / name).stat().st_size // 1024} KiB)', flush=True)
+        return
+    if not (args.java_home and args.minecraft and args.work):
+        parser.error('--java-home, --minecraft and --work are needed unless --art-only')
     version = lab.pinned_version()
     work = args.work.resolve()
     minecraft = args.minecraft.resolve()
     resources = work / 'resources'
     assembled = work / 'assembled'
-    out = ROOT / '.local' / 'ios' / 'assets'
-    out.mkdir(parents=True, exist_ok=True)
     work.mkdir(parents=True, exist_ok=True)
 
     server = download_game(version, minecraft)
@@ -139,9 +147,7 @@ def main():
     cargo('run', '--release', '-p', 'horizon-ios-prepare', '--', 'check', '--engine', engine,
           '--minecraft', minecraft, '--reference', resources, '--version', version, '--work', assembled)
 
-    import build_apk  # noqa: E402  (its zips, byte for byte the APK's)
-    build_apk.zip_folder(ROOT / 'packaging' / 'lowbudget' / 'pack', out / 'lowbudget.zip')
-    build_apk.zip_folder(ROOT / 'packaging' / 'shaderpacks' / 'starling-visuals', out / 'StarlingVisuals.zip')
+    art(out)
     for name in sorted(p.name for p in out.iterdir()):
         print(f'iOS app asset: {name} ({(out / name).stat().st_size // 1024} KiB)', flush=True)
 

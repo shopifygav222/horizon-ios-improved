@@ -20,7 +20,7 @@ pub(super) const CONTROL_HELP: &[&str] = &[
 ];
 
 /// The catalog's shelf for a page's Catalog button.
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 fn catalog_shelf(shelf: horizon_client::options_ui::CatalogShelf) -> starling_catalog::Shelf {
     use horizon_client::options_ui::CatalogShelf;
     match shelf {
@@ -195,7 +195,7 @@ impl Game<'_> {
         self.open_options_at(from_title, Page::Main);
     }
     pub(super) fn open_options_at(&mut self, from_title: bool, page: Page) {
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         self.mobile_options_open();
         // Gameplay keys must not stay held behind the options screen, where
         // bindings can also change before the physical key is released.
@@ -418,7 +418,7 @@ impl Game<'_> {
                 Event::DiagnosticsGpu => self.toggle_diagnostic_gpu(),
                 Event::ButtonClick => self.audio.play_button_click(),
                 Event::Changed => {
-                    #[cfg(target_os = "android")]
+                    #[cfg(any(target_os = "android", target_os = "ios"))]
                     self.mobile_options_apply();
                     self.settings.save(&Self::options_path());
                     self.apply_settings();
@@ -426,7 +426,7 @@ impl Game<'_> {
                     self.ui.options.agent_status = self.agent_status_lines();
                 }
                 Event::SliderDrag => {
-                    #[cfg(target_os = "android")]
+                    #[cfg(any(target_os = "android", target_os = "ios"))]
                     self.mobile_options_apply();
                     self.apply_settings();
                 }
@@ -476,9 +476,9 @@ impl Game<'_> {
                 Event::OpenModFolder => {
                     self.open_game_folder(&Self::game_dir().join(horizon_client::mod_list::DIR))
                 }
-                #[cfg(target_os = "android")]
+                #[cfg(any(target_os = "android", target_os = "ios"))]
                 Event::OpenCatalog(shelf) => self.open_catalog_on(catalog_shelf(shelf)),
-                #[cfg(not(target_os = "android"))]
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
                 Event::OpenCatalog(_) => {}
                 Event::DataPacks(ids) => {
                     let resources = self.vanilla_root();

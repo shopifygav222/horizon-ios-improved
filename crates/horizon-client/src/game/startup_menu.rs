@@ -361,7 +361,7 @@ pub(super) fn spawn_loader(
     started: Instant,
     progress: &Progress,
 ) -> Result<(Receiver<LoaderMsg>, JoinHandle<()>)> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     crate::diagnostics::checkpoint("resource_loading", || serde_json::json!({}));
     let (sender, receiver) = std::sync::mpsc::channel();
     let settings = settings.clone();
@@ -1355,7 +1355,7 @@ impl Loading {
                 };
                 // A phone's pixel scrolls are a finger's (touch.rs): they only scroll, as in game.
                 let finger =
-                    cfg!(target_os = "android") && matches!(delta, MouseScrollDelta::PixelDelta(_));
+                    horizon_client::PHONE && matches!(delta, MouseScrollDelta::PixelDelta(_));
                 let amount = if self.settings.discrete_scroll && !finger {
                     horizon_client::mouse::java_signum(f64::from(raw)) as f32
                 } else {

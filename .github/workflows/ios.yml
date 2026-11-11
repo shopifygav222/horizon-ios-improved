@@ -59,7 +59,14 @@ jobs:
       # --keep-going: every crate that can be built is, so one run reports every error.
       - name: Build the game
         id: build
-        run: cargo build --release --keep-going --target "$IOS_TARGET" -p horizon-ios-game
+        env:
+          # A build for others: no developer launch arguments (main.rs PUBLIC_BUILD).
+          HORIZON_IOS_PUBLIC: "1"
+          # The Microsoft sign-in app (shared/account.rs): a repository variable, else the built-in one.
+          HORIZON_MSA_CLIENT_ID: ${{ vars.HORIZON_MSA_CLIENT_ID }}
+        run: |
+          export HORIZON_IOS_BUILD_COMMIT="$GITHUB_SHA"
+          cargo build --release --keep-going --target "$IOS_TARGET" -p horizon-ios-game
       # This port's code and Starling's must be warning-free on iOS; the vendored UIKit backend and
       # registry crates are shown, not failed on.
       - name: Lint the game for iOS
@@ -182,6 +189,9 @@ jobs:
       - name: Bundle it for the Simulator
         run: |
           set -euo pipefail
+          # The menu art and shader pack the app carries (no game tables: the game starts on
+          # its installer, as on a phone before the game files are fetched).
+          python3 tools/ios_prepare.py --art-only
           command -v xcodegen >/dev/null || brew install xcodegen
           ( cd packaging/ios && xcodegen generate )
           HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/StarlingIOS.xcodeproj \

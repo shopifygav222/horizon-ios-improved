@@ -54,9 +54,12 @@ jobs:
           cargo clippy --keep-going -p horizon-client -p horizon-gamecontroller --lib --bins -- -D warnings
           cargo clippy --keep-going -p horizon-ios-game --bins -- -D warnings
           cargo clippy --keep-going -p horizon-ios-prepare --all-targets -- -D warnings
-      # The iOS port's host-testable parts: the installer's pack/assemble round trip.
+      # The iOS port's host-testable parts: the installer's pack/assemble round trip; and what the
+      # iOS gates touch of Starling's render crate (sessions, the control system, the keypad).
       - name: Test the iOS port's host-side code
-        run: cargo test -p horizon-ios-prepare
+        run: |
+          cargo test -p horizon-ios-prepare
+          cargo test -p horizon-client-render --lib -- auth:: android_controls keypad::
 
   android:
     runs-on: ubuntu-latest
