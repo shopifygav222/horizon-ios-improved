@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Starling's iOS app (packaging/ios/project.yml's StarlingGame target, IOS-SYNC.md). Its executable is the
-  cross-compiled `horizon-ios-game` binary: Starling's game, Horizon Android's launcher, drawn with Metal.
-  A separate app from Horizon's iOS app (dev.horizon.game): both install side by side, and Starling's setup
-  brings Horizon's worlds over.
+  Horizon Pocket Edition, "Horizon PE" under its icon (packaging/ios/project.yml's StarlingGame target,
+  IOS-SYNC.md): Starling's phone game on iOS, drawn with Metal. Its executable is the cross-compiled
+  `horizon-ios-game` binary. The bundle identifier and the executable's name are still Starling's
+  (dev.horizon.starling, Starling): changed, the app would install as another one, without the player's
+  worlds. A separate app from Horizon's iOS app (dev.horizon.game): both install side by side, and the
+  setup brings Horizon's worlds over.
 
   There is no principal class, no nib and no storyboard, on purpose: winit's iOS backend passes its own
   application delegate to UIApplicationMain and registers WinitSceneDelegate (third_party/winit,
   IOS_PATCHES.md) for the one window scene declared below.
 
   UIFileSharingEnabled and LSSupportsOpeningDocumentsInPlace put the game folder (the app's Documents:
-  worlds, packs, mods, options, logs) in the Files app as "Starling", where Android's shared storage has its
-  Starling folder. The document types are what Starling's Android app opens: its own .starling files,
+  worlds, packs, mods, options, logs) in the Files app as "Horizon PE", where Android's shared storage has
+  its Starling folder. The document types are what Starling's Android app opens: its own .starling files,
   Horizon's mods (.hmod, .hnmod), Bedrock packs and worlds, zips (packs, worlds, prepared resources) and
   PNG skins; each goes to the import inbox (crates/horizon-client/src/import.rs).
 -->
@@ -21,7 +23,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Starling</string>
+	<string>Horizon PE</string>
 	<key>CFBundleExecutable</key>
 	<string>Starling</string>
 	<key>CFBundleIconName</key>
@@ -31,7 +33,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Starling</string>
+	<string>Horizon PE</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -45,7 +47,7 @@
 	<key>MinimumOSVersion</key>
 	<string>16.0</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Starling and Horizon are MIT licensed. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</string>
+	<string>Horizon Pocket Edition is built on Starling and Horizon, all MIT licensed. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>A native mod built into this app asked to use the microphone.</string>
 	<key>UIFileSharingEnabled</key>
@@ -58,7 +60,7 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Starling and Horizon content</string>
+			<string>Horizon and Starling content</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
@@ -193,15 +195,15 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Starling finds worlds opened to LAN, plays with friends nearby and joins servers on this network.</string>
+	<string>Horizon PE finds worlds opened to LAN, plays with friends nearby and joins servers on this network.</string>
 	<!-- F2 adds the screenshot to Photos, as Android publishes it to the gallery. iOS ends an app that
 	     asks without this description. -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Starling saves your screenshots to Photos.</string>
+	<string>Horizon PE saves your screenshots to Photos.</string>
 	<!-- Gyro aiming: CoreMotion's gyroscope asks for nothing, but some iOS versions want the motion
 	     description present before any motion API is touched. -->
 	<key>NSMotionUsageDescription</key>
-	<string>Starling aims with the phone's gyroscope when the touch layout asks for it.</string>
+	<string>Horizon PE aims with the phone's gyroscope when the touch layout asks for it.</string>
 	<!-- Without it an iPhone caps every app at 60 Hz; with it ProMotion follows the game's frames. -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>

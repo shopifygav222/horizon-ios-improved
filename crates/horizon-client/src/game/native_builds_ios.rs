@@ -31,7 +31,7 @@ const REPO: &str = match option_env!("HORIZON_IOS_REPO") {
 };
 const BRANCH: &str = match option_env!("HORIZON_IOS_BRANCH") {
     Some(branch) => branch,
-    None => "starling-ios",
+    None => "main",
 };
 const WORKFLOW: &str = "ios.yml";
 const API: &str = "https://api.github.com";
@@ -452,8 +452,8 @@ fn check_run(run: u64, token: &str) -> Result<Step, Fatal> {
         "cancelled" => return Err(Fatal("The build was cancelled on GitHub.".to_owned())),
         _ => {
             return Err(Fatal(
-                "The app didn't build with these mods: one may not fit this Starling. See the build \
-                 for which, turn it off, and build again."
+                "The app didn't build with these mods: one may not fit this game's version. See the \
+                 build for which, turn it off, and build again."
                     .to_owned(),
             ));
         }
@@ -537,7 +537,7 @@ fn download(
     }
     file.sync_all().map_err(|e| e.to_string())?;
     drop(file);
-    let ipa = dir.join(format!("Starling-native-r{number}.ipa"));
+    let ipa = dir.join(format!("HorizonPE-native-r{number}.ipa"));
     let archive = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(archive).map_err(|e| e.to_string())?;
     let mut found = None;
@@ -600,9 +600,9 @@ impl Game<'_> {
         let ids: Vec<String> = built.iter().map(|(id, v)| format!("{id} {v}")).collect();
         game.lines.push((
             if built.is_empty() {
-                format!("This app: Starling {version} without native mods.")
+                format!("This app: Horizon PE {version} without native mods.")
             } else {
-                format!("This app: Starling {version} with {}.", mods_label(&ids))
+                format!("This app: Horizon PE {version} with {}.", mods_label(&ids))
             },
             false,
         ));
@@ -658,7 +658,7 @@ impl Game<'_> {
             .collect();
         if (missing || !leftover.is_empty()) && !building && build.is_empty() {
             game.lines.push((
-                "Every native mod is off, so none of them runs. Installing the normal Starling \
+                "Every native mod is off, so none of them runs. Installing the normal Horizon PE \
                  build takes them out of the app."
                     .to_owned(),
                 false,

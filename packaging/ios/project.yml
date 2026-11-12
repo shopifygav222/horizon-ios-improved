@@ -1,12 +1,14 @@
-# Starling's iOS app, as an XcodeGen spec (IOS-SYNC.md).
+# Horizon Pocket Edition, Starling's phone game on iOS, as an XcodeGen spec (IOS-SYNC.md). Its
+# targets and its executable keep Starling's names (and its bundle identifier, dev.horizon.starling):
+# the player sees "Horizon PE" (GameInfo.plist), and an app renamed inside would install as another.
 #
 # Xcode does not like being edited in source control, so the repository keeps this file and
 # `xcodegen` writes StarlingIOS.xcodeproj from it:
 #   brew install xcodegen && cd packaging/ios && xcodegen generate
 # Generating from this directory matters: $(SRCROOT) below is this directory.
 #
-# The game is the `horizon-ios-game` binary (crates/horizon-ios-game): Starling's game and Horizon
-# Android's launcher, drawn with Metal. Xcode wraps it so the bundle can be signed, and copies in
+# The game is the `horizon-ios-game` binary (crates/horizon-ios-game): Starling's game, drawn with
+# Metal. Xcode wraps it so the bundle can be signed, and copies in
 # beside it what Starling's APK carries in assets/ (tools/ios_prepare.py makes them in
 # .local/ios/assets: the game tables horizon-prepare made, the setup's skin, Starling Visuals).
 # .github/workflows/ios.yml runs the same steps for the unsigned .ipa.

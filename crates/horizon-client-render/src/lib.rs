@@ -5,6 +5,14 @@
 /// tiled one, the screen held close and the app filling it.
 pub const PHONE: bool = cfg!(any(target_os = "android", target_os = "ios"));
 
+/// The app's name where the game says it: Horizon Pocket Edition's short name on iOS (this
+/// port, IOS-SYNC.md), Starling elsewhere. Credits keep naming Starling.
+pub const APP_NAME: &str = if cfg!(target_os = "ios") {
+    "Horizon PE"
+} else {
+    "Starling"
+};
+
 pub mod assets;
 pub mod atlas_sources;
 pub mod audio;

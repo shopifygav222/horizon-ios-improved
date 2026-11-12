@@ -43,11 +43,11 @@ fn shader_folder_note() -> String {
             return format!("Folder: {}", shared.display());
         }
     }
-    // iOS: the game folder is the app's Documents, the Files app's "Starling" folder.
+    // iOS: the game folder is the app's Documents, the Files app's "Horizon PE" folder.
     if cfg!(target_os = "ios")
         && let Ok(inside) = dir.strip_prefix(crate::logging::game_home())
     {
-        return clipped(&format!("Files app: Starling/{}", inside.display()), 52);
+        return clipped(&format!("Files app: Horizon PE/{}", inside.display()), 52);
     }
     clipped(&format!("Folder: {}", dir.display()), 52)
 }

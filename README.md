@@ -1,141 +1,179 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Minecraft-Java%2026.3-5D9C3F" alt="Minecraft Java 26.3">
-  <img src="https://img.shields.io/badge/Rust-stable-B7410E?logo=rust&logoColor=white" alt="Rust">
-  <a href="https://github.com/ludovic111/horizon"><img src="https://img.shields.io/badge/fork%20of-Horizon-F0795A" alt="Fork of Horizon"></a>
-  <img src="https://img.shields.io/badge/platform-Android-2A2470" alt="Android">
+  <img src="https://img.shields.io/badge/platform-iOS%20%26%20iPadOS%2016%2B-1C1C1E?logo=apple&logoColor=white" alt="iOS and iPadOS 16 or newer">
+  <img src="https://img.shields.io/badge/graphics-Metal-8E8E93" alt="Metal">
+  <a href="https://github.com/starling-client/starling"><img src="https://img.shields.io/badge/built%20on-Starling-2A2470" alt="Built on Starling"></a>
+  <a href="https://github.com/ludovic111/horizon"><img src="https://img.shields.io/badge/engine-Horizon-F0795A" alt="Horizon engine"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3B2F7E" alt="MIT license"></a>
 </p>
 
 <p align="center">
-  <a href="#download"><b>Download</b></a> ·
-  <a href="#android-status"><b>Android status</b></a> ·
-  <a href="roadmap/starling.md"><b>Roadmap</b></a> ·
-  <a href="#mods"><b>Mods</b></a> ·
-  <a href="#build-from-source"><b>Build from source</b></a> ·
-  <a href="CONTRIBUTING.md"><b>Contributing</b></a> ·
-  <a href="https://github.com/ludovic111/horizon"><b>Horizon</b></a>
+  <a href="#install"><b>Install</b></a> ·
+  <a href="#what-works"><b>What works</b></a> ·
+  <a href="#native-mods"><b>Native mods</b></a> ·
+  <a href="#build-it-yourself"><b>Build it yourself</b></a> ·
+  <a href="docs/ios.md"><b>iOS guide</b></a> ·
+  <a href="#credits"><b>Credits</b></a>
 </p>
 
-# Starling
+# Horizon Pocket Edition (iOS)
 
-**Starling, formerly Horizon Android, is a lightweight port of Minecraft: Java Edition 26.3 to Android.** Co-founded by [JuanLuci](https://github.com/JuanLuci), founder of Starling, and [Vasysik](https://github.com/Vasysik), founder of Horizon Android. It is a fork of [Horizon](https://github.com/ludovic111/horizon), the Java game rewritten in Rust: it reads the same worlds, follows the same rules and generates the same terrain as Java Edition, and is checked against it by differential harnesses. You play it on the files from your own copy of Minecraft; it is free, open source and unofficial. And it runs natively, with no Java virtual machine and no OpenGL translation in between, so it starts fast and plays smoothly on a phone.
+**Minecraft: Java Edition 26.3 on iPhone and iPad, running natively.** Horizon Pocket Edition
+("Horizon PE" under its icon) is the iOS port of [Starling](https://github.com/starling-client/starling),
+the phone build of [Horizon](https://github.com/ludovic111/horizon): Minecraft's Java game rewritten in
+Rust, which reads the same worlds, follows the same rules and generates the same terrain as Java
+Edition. There is no Java virtual machine and no OpenGL translation in between: the game draws with
+Metal, so it starts fast and plays smoothly on a phone.
 
-> Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft. Starling contains no Minecraft code, assets or data: you need your own legally obtained copy of Minecraft: Java Edition 26.3.
+It is Starling's phone game, feature for feature (its touch controls, accounts, skins, catalog and
+shader packs), with what iOS needs on top: the game files laid out without Java, the Files app,
+Photos, the iOS keyboard, Keychain sign-ins, and native mods compiled into the app itself.
 
-## Download
+> **Not an official Minecraft product.** Not approved by or associated with Mojang or Microsoft.
+> Minecraft and "Pocket Edition" are Mojang's trademarks. This app contains no Minecraft code, assets
+> or data: it downloads the game's files from Mojang on your phone, and you need your own copy of
+> Minecraft: Java Edition 26.3 to play online.
 
-**[Starling v0.8.0](https://github.com/JuanLuci/starling/releases/latest)**. Already have Starling? Tap **Update** inside the game. New here? Download `starling-0.8.0-arm64-v8a.apk` from [the releases page](https://github.com/JuanLuci/starling/releases) and open it on the phone (Android asks you to allow installing apps from your browser or file manager).
+<table>
+  <tr>
+    <td><img src="docs/media/sunset.jpg" alt="A sunset over a savanna"></td>
+    <td><img src="docs/media/village.jpg" alt="A savanna village"></td>
+    <td><img src="docs/media/underwater.jpg" alt="Under the sea"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/media/survival.jpg" alt="A survival base"></td>
+    <td><img src="docs/media/night.jpg" alt="A night in the hills"></td>
+    <td><img src="docs/media/nether.jpg" alt="The Nether"></td>
+  </tr>
+</table>
 
-**You need** Android 8 or newer, a compatible graphics driver, and about 2 GB free. See [Android architectures](docs/android-armv7.md) for ABI, GPU and preparation limits; 32-bit x86 imports prepared resources. Sign in with a Microsoft account that owns Minecraft: Java Edition, or play offline (most servers need the sign-in). No computer: on the first start Starling downloads the game's files from Mojang's servers and prepares them on the phone, once (79 seconds on a POCO F6 Pro, longer on slower phones). Go fishing or change the settings while it works.
+<sub>Screenshots of Horizon's game, from the Starling project.</sub>
 
-Development happens in [starling-client/starling](https://github.com/starling-client/starling), on the `starling` branch, where Starling and Horizon Android are now one app. Builds of every push there are **Starling Preview**, in [GitHub Actions](https://github.com/starling-client/starling/actions/workflows/android.yml) (the `starling-apk-<abi>` artifact of a run; GitHub asks you to sign in to download it): an app of its own, installed beside the release, with its own `StarlingPreview` folder and sign-in. You can also [build it from source](#build-from-source).
+## Install
 
-## What works today
+**You need** an iPhone or iPad on iOS 16 or newer (iPhone 8 and later), about 2 GB free, and a way
+to sideload apps: [SideStore](https://sidestore.io), [AltStore](https://altstore.io),
+[Sideloadly](https://sideloadly.io) from a computer, or [LiveContainer](https://github.com/LiveContainer/LiveContainer).
 
-- **Setting up on the phone:** sign in with your Microsoft account, and the game's files come from Mojang and are prepared on the phone, by a Java runtime fetched just for that and removed after, with every language the game has. While it works, fish in a little pond, or change the settings in a hand-drawn skin made for this screen (the game's own look is part of what is being prepared). Resources prepared on a computer still open too.
-- **The game:** singleplayer with vanilla's world generation, mobs, villagers, raids, redstone, every command, the HUD and the recipe book, on saves in vanilla's format, saved as soon as the app leaves the screen. Worlds from 1.8 to 26.2 are upgraded as vanilla does. Starling follows Horizon closely: v0.2.0 has its main of 2026-11-02.
-- **Touch controls:** every action on screen, from the movement stick to the hotbar, chat, commands and F3, with a layout you can move, resize and fade in the game, before a world too, and Sneak as Hold or Toggle. Bedrock's control modes: a stick (floating or fixed) or a D-pad, and tap to interact (a tap hits the mob or uses the block under the finger, a press breaks the block, interacts with the mob or uses the item in the air) or aim crosshair. F3 held offers its combinations (chunk borders, hitboxes, tooltips...); Pick Block and the player list are buttons to turn on; the phone buzzes when a block breaks or a stack splits, and it can aim by turning (gyroscope, off by default). They wear Bedrock's own buttons, fetched on the phone from Mojang's samples repository after the preparing (Starling ships none of them, only their names and hashes), else Starling's own.
-- **Custom controls:** open **H > Controls > Customize Controls**, or **Options > Controls > Customize Layout**. The Horizon Android editor supports MCPE and GoyControl, separate presets, undo/redo, button dimensions, colors, visibility, and up to three input bindings. **Look while interacting** includes attack and use/place gestures; **360-degree movement** is off by default. See [Android controls](docs/android-controls.md).
-- **Bedrock Inventory:** the creative inventory shows the items and your inventory side by side, with six rows of items and a 2x2 crafting grid, and a tap takes a full stack. It is on by default; turn it off in **Options > Controls** for the Java layout.
-- **Your name and your skin:** in Options > Skin Customization, the name your worlds use and a skin from your files (or `Starling/skins`), classic or slim; a skin PNG opened with Starling is put on at once.
-- **The phone's own keyboard:** a tap on a text field brings it up and a tap beside it puts it away, on every screen. Its suggestions, autocorrect, swipe typing and clipboard in the chat, signs and books (commands and searches go without autocorrect), a Paste button on the chat bar, and Enter finishing a command when only one completion fits (`/gamemode c` runs `/gamemode creative`).
-- **Coming from Horizon Android:** Starling offers to bring its worlds and resource packs over, in the setup or over the title screen, and copies them: Horizon Android keeps its own.
-- **Your files within reach:** worlds, resource packs, shader packs, mods and screenshots live in a `Starling` folder on the phone's storage, which any file manager opens (turned down on the first start, it is offered again by the Open Pack Folder buttons). Open a `.starling`, `.hmod` or `.hnmod` file with Starling to add a pack, a world or a mod.
-- **Made for phones:** settings picked for your device on the first start, and a stats overlay for FPS, memory and temperature.
-- **Horizon's own extras:** new menus (vanilla's are one setting away), graphics presets and more, all off by default where they would change the vanilla look. See [Settings](https://playhorizon.dev/docs/settings).
-- **Resource packs and data packs:** resource packs work, and data packs load functions, predicates and item modifiers.
-- **Servers:** offline-mode servers, behind a proxy such as Velocity too, with their resource packs, coloured chat, boss bars, signs, workstation menus (enchanting, anvil, smithing...), flight and the attributes they set. Plugin servers' dialogs, chat buttons, custom armour (ItemsAdder, Nexo), models riding their mobs (ModelEngine, BetterModel) and clickable furniture work, and the touch stick moves in a way each server's anticheat (GrimAC and the like) accepts: Free Direction, D-pad or Analog, remembered per server.
-- **Shader packs:** Iris and OptiFine packs such as Complementary, MakeUp, BSL, Photon and Bliss run on the phone, translated when they load: put them in `Starling/shaderpacks` and pick one in **Video Settings > Shader Packs**, where the **Auto** profile fits it to the phone, beside **Shader Options**, **Resolution** and **FPS Limit**. On Auto on a Snapdragon 8 Gen 2: MakeUp 87 fps, Complementary Reimagined 59, BSL 54, Complementary Unbound 39, Photon 27 to 39. See the [roadmap](roadmap/starling.md).
-- **Starling Visuals:** Starling's own shader pack, made for phones, which comes with the app: pick it in **Video Settings > Shader Packs** ([packaging/shaderpacks/starling-visuals](packaging/shaderpacks/starling-visuals), also `StarlingVisuals.zip` on the releases page). Sunlight and shadows, water with waves and depth, haze thicker down low and at dawn, sun rays through the trees and clouds, bloom, and light from a torch in your hand.
-- **Mods:** Horizon's native mods (`.hnmod`), compiled from the phone itself, and content mods (`.hmod`). See [Mods](#mods).
+1. **Get the app.** Open this repository's [Actions](../../actions/workflows/ios.yml), pick the latest
+   run with a `horizon-pe-ios-<number>` artifact, and download it (GitHub asks you to sign in). Unzip it
+   to get `HorizonPE-iOS-unsigned.ipa`. To make a fresh one, press **Run workflow** there with **Make and
+   keep the unsigned .ipa** ticked.
+2. **Sideload it.** Open the `.ipa` with your sideloading app, or drop it on Sideloadly. The `.ipa` is
+   unsigned: the sideloading app signs it with your Apple ID. With a free Apple ID the signature lasts
+   7 days; refresh it (SideStore and AltStore do that for you) and nothing is lost.
+3. **Set it up.** On the first start, sign in with Microsoft (the account that owns Java Edition),
+   Ely.by, or pick an offline profile. The game downloads its files from Mojang, checks each one, and
+   lays them out on the phone, once. Then the title screen.
 
-## Android status
+**Updating:** install a newer `.ipa` the same way, over the one you have. It is the same app, so your
+worlds, settings, accounts and mods stay. Coming from Horizon's own iOS app? The setup offers to copy
+its worlds and resource packs over.
 
-What the Android port covers so far; what is being done now and next is in the [roadmap](roadmap/starling.md). The game itself is Horizon's: its parity audit, measured on the desktop, is in [Horizon's project status](https://github.com/ludovic111/horizon#project-status) ([as of Starling's base](docs/horizon-parity.md)).
+Your game folder is **On My iPhone > Horizon PE** in the Files app: worlds (`saves`), resource packs,
+shader packs, mods, screenshots and logs. Open a pack, a world, a skin or a mod (`.zip`, `.starling`,
+`.mrpack`, `.hmod`, `.hnmod`, `.png`) with Horizon PE from Files or Safari to add it.
 
-| Part | Progress | Notes |
-| --- | --- | --- |
-| The game, singleplayer | <img src="docs/media/progress/100.svg" alt="100%"> | Horizon's game, as on the desktop |
-| Touch controls | <img src="docs/media/progress/100.svg" alt="100%"> | Every action, with an editable layout and buttons of your own; a stick, a D-pad or Free Direction on servers; Bedrock's buttons, fetched from Mojang |
-| Starling folder, `.starling`, `.hmod` and `.hnmod` files | <img src="docs/media/progress/100.svg" alt="100%"> | Packs, worlds, mods and game files, opened with Starling |
-| Resource packs | <img src="docs/media/progress/100.svg" alt="100%"> | Server packs too, loaded without freezing the game |
-| Performance tuning | <img src="docs/media/progress/95.svg" alt="95%"> | Settings picked per phone, resolution down to 25% for weaker ones; mid-range phones not measured yet |
-| Settings | <img src="docs/media/progress/100.svg" alt="100%"> | Options that do nothing are greyed out, those a phone can't use are hidden |
-| Mods | <img src="docs/media/progress/95.svg" alt="95%"> | Native mods compiled from the phone, tried end to end with test mods; content mods; a run over the registry's mods still to do |
-| Servers | <img src="docs/media/progress/100.svg" alt="100%"> | Offline-mode servers and proxies, dialogs, chat buttons and links, secure chat with a signed-in account |
-| Server plugins | <img src="docs/media/progress/100.svg" alt="100%"> | Custom armour from any pack, animated models riding mobs, block and item displays, clickable furniture, item cooldowns, HUD text without shadows |
-| Movement on anticheat servers | <img src="docs/media/progress/95.svg" alt="95%"> | Free Direction, D-pad or Analog per server, no pull-backs on GrimAC or Pika in tests; breaking blocks as vanilla predicts them (a dig before the move into its space); some old-version servers behind ViaVersion still pull back |
-| Shader packs | <img src="docs/media/progress/95.svg" alt="95%"> | Complementary, MakeUp, BSL, Photon and Bliss run on a phone, with an Auto profile and Shader Options; some effects still differ |
-| APK builds and updates | <img src="docs/media/progress/100.svg" alt="100%"> | Signed releases on the releases page, offered and installed by the game itself from v0.1.0.1 (the first offered: v0.1.1); every push also builds an APK in GitHub Actions |
-| Open to LAN and invites | <img src="docs/media/progress/95.svg" alt="95%"> | Horizon's, in the game; little tried on a phone so far |
-| Physical controllers | <img src="docs/media/progress/100.svg" alt="100%"> | Android's gamepads, tried on a phone |
-| Setting up on the phone | <img src="docs/media/progress/100.svg" alt="100%"> | Prepared on a phone in 79 s from the official 26.3 files, with Java fetched for it; fishing and hand-drawn settings while it works |
-| Microsoft account sign-in | <img src="docs/media/progress/100.svg" alt="100%"> | On the first start and in the game (the title screen's corner); the code and the ownership check work on a phone |
+## What works
 
-The title screen’s account button also manages saved Microsoft, Ely.by and offline
-profiles. See [Android accounts](docs/android-accounts.md) for switching, registration
-and provider compatibility.
+- **The game:** singleplayer with Java's world generation, mobs, villagers, raids, redstone, every
+  command, the HUD and the recipe book, on saves in Java's format. Worlds from older versions are
+  upgraded as Java does.
+- **Touch controls:** every action on screen, from the movement stick to the hotbar, chat and F3, in
+  MCPE or GoyControl style, with presets, a layout editor (move, resize, colour, hide, bind), a control
+  hub, a virtual mouse for menus, a keypad, Sneak as Hold or Toggle, and optional gyroscope aiming.
+- **Keyboard, mouse and controllers:** a hardware keyboard or mouse takes over the moment you use it;
+  game controllers work through iOS's GameController. The on-screen keyboard opens on any text field
+  and closes with a tap beside it.
+- **Accounts:** Microsoft, Ely.by and offline profiles, several of each, switched from the title
+  screen's corner. Sign-ins are kept in the iOS Keychain.
+- **Skins:** your profile's skin and cape, and Skin Customization to change them.
+- **Catalog:** mods, resource packs and shader packs from Horizon's registry and Modrinth, installed
+  with one tap from Options > Mods, Resource Packs or Shader Packs. Each shelf's **Installed** view
+  lists everything you have there (from the catalog or the Files app) and removes it.
+- **Shader packs:** Iris and OptiFine packs such as Complementary, MakeUp, BSL and Photon, translated
+  when they load, with an Auto profile; and **Starling Visuals**, the shader pack made for phones,
+  which comes with the app.
+- **Servers:** online and offline-mode servers, proxies, server resource packs, plugin servers'
+  dialogs, custom items and models, LAN worlds and invites.
+- **Made for the phone:** settings picked for your device, a memory governor that keeps the game
+  inside what iOS allows, ProMotion up to 120 Hz, screenshots (F2) saved to Photos, and a diagnostic
+  ZIP (Options > Diagnostics) to send with a bug report.
 
-ARMv7 build instructions and GPU/memory limitations are documented in
-[Android architectures](docs/android-armv7.md). Release APKs are published for
-ARM64, ARMv7, x86 and x86_64; install the one matching your device.
+### Different from Starling on Android
 
-Local crash reports, Android exit history and optional CPU/GPU performance
-recordings are available under **Options → Diagnostics**. Export a diagnostic ZIP,
-review it, then share it with a bug report. See [Android diagnostics](docs/android-diagnostics.md)
-for contents, limits and controls. Before installation or after an early startup
-failure, Diagnostics also opens in a separate window; long-press the app icon to
-reach it without starting the game.
+| Starling (Android) | Horizon PE (iOS) |
+| --- | --- |
+| A Java runtime prepares the game files on the phone | iOS runs no Java: the app carries the tables Java makes (built by GitHub), and lays the downloaded files out with them, file for file the same |
+| Native mods: a library from Starling's build server, swapped in | Native mods are compiled into the app by GitHub Actions ([below](#native-mods)) |
+| The `Starling` folder in shared storage | **Horizon PE** in the Files app |
+| In-app APK updates | A new `.ipa`, installed over the old one |
 
-## Mods
+## Native mods
 
-Starling runs Horizon's mods. Open the file with Starling, from your file manager or your downloads, and it shows up in **Options > Mods**.
+Horizon's native mods change the game's own code, and iOS runs no code its app did not ship with, so
+on iOS a native mod is compiled into the app. GitHub does the compiling; you pick the mods in the game:
 
-- **`.hnmod`, native mods (ARM64 only):** tap **Compile**. Starling tells you the risks, builds the game with your mods while you fish or mine, and restarts with them. It takes a few minutes and needs a connection, and after an update you compile again. The build service currently produces ARM64 libraries; other app architectures explain this limitation and do not offer compilation or prebuilt downloads. A native mod runs as part of the game, so install only the ones you trust. See [native mods](docs/native-mods.md) and [how Starling builds them](docs/starling-native-mods.md); [wrench](native-mods/wrench) is an example.
-- **`.hmod`, content mods:** data-only mods, with nothing to compile. See [mods](docs/mods.md).
+1. Options > Mods > **Catalog**: install native mods, as on Android.
+2. The Mods page then offers **Build on GitHub**. The first time, it asks for a GitHub token
+   (fine-grained, for this repository only, with **Actions: Read and write**), kept in the Keychain.
+3. Keep playing: about 30 to 60 minutes later a toast and a line on the title screen say the build is
+   ready. **Install...** opens the share sheet: pick SideStore, AltStore, LiveContainer or your signer.
+   Your worlds stay.
 
-The old Starling mods and the WebAssembly mod format of v0.1 are gone.
+Every build is checked before it is installed: each mod is downloaded from the registry's own releases
+and checked against its size and SHA-256, applied to the source the way Starling's own mod builds do,
+compiled, and started once in the iOS Simulator. Builds stay in the repository's Actions; nothing is
+published as a release. You can also start one from the Actions tab with a list of mod ids. All of it,
+step by step: [docs/ios.md](docs/ios.md#native-mods).
 
-## Build from source
+## Build it yourself
 
-For developers. Requirements: Rust 1.90 or newer with the `aarch64-linux-android` target, [cargo-ndk](https://github.com/bbqsrc/cargo-ndk), the Android SDK (build-tools 35.0.0, platform 36, NDK r28c), a JDK 25 and Python 3.10 or newer.
+You don't need a Mac: GitHub's Macs build it.
 
-```sh
-git clone -b starling https://github.com/starling-client/starling.git
-cd starling
-python packaging/android/build_apk.py            # the APK lands in target/android/
-```
+1. **Fork** this repository (keep it public: GitHub's macOS runners are free for public repositories).
+2. In your fork, **Actions > ios > Run workflow** with **Make and keep the unsigned .ipa** ticked. About
+   40 to 60 minutes later the run has a `horizon-pe-ios-<number>` artifact.
 
-The build compiles Horizon's original exporter classes with the host JDK and
-packages their checked bundle. It uses `HORIZON_MINECRAFT_DIR` as a read-only
-source when set; otherwise it downloads checksum-pinned compilation inputs into
-an ignored build cache. Minecraft jars, libraries and assets are never packaged.
+Every push to `main` runs the same build without keeping the `.ipa`: the game compiled for iOS and
+linted, the game files prepared and proved to come out the same on the phone, the app bundled and
+checked to carry none of Mojang's files, and the app started in the iOS Simulator
+([`ios.yml`](.github/workflows/ios.yml)). [`ios-guard.yml`](.github/workflows/ios-guard.yml) checks that
+the iOS work leaves Starling's desktop and Android builds compiling and formatted.
 
-The setup's hand-drawn skin is made by `python packaging/lowbudget/make.py` (with Pillow) into `packaging/lowbudget/pack`, which the APK carries as it is.
+**On a Mac with Xcode:** `rustup target add aarch64-apple-ios`, then `python3 tools/ios_prepare.py`
+(with Java 25: it fetches the pinned official 26.3 files, checks them, and makes the game tables the app
+carries), then `brew install xcodegen && cd packaging/ios && xcodegen generate` and open
+`StarlingIOS.xcodeproj`. Its build phase compiles the Rust game with Cargo and puts it in the app.
 
-The APK contains no game files. On the phone, Starling downloads them from Mojang's servers and prepares them there. To prepare them on a computer instead, it builds its resources from **your own copy** of Minecraft: Java Edition 26.3, verified against the checksums in `research-lock.json`, the same way Horizon does:
+## How the repository is laid out
 
-1. **Client:** install Java Edition with the official launcher and play 26.3 once. Horizon reads `versions/26.3/`, `libraries/` and `assets/` from the launcher's game directory. If yours lives elsewhere, pass `--minecraft-dir` or set `HORIZON_MINECRAFT_DIR`.
-2. **Server jar:** the 26.3 server jar, from the `downloads.server.url` in your launcher's `versions/26.3/26.3.json`. Pass it with `--server-jar` or set `HORIZON_SERVER_JAR`.
+This is Starling's source with an iOS layer; [IOS-SYNC.md](IOS-SYNC.md) records the Starling version
+it is built on, every change to Starling's own files, and how to take in a new Starling release.
 
-```sh
-cargo run --release -p horizon-prepare -- --prepare --server-jar ~/Downloads/server.jar   # needs JDK 25
-```
+| Path | What it is |
+| --- | --- |
+| `crates/horizon-ios-game` | The app's program: its folders, the 16 MB stack the game runs on, the event loop |
+| `crates/horizon-gamecontroller` | Every UIKit, GameController, Keychain, CoreMotion and Photos call (the game crates forbid unsafe code) |
+| `crates/horizon-client/src/ios.rs` | The game's iOS hooks: files, Keychain sealing, the keyboard, haptics, gyroscope, imports |
+| `crates/horizon-client/src/game/native_builds_ios.rs` | Native mods built on GitHub from the Mods page |
+| `crates/horizon-ios-prepare` | Lays the game files out on the phone without Java |
+| `packaging/ios` | The Xcode project (XcodeGen), `Info.plist`, icon, and the native-mod staging script |
+| `tools/ios_prepare.py`, `tools/ios_native_mods.py` | The game tables made in CI; native mods fetched and checked |
+| `third_party/winit` | Starling's winit with the iOS patches (scenes, keyboard and mouse, opened files) |
+| Everything else | Starling and Horizon, as they are ([Starling's README](https://github.com/starling-client/starling#readme)) |
 
-The prepared files land in the gitignored `.local/horizon-client/26.3`. Zip that folder, rename the zip to `.starling` and open it with Starling. It is derived from the game: never commit it or share it.
+## Credits
 
-## Contributing
+- **[Horizon](https://github.com/ludovic111/horizon)** by Ludovic and its contributors: the game,
+  Minecraft: Java Edition rewritten in Rust.
+- **[Starling](https://github.com/starling-client/starling)**, formerly Horizon Android, by
+  [JuanLuci](https://github.com/JuanLuci) and [Vasysik](https://github.com/Vasysik): the phone build
+  this app is, its touch controls, accounts, catalog, skins and Starling Visuals.
+- **[horizon-iOS](https://github.com/meehandaniel4/horizon-iOS)**: the first native mod builds for
+  iOS on GitHub Actions, which this app's follow.
 
-Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Changes to the game itself belong upstream, in [Horizon](https://github.com/ludovic111/horizon); Starling is the Android app around it.
+## License
 
-## Licence
-
-[MIT](LICENSE), for the project's original work only, as Horizon's. Dependencies keep their own licences. Minecraft is a trademark of Mojang Synergies AB; Minecraft code and assets belong to Mojang and Microsoft and are covered by the [Minecraft EULA](https://www.minecraft.net/en-us/eula). Prepared resources stay on your devices and are never published.
-
-Third-party credits and licenses: [Third-party notices](THIRD_PARTY_NOTICES.md).
-
-## Author
-
-Starling, the Android port, by JuanLuci ([@JuanLuci](https://github.com/JuanLuci)). Horizon made by [Ludovic Marie](https://lu4ovic.com) ([@ludovic111](https://github.com/ludovic111)).
-
-Tested on a POCO F6 Pro (Snapdragon 8 Gen 2, Adreno 740, 12 GB of RAM, Android 16). It has also run on a Tecno Pova 7, on Mali-G57 and Mali-G68 GPUs, on a Redmi Note 8 (Mali-G52) and on many others.
+MIT, as Horizon and Starling: see [LICENSE](LICENSE). Third-party code and its licences are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

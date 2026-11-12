@@ -162,6 +162,20 @@ impl Language {
     /// from every namespace and every source in priority order (later sources
     /// override).
     pub fn load(sources: &[&dyn ResourceSource], code: &str) -> Self {
+        let mut language = Self::load_all(sources, code);
+        // iOS: this port is Horizon Pocket Edition, which the strings that name the app say;
+        // the credits keep naming Starling.
+        if cfg!(target_os = "ios") {
+            for (key, value) in &mut language.map {
+                if !key.starts_with("starling.credits") && value.contains("Starling") {
+                    *value = value.replace("Starling", "Horizon PE");
+                }
+            }
+        }
+        language
+    }
+
+    fn load_all(sources: &[&dyn ResourceSource], code: &str) -> Self {
         let mut map = HashMap::new();
         let mut codes = vec![DEFAULT];
         if code != DEFAULT {

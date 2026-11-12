@@ -285,6 +285,18 @@ fn mb(bytes: u64) -> String {
     format!("{:.0}", bytes as f64 / 1_000_000.0)
 }
 
+/// The setup's title, with the app's name (`APP_NAME`).
+const SET_UP: &str = if cfg!(target_os = "ios") {
+    "Set up Horizon PE"
+} else {
+    "Set up Starling"
+};
+const STARTING: &str = if cfg!(target_os = "ios") {
+    "Starting Horizon PE"
+} else {
+    "Starting Starling"
+};
+
 /// What the step says: title, body, and the line under it.
 fn texts(step: &Step) -> (&'static str, String, Option<String>) {
     match step {
@@ -296,14 +308,16 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
         #[cfg(target_os = "ios")]
         Step::Horizon(false) => (
             "Coming from Horizon?",
-            "Horizon's iOS app is part of Starling now: bring your worlds and resource packs over.              In the Files sheet that opens, go to On My iPhone (or iPad), then Horizon, and tap              Open."
+            "Bring the worlds and resource packs of Horizon's iOS app over. In the Files sheet that \
+             opens, go to On My iPhone (or iPad), then Horizon, and tap Open."
                 .into(),
             Some("They are copied: Horizon keeps its own.".into()),
         ),
         #[cfg(target_os = "ios")]
         Step::Horizon(true) => (
             "Coming from Horizon?",
-            "Your worlds and resource packs are on their way: the note at the top says what each              one added. Tap Next when they are in."
+            "Your worlds and resource packs are on their way: the note at the top says what each \
+             one added. Tap Next when they are in."
                 .into(),
             None,
         ),
@@ -324,7 +338,7 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
                 .into(),
             None,
         ),
-        Step::Start => ("Set up Starling", tr("setup.intro"), None),
+        Step::Start => (SET_UP, tr("setup.intro"), None),
         Step::Offline => (
             "Are you sure?",
             "You will not be able to play on most servers! We highly recommend signing in with \
@@ -332,8 +346,8 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
                 .into(),
             None,
         ),
-        Step::Talking(message) => ("Set up Starling", message.clone(), None),
-        Step::AccountForm => ("Set up Starling", String::new(), None),
+        Step::Talking(message) => (SET_UP, message.clone(), None),
+        Step::AccountForm => (SET_UP, String::new(), None),
         Step::Code { link, .. } => (
             "Sign in with Microsoft",
             format!("On {link}, enter this code:"),
@@ -367,14 +381,10 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
         Step::Unpacking => ("Preparing the game", "Unpacking Java.".into(), None),
         Step::Preparing(line) => (
             "Preparing the game",
-            "This takes a few minutes. Keep Starling open.".into(),
+            format!("This takes a few minutes. Keep {} open.", crate::APP_NAME),
             Some(line.clone()),
         ),
-        Step::Done => (
-            "Starting Starling",
-            "The game files are ready.".into(),
-            None,
-        ),
+        Step::Done => (STARTING, "The game files are ready.".into(), None),
         Step::Failed(e) | Step::SignInFailed(e) => ("Something went wrong", e.clone(), None),
     }
 }

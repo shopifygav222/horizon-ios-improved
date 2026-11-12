@@ -432,7 +432,7 @@ fn not_built(dir: &std::path::Path, built: &str, rows: &[Installed]) -> Vec<Inst
                         title,
                         id: String::new(),
                         description: String::new(),
-                        problem: Some(format!("Not a native mod Starling can read: {e}")),
+                        problem: Some(format!("Not a native mod this game can read: {e}")),
                         dev: false,
                         native: None,
                     });
@@ -695,7 +695,7 @@ mod tests {
             broken[0]
                 .problem
                 .as_deref()
-                .is_some_and(|p| p.starts_with("Not a native mod Starling can read"))
+                .is_some_and(|p| p.starts_with("Not a native mod this game can read"))
         );
         let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
         assert_eq!(ids, ["minimap", "veinminer", "zoom"]);

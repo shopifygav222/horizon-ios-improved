@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Starling (the phone game this app is built on)
+    url: https://github.com/starling-client/starling
+    about: Bugs that happen in Starling on Android too belong to Starling.
   - name: Horizon (the game Starling is built on)
     url: https://github.com/ludovic111/horizon
     about: Bugs that happen on the desktop too belong to Horizon.

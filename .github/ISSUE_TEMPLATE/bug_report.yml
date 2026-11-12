@@ -1,11 +1,12 @@
 name: Bug report
-description: Something in Starling does not work as it should.
+description: Something in Horizon Pocket Edition (iOS) does not work as it should.
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time. A report with the log and the phone's model is the one that gets fixed.
+        Thanks for taking the time. A report with the diagnostic ZIP and the device is the one that gets fixed.
+        Bugs that also happen in Starling on Android or in Horizon on a computer belong to them (links below).
   - type: textarea
     id: what
     attributes:
@@ -14,40 +15,26 @@ body:
     validations:
       required: true
   - type: input
-    id: phone
+    id: device
     attributes:
-      label: Phone
-      description: The model and, if you know it, the chip (for example "POCO F6 Pro, Snapdragon 8 Gen 2").
+      label: iPhone or iPad
+      placeholder: iPhone 15 Pro
     validations:
       required: true
   - type: input
-    id: android
+    id: ios
     attributes:
-      label: Android version
-      placeholder: Android 16
+      label: iOS version
+      placeholder: iOS 18.1
   - type: input
-    id: version
+    id: build
     attributes:
-      label: Starling version
-      description: From the release you installed, or the commit of the build.
-      placeholder: v0.1.0
-  - type: dropdown
-    id: where
-    attributes:
-      label: Where
-      options:
-        - Setting up (sign-in, download, preparing)
-        - Singleplayer
-        - A server
-        - Shader packs
-        - Resource packs
-        - Mods
-        - Touch controls
-        - Something else
+      label: Build
+      description: The artifact you installed (horizon-pe-ios-<number>), and the native mods built into it, if any.
   - type: textarea
-    id: log
+    id: diagnostics
     attributes:
-      label: Log
+      label: Diagnostics
       description: |
-        Attach `Starling/logs/latest.log` from your phone's storage, right after the problem. If you have opened Starling again since (or Android did it by itself after closing it), attach `Starling/logs/previous.log` too: the time before. Older times are in the `.log.gz` files beside them, named by date.
-      placeholder: Drop the file here.
+        Options > Diagnostics > Export, then attach the ZIP here. If the game closed by itself, also attach
+        On My iPhone > Horizon PE > logs > previous-stderr.log from the Files app.

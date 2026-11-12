@@ -1,7 +1,7 @@
-# Starling on iOS
+# Horizon Pocket Edition (iOS)
 
-An unofficial iOS build of Starling 0.8.0 (see `IOS-SYNC.md` for how it follows Starling). It is
-Starling's phone build: the same setup, title screen, control system, accounts, skins, catalog and
+Horizon Pocket Edition ("Horizon PE" under its icon) is an unofficial iOS build of Starling 0.8.0
+(see `IOS-SYNC.md` for how it follows Starling). It is Starling's phone build: the same setup, title screen, control system, accounts, skins, catalog and
 Diagnostics as the Android app. GitHub Actions builds it (`.github/workflows/ios.yml`); the IPA is
 unsigned, so install it with a sideloading tool that signs it for your device.
 
@@ -11,7 +11,7 @@ What differs from Android, because iOS does not allow it or does it another way:
   did not ship with. Instead they are compiled into the app itself (below).
 - **Game files** are downloaded from Mojang and checked as on Android, then laid out from tables
   the app carries instead of being prepared with Java.
-- **Your game folder** is the app's Documents: "Starling" under On My iPhone in the Files app.
+- **Your game folder** is the app's Documents: "Horizon PE" under On My iPhone in the Files app.
 - **Updates** come as a new IPA, and there is no separate recovery window before the game starts.
 
 ## Native mods
@@ -41,13 +41,13 @@ to GitHub, to start builds and follow them.
    the GitHub app notifies when your build finishes.)
 4. Press **Install...**: the share sheet opens with the .ipa; pick **SideStore**, **AltStore**,
    **LiveContainer** or the app you sideload with (**Save to Files** keeps a copy instead). It
-   installs over Starling: the same app, so worlds, settings and accounts stay. Options > Mods
+   installs over Horizon PE: the same app, so worlds, settings and accounts stay. Options > Mods
    lists the mods that are in it; each turns off there like any other, without building again.
    The downloaded .ipa is deleted once the new app runs, or when you press Dismiss.
 
 A build has every native mod turned on in the folder, and keeps the mods this app already has that
 are still on. A mod turned off stops at once; the Mods page then offers a build without it, which
-takes it out of the app. With every native mod off, the normal Starling build has none.
+takes it out of the app. With every native mod off, the normal Horizon PE build has none.
 
 ## Installed packs and mods
 
@@ -65,7 +65,7 @@ folder of `native-mods/` here (Starling's own, reviewed), or a native mod of Hor
 for Minecraft 26.3: its file's name without the version (`fps_overlay` for
 `fps_overlay-2.0.0.hnmod`). `python3 tools/ios_native_mods.py list INDEX` lists them all, with the
 registry's index.json (https://horizon-rust.github.io/horizon-mods/index.json) as INDEX. The .ipa
-is the run's artifact, `starling-ios-<number>-native-mods`, kept 30 days. Builds are never
+is the run's artifact, `horizon-pe-ios-<number>-native-mods`, kept 30 days. Builds are never
 published as releases: only people who can read this repository's Actions can download them.
 
 **What the build does:** it checks each mod first (an unknown id stops it within a minute),
@@ -101,10 +101,10 @@ Install the IPA beside any other build, then, in order:
    with an Ely.by account.
 7. **Skins:** Skin Customization shows the profile's skin; change it.
 8. **Catalog:** from Resource Packs and Shader Packs, install one of each and turn it on.
-9. **Files:** the Starling folder shows in the Files app; open a resource pack zip with Starling
+9. **Files:** the Horizon PE folder shows in the Files app; open a resource pack zip with Horizon PE
    from Files.
 10. **Diagnostics:** Options > Diagnostics, export a ZIP and share it: the Files sheet opens.
 11. **Hardware:** a controller, and a keyboard and mouse if you have them.
 12. **Endurance:** play 15 minutes in one world, send the app to the background and bring it back.
 
-If anything fails, send the diagnostic ZIP (step 10) or `Starling/logs` from the Files app.
+If anything fails, send the diagnostic ZIP (step 10) or `Horizon PE/logs` from the Files app.

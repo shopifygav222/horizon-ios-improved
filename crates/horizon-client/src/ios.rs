@@ -4,7 +4,7 @@
 //! the app's event loop, which UIKit makes once a process (horizon-ios-game runs it).
 //!
 //! Every UIKit, Security and CoreMotion call is horizon-gamecontroller's: this crate forbids
-//! unsafe code. The game folder is the app's Documents, the Files app's "Starling" folder, as
+//! unsafe code. The game folder is the app's Documents, the Files app's "Horizon PE" folder, as
 //! Android's is `Starling` in shared storage; the private files (resources, caches, the import
 //! inbox) are in Library/Application Support, as Android's are in the app's own files.
 use std::cell::{Cell, RefCell};
@@ -296,7 +296,7 @@ fn zip_to_inbox(folder: &Path) -> std::io::Result<()> {
     }
 }
 
-/// Files' view of `dir`: the app's Documents are its "Starling" folder there.
+/// Files' view of `dir`: the app's Documents are its "Horizon PE" folder there.
 fn open_folder(dir: &Path) -> bool {
     horizon_gamecontroller::open_url(&format!("shareddocuments://{}", url_path(dir)))
 }

@@ -2,7 +2,7 @@
 //! bindings between the validated simulation pieces and the game loop.
 #![forbid(unsafe_code)]
 extern crate self as horizon_client;
-pub use horizon_client_render::PHONE;
+pub use horizon_client_render::{APP_NAME, PHONE};
 pub mod accounts;
 pub mod advancements;
 pub mod ambience;

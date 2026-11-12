@@ -1,16 +1,23 @@
-# Starling on iOS: the sync ledger
+# Horizon Pocket Edition (iOS): the sync ledger
 
-This branch (`starling-ios` of shopifygav222/horizon-ios-improved) is Starling with an iOS layer: the iOS app is
-Starling's phone build, as its Android one. `main` of the same repository is the older Horizon Android iOS port; it
-stays as it is.
+`main` of shopifygav222/horizon-ios-improved is Starling with an iOS layer: the iOS app, Horizon Pocket Edition
+("Horizon PE" under its icon), is Starling's phone build, as its Android one. The older Horizon Android iOS port is
+kept under `archive/horizon-android-ios`.
 
 - **Base:** starling-client/starling `starling` @ `ac874422ed` (tag `v0.8.0`, "the first release of Starling and
   Horizon Android together"). Remote: `starling`. Starling 0.8.0 took Horizon Android's control system, account
   profiles with Ely.by, skins, catalog and Diagnostics itself, so this port carries none of its own: the work on the
   0.2.3 base (a hand port of those) is in history under `archive/starling-ios-0.2.3`.
-- **Branch name:** `starling-ios`, not `starling`: Starling's `android.yml` and `ci.yml` run on pushes to `starling`,
-  and they need Starling's secrets and runners. Under this name none of Starling's workflows start here; ours are
-  `ios.yml` and `ios-guard.yml`.
+- **Workflows:** only `ios.yml` and `ios-guard.yml`. Starling's own (its APK and release builds, its build service,
+  its registry, schedules and pull-request bots) need Starling's secrets and machines, so they are not in this tree:
+  a sync that changes one of them is a "deleted here" conflict, kept deleted. So are its `CODEOWNERS`, pull request
+  template and native-build issue form; `.github/ISSUE_TEMPLATE/bug_report.yml` is this app's.
+- **Name:** the app is Horizon Pocket Edition. `APP_NAME` (render crate, "Horizon PE" on iOS, "Starling" elsewhere)
+  is the name the game says; the setup's titles (`game/setup.rs`), the Files-app folder hints (`options_ui.rs`,
+  `pack_screen.rs`) and the iOS-only text follow it, and on iOS the language files' "Starling" reads "Horizon PE"
+  (`Language::load`), the credits excepted. The bundle identifier (`dev.horizon.starling`), the executable and the
+  Xcode targets keep Starling's names: the player never sees them, and a new identifier would make another app,
+  without the player's worlds.
 
 ## Rules
 
@@ -32,7 +39,7 @@ stays as it is.
 2. Resolve each conflict with the engine-edit ledger: every row says what the change is and why.
 3. Walk the Android gates the merge added (`git diff <old base> <new base> | grep target_os`), and classify each one in
    the gate ledger.
-4. `ios.yml` and `ios-guard.yml` green, then merge into `starling-ios` and move **Base** above.
+4. `ios.yml` and `ios-guard.yml` green, then merge into `main` and move **Base** above.
 5. When Starling takes one of the features below itself, switch to Starling's and mark the row "upstream"; ours goes
    once Starling's passes the same checks.
 

@@ -1,6 +1,7 @@
 name: ios
 run-name: iOS · ${{ inputs.mods && format('native mods {0} · ', inputs.mods) || '' }}${{ github.sha }}
-# Starling for iPhone and iPad (this port, IOS-SYNC.md), on every push to starling-ios:
+# Horizon Pocket Edition (iOS): Starling's phone game for iPhone and iPad (IOS-SYNC.md), on every push
+# to main:
 #   ipa: `horizon-ios-game` cross-compiled for aarch64-apple-ios and linted; the game files Starling's
 #        Android app prepares with Java, prepared here (tools/ios_prepare.py) and proved to come back on
 #        the phone file for file; the app bundled and checked to carry none of Mojang's files. The
@@ -10,7 +11,7 @@ run-name: iOS · ${{ inputs.mods && format('native mods {0} · ', inputs.mods) |
 # iPhone runs no code its app did not ship with, so a native mod is part of the app itself.
 on:
   push:
-    branches: [starling-ios]
+    branches: [main]
   workflow_dispatch:
     inputs:
       deliver:
@@ -173,8 +174,8 @@ jobs:
           fi
           rm -rf game && mkdir -p game/Payload
           cp -a "$app" game/Payload/
-          ( cd game && zip -qry ../Starling-iOS-unsigned.ipa Payload )
-          ls -l Starling-iOS-unsigned.ipa
+          ( cd game && zip -qry ../HorizonPE-iOS-unsigned.ipa Payload )
+          ls -l HorizonPE-iOS-unsigned.ipa
       - name: Say what the native mods did
         if: ${{ failure() && inputs.mods }}
         run: |
@@ -192,7 +193,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import zipfile
-          with zipfile.ZipFile('Starling-iOS-unsigned.ipa') as ipa:
+          with zipfile.ZipFile('HorizonPE-iOS-unsigned.ipa') as ipa:
               names = ipa.namelist()
           bad = [n for n in names if n.endswith(('.jar', '.ogg')) or '/minecraft/' in n or n.endswith('asset-index.json')]
           if bad:
@@ -202,8 +203,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ inputs.deliver || inputs.mods }}
         with:
-          name: starling-ios-${{ github.run_number }}${{ inputs.mods && '-native-mods' || '' }}
-          path: Starling-iOS-unsigned.ipa
+          name: horizon-pe-ios-${{ github.run_number }}${{ inputs.mods && '-native-mods' || '' }}
+          path: HorizonPE-iOS-unsigned.ipa
           retention-days: 30
           if-no-files-found: error
 
