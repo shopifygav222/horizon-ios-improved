@@ -865,7 +865,7 @@ impl Login {
             self.message.as_str()
         };
         if !message.is_empty() {
-            row_y = paragraph(ui, x + 20.0, row_y, w - 40.0, message, login_text(), 2) + 4.0;
+            paragraph(ui, x + 20.0, row_y, w - 40.0, message, login_text(), 2);
         }
         let (label, action) = if self.code.is_some() {
             ("Copy code and open browser", Action::LoginLink)
