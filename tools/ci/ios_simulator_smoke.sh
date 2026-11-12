@@ -41,11 +41,11 @@ elif grep -q 'panicked at' "$logs/stderr.log" 2>/dev/null; then
   failed=1
 fi
 if ! grep -q 'Horizon renderer: creating the pipelines' "$logs/latest.log" 2>/dev/null; then
-  echo "::error::the launcher did not reach its renderer's pipelines (latest.log above)"
+  echo "::error::the game did not reach its renderer's pipelines (latest.log above)"
   failed=1
 fi
-if [ $simulator_stop = 0 ] && ! grep -qE 'Horizon: the launcher is shown|No Metal graphics device' "$logs/latest.log" "$logs/stderr.log" 2>/dev/null; then
-  echo "::error::the launcher did not open (latest.log above)"
+if ! grep -qE 'Horizon: iOS, game folder' "$logs/latest.log" 2>/dev/null; then
+  echo "::error::Starling's start did not reach its log (latest.log above)"
   failed=1
 fi
 crashes=$(find "$HOME/Library/Logs/DiagnosticReports" -newermt "@$started" -name 'Starling*' 2>/dev/null || true)

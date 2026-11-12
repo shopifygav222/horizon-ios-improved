@@ -652,16 +652,6 @@ impl Inner {
             .set_prefers_home_indicator_auto_hidden(hidden);
     }
 
-    /// Horizon's addition: the content's shape, letterboxed in the window (view.rs).
-    pub fn set_content_aspect(&self, aspect: Option<(u32, u32)>) {
-        let packed = aspect.map_or(0, |(w, h)| (w.min(0xffff) << 16) | h.min(0xffff));
-        let old = super::view::CONTENT_ASPECT.swap(packed, std::sync::atomic::Ordering::Relaxed);
-        if old != packed {
-            // SAFETY: a live view, on the main thread (`maybe_queue_on_main`).
-            let _: () = unsafe { msg_send![&self.view, setNeedsLayout] };
-        }
-    }
-
     pub fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
         self.view_controller
             .set_preferred_screen_edges_deferring_system_gestures(edges);

@@ -1,6 +1,4 @@
-//! The app's start (its folders, environment, logs and platform hooks), and the event loop's
-//! handler: Horizon Android's launcher, which runs Starling's game while one plays, every callback
-//! on the game's stack.
+//! The app's start, and the event loop's handler: the game, while one runs.
 use std::path::{Path, PathBuf};
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
@@ -45,54 +43,33 @@ fn capture_stderr(home: &Path) {
     }
 }
 
-/// What the last run left, when its game ended by itself: the panic in its standard error
-/// (`logs/previous-stderr.log`), or, for a game that never came back to the launcher and said
-/// nothing (iOS ended it: memory, usually), the last step its diagnostics reached.
-fn last_crash(home: &Path, private: &Path) -> Option<String> {
-    let stderr = std::fs::read_to_string(home.join("logs/previous-stderr.log")).unwrap_or_default();
-    let lines: Vec<&str> = stderr.lines().collect();
-    if let Some(at) = lines.iter().rposition(|line| line.contains("panicked at")) {
-        let message: Vec<&str> = lines[at..].iter().take(3).map(|l| l.trim()).collect();
-        return Some(format!("Last time the game stopped: {}", message.join(" ")));
-    }
-    if !home.join("logs/playing").is_file() {
-        return None;
-    }
-    let phase = std::fs::read(private.join("performance/previous-session.json"))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-        .and_then(|session| session["phase"].as_str().map(str::to_owned))
-        .unwrap_or_else(|| "unknown".to_owned());
-    let tail: Vec<&str> = lines
-        .iter()
-        .rev()
-        .filter(|line| !line.trim().is_empty())
-        .take(2)
-        .map(|line| line.trim())
-        .collect();
-    Some(format!(
-        "Last time the game ended without a word (iOS ends an app that takes too much memory). \
-         Last step: {phase}. {}",
-        tail.into_iter().rev().collect::<Vec<_>>().join(" ")
-    ))
-}
-
-/// The environment `horizon-args.txt` in the private folder sets, as Android's (android.rs
-/// `command_line`): its `NAME=value` lines (`HORIZON_GPU_CULL=0`...), for tests.
-fn test_environment(private: &Path) -> Vec<(String, String)> {
+/// The game's command line and environment, as Android's (android.rs `command_line`):
+/// `--resources` in the private folder, then `horizon-args.txt` there, which may override it: one
+/// argument per line, or `NAME=value` for an environment variable.
+fn command_line(private: &Path) -> (Vec<String>, Vec<(String, String)>) {
+    let mut args = vec![
+        "--resources".to_owned(),
+        private.join("resources").display().to_string(),
+    ];
+    let mut env = Vec::new();
     let text = std::fs::read_to_string(private.join("horizon-args.txt")).unwrap_or_default();
-    text.lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .filter_map(|line| line.split_once('='))
-        .filter(|(name, _)| {
-            !name.is_empty()
-                && name
-                    .bytes()
-                    .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
-        })
-        .map(|(name, value)| (name.to_owned(), value.to_owned()))
-        .collect()
+    for line in text.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        match line.split_once('=') {
+            Some((name, value))
+                if !name.is_empty()
+                    && name
+                        .bytes()
+                        .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_') =>
+            {
+                env.push((name.to_owned(), value.to_owned()))
+            }
+            _ => args.push(line.to_owned()),
+        }
+    }
+    (args, env)
 }
 
 /// The RAM limit Starling's governor keeps the game under (ram_limit.rs: far terrain off, then a
@@ -114,7 +91,7 @@ pub fn main() {
     let _ = std::fs::create_dir_all(&home);
     let _ = std::fs::create_dir_all(&private);
     capture_stderr(&home);
-    let env = test_environment(&private);
+    let (args, env) = command_line(&private);
     let ram_limit = ram_limit_mb();
     // SAFETY: no other thread of this program runs yet; the game reads these from its threads
     // afterwards.
@@ -139,99 +116,164 @@ pub fn main() {
     if let Err(e) = std::env::set_current_dir(&home) {
         eprintln!("Horizon: cannot enter {}: {e}", home.display());
     }
-    // One log for the launcher and the game: Starling's (logs/latest.log), opened now; the
-    // game's own start finds it open.
-    horizon_client::logging::init(&home, "Render thread");
-    crate::set_home(home.clone());
-    // The browser's cache and packs, where the game's own catalog keeps them.
-    starling_catalog::set_game_home(home.clone());
+    horizon_client::ios::install();
+    horizon_protocol::install_system_srv_lookup(crate::dns::query_srv);
+    horizon_client::ios::set_args(args);
     // Options > Diagnostics, as Android's: the session's checkpoints, from the start.
     if let Err(error) = horizon_client::diagnostics::initialize(
         &private,
         serde_json::json!({"abi": std::env::consts::ARCH, "system": "ios"}),
     ) {
-        log::error!("Cannot initialize local diagnostics: {error}");
+        eprintln!("Horizon: could not initialize diagnostics: {error}");
     }
-    horizon_client::ios::install();
-    horizon_protocol::install_system_srv_lookup(crate::dns::query_srv);
-    let _ = std::fs::remove_file(home.join("ios-error.txt"));
-    crate::set_last_crash(last_crash(&home, &private));
-    crate::set_playing(false);
-    let launcher = on_game_stack(|| crate::launcher::Launcher::new(home.clone()));
-    let mut app = App { launcher };
-    // UIKit's main loop never returns; this continues only when winit could not start it.
-    let result = EventLoop::new()
-        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
-        .and_then(|events| events.run_app(&mut app).map_err(Into::into));
-    if let Err(error) = result {
-        log::error!("Horizon: {error}");
-        horizon_client::diagnostics::record_error(&error.to_string());
-        horizon_client::crash::report_error(&home, "client", &*error);
-        let _ = std::fs::write(home.join("ios-error.txt"), error.to_string());
+    let event_loop = match EventLoop::new() {
+        Ok(event_loop) => event_loop,
+        Err(e) => {
+            eprintln!("Horizon: no event loop: {e}");
+            return;
+        }
+    };
+    let mut app = App {
+        home,
+        private,
+        game: None,
+        started: false,
+    };
+    if let Err(e) = event_loop.run_app(&mut app) {
+        eprintln!("Horizon: the event loop failed: {e}");
     }
-    horizon_client::diagnostics::finish();
 }
 
-/// The event loop's handler: the launcher, on the game's stack.
+/// The event loop's handler.
 struct App {
-    launcher: crate::launcher::Launcher,
+    home: PathBuf,
+    private: PathBuf,
+    /// The game Starling's start made, while it runs.
+    game: Option<Box<dyn ApplicationHandler>>,
+    /// The first start happened (at the first `resumed`).
+    started: bool,
 }
 
 impl App {
-    /// `callback` on the game's stack, then what a running game asked for: iOS can't end an app
-    /// (winit records the exit, `take_exit_request`) nor start it again (`take_restart`), so a game
-    /// that quits goes back to the launcher, and one that restarts plays again from there.
-    fn run(&mut self, callback: impl FnOnce(&mut crate::launcher::Launcher)) {
-        on_game_stack(|| callback(&mut self.launcher));
+    /// Starling's start, as the desktop binary's `main` makes it, up to the game it hands over.
+    fn start_game(&mut self, event_loop: &ActiveEventLoop) {
+        let (home, private) = (self.home.clone(), self.private.clone());
+        let game = on_game_stack(|| {
+            horizon_client::entry::start(Default::default(), || {
+                log::info!(
+                    "Horizon: iOS, game folder {}, private files {}, arguments {:?}",
+                    home.display(),
+                    private.display(),
+                    horizon_client::ios::args()
+                );
+                // Read from the app's bundle (`assets/`), as Android's from the APK.
+                horizon_client::preparer::put_shader_pack(&home);
+                // The saved Microsoft sign-in renews while the game loads.
+                horizon_client::accounts::resume();
+            });
+            horizon_client::ios::started_game()
+        });
+        let Some(mut game) = game else {
+            let why = horizon_client::ios::take_failure()
+                .unwrap_or_else(|| "the game ended before it started".to_owned());
+            log::error!("Horizon: {why}");
+            return;
+        };
+        on_game_stack(|| {
+            game.new_events(event_loop, StartCause::Init);
+            game.resumed(event_loop);
+        });
+        self.game = Some(game);
+    }
+
+    /// After each callback: a game that asked to end (Quit) or to start again ends here, saving
+    /// what it holds, as the desktop's does when its loop returns.
+    fn after_callback(&mut self, event_loop: &ActiveEventLoop) {
         let exit = winit::platform::ios::take_exit_request();
         let restart = horizon_client::ios::take_restart();
-        if self.launcher.playing() && (exit || restart) {
-            crate::platform::return_to_launcher();
-            if restart {
-                self.launcher.play_again();
-            }
+        if !exit && !restart {
+            return;
         }
-        // Files other apps handed this one ("Open in", the share sheet): into the import inbox,
-        // which the game installs from.
-        for file in winit::platform::ios::take_opened_files() {
-            horizon_client::ios::put_in_inbox(&file.path);
+        if let Some(mut game) = self.game.take() {
+            on_game_stack(|| {
+                game.exiting(event_loop);
+                drop(game);
+            });
+        }
+        // The game ended as it meant to: the recording stops and the session is marked clean.
+        horizon_client::performance::stop();
+        if !restart {
+            horizon_client::diagnostics::finish();
+        }
+        if restart {
+            self.start_game(event_loop);
+        }
+    }
+
+    /// `callback` with the game on its stack, then what it asked for.
+    fn with_game(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        callback: impl FnOnce(&mut dyn ApplicationHandler),
+    ) {
+        if let Some(game) = self.game.as_deref_mut() {
+            on_game_stack(|| callback(game));
+            self.after_callback(event_loop);
         }
     }
 }
 
 impl ApplicationHandler for App {
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
-        self.run(|launcher| launcher.new_events(event_loop, cause));
+        self.with_game(event_loop, |game| game.new_events(event_loop, cause));
     }
+
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.run(|launcher| launcher.resumed(event_loop));
+        if !self.started {
+            self.started = true;
+            self.start_game(event_loop);
+            self.after_callback(event_loop);
+            return;
+        }
+        self.with_game(event_loop, |game| game.resumed(event_loop));
     }
+
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: ()) {
-        self.run(|launcher| launcher.user_event(event_loop, event));
+        self.with_game(event_loop, |game| game.user_event(event_loop, event));
     }
+
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
-        self.run(|launcher| launcher.window_event(event_loop, id, event));
+        self.with_game(event_loop, |game| game.window_event(event_loop, id, event));
     }
+
     fn device_event(&mut self, event_loop: &ActiveEventLoop, id: DeviceId, event: DeviceEvent) {
-        self.run(|launcher| launcher.device_event(event_loop, id, event));
+        self.with_game(event_loop, |game| game.device_event(event_loop, id, event));
     }
+
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        self.run(|launcher| launcher.about_to_wait(event_loop));
+        // Files other apps handed this one ("Open in", the share sheet): into the import inbox,
+        // which the game installs from.
+        for file in winit::platform::ios::take_opened_files() {
+            horizon_client::ios::put_in_inbox(&file.path);
+        }
+        self.with_game(event_loop, |game| game.about_to_wait(event_loop));
     }
+
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
-        self.run(|launcher| launcher.suspended(event_loop));
-        // In the background iOS may end the app without a word: the diagnostics so far reach
-        // the disk now.
-        horizon_client::diagnostics::request_flush();
+        self.with_game(event_loop, |game| game.suspended(event_loop));
     }
+
     fn exiting(&mut self, event_loop: &ActiveEventLoop) {
-        on_game_stack(|| self.launcher.exiting(event_loop));
+        if let Some(mut game) = self.game.take() {
+            on_game_stack(|| game.exiting(event_loop));
+        }
     }
+
     /// iOS is short of memory: the allocators give back every free page now, before iOS ends
     /// the app for what they keep.
     fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
         log::warn!("Horizon: iOS is short of memory: freeing what the game does not use");
         horizon_threads::release_free_memory();
-        self.run(|launcher| launcher.memory_warning(event_loop));
+        self.with_game(event_loop, |game| game.memory_warning(event_loop));
     }
 }

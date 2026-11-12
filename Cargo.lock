@@ -1644,25 +1644,14 @@ version = "0.1.0"
 dependencies = [
  "horizon-client",
  "horizon-gamecontroller",
- "horizon-ios-prepare",
  "horizon-mods",
  "horizon-protocol",
- "horizon-shader-api",
  "horizon-threads",
- "image",
  "libc",
  "log",
- "serde",
  "serde_json",
- "sha1",
- "sha2",
  "stacker",
- "starling-account",
- "starling-catalog",
- "ureq",
- "url",
  "winit",
- "zip",
 ]
 
 [[package]]

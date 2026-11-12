@@ -36,25 +36,6 @@ stays as it is.
 5. When Starling takes one of the features below itself, switch to Starling's and mark the row "upstream"; ours goes
    once Starling's passes the same checks.
 
-## The launcher
-
-The app opens in Horizon Android's launcher (`crates/horizon-ios-game/src/launcher*`, from
-`archive/starling-ios-0.2.3`): Play, Mods, Resource Packs, Shaders, Installed with its file manager, Settings and
-Diagnostics. Play starts Starling's game in the same event loop (`game_launch.rs`); Quit Game comes back to it.
-The launcher keeps nothing Starling keeps, so the two cannot disagree:
-
-| The launcher's | Is |
-|---|---|
-| Accounts panel | Starling's list (`horizon_client::accounts`, `accounts.json`): the title screen's account button shows and changes the same profiles |
-| Catalog pages | `starling-catalog`, the game's own catalog's code and folders |
-| Diagnostics | `horizon_client::diagnostics` in the private folder; the ZIP goes out through Files' sheet |
-| Video settings | `options.txt` and `horizon-touch.json` fields the game reads |
-| Its own settings (theme, UI scale, profile, orientation, aspect) | `launcher.json` in the game folder |
-
-Left out on purpose: the Skins page (the game changes skins), the control editor and Controls settings (the
-game's own), session files, and the knobs Starling has no counterpart for (renderer mode, input host, worker
-limit, cache budget, refresh rate, GPU profile, performance recording: the last two are in Options > Diagnostics).
-
 ## What iOS shares with Starling's Android build, and what it cannot
 
 | Starling 0.8.0 | iOS |
@@ -75,8 +56,6 @@ Every change to a file Starling has, in the order they were made.
 
 | File | Change | Why |
 |---|---|---|
-| `crates/horizon-client/src/game.rs` | `loading_renderer`, `loading_frame` are `pub` | the launcher draws its pages with the game's renderer |
-| `third_party/winit` iOS files | `set_content_aspect` | the launcher's aspect setting letterboxes the view |
 
 ## Gate ledger
 

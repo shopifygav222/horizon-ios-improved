@@ -23,29 +23,13 @@ horizon-protocol = { path = "../horizon-protocol" }
 horizon-threads = { path = "../horizon-threads" }
 # The mod API level the program carries, as the desktop's does (main.rs).
 horizon-mods = { path = "../horizon-mods", default-features = false, features = ["index"] }
-# The game tables the launcher installs from (official_install.rs).
-horizon-ios-prepare = { path = "../horizon-ios-prepare" }
-# The catalog (search, checked downloads, installs) and the account types: Starling's own, which
-# its game uses too, so the launcher's pages and the game's screens show the same things.
-starling-catalog = { path = "../starling-catalog" }
-starling-account = { path = "../starling-account" }
-# Imported shader packs are checked before they reach the game folder (documents.rs).
-horizon-shader-api = { path = "../horizon-shader-api" }
 winit = "0.30.13"
+serde_json = "1"
 # The 16 MB stack every event-loop callback runs on: iOS gives its main thread 1 MB.
 stacker = "0.1"
 # Standard error into the game folder's logs (`capture_stderr`).
 libc = "0.2"
 log = "0.4"
-# What the launcher's pages use themselves.
-url = "2"
-sha1 = "0.10"
-sha2 = "0.10.9"
-ureq = { version = "2", default-features = false, features = ["json", "tls"] }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1.0.151", features = ["raw_value"] }
-zip = { version = "9.1.3", default-features = false, features = ["deflate"] }
 
 [features]
 default = ["audio"]
