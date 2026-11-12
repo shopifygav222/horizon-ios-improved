@@ -52,6 +52,31 @@ pub(crate) fn set_home(home: std::path::PathBuf) {
 pub(crate) fn home() -> std::path::PathBuf {
     HOME.get().cloned().unwrap_or_default()
 }
+/// Whether the game is on screen, kept in a file (`logs/playing`) so the next start knows a game
+/// that never came back to the launcher.
+#[cfg(target_os = "ios")]
+pub(crate) fn set_playing(playing: bool) {
+    let marker = home().join("logs/playing");
+    if playing {
+        let _ = std::fs::write(marker, b"");
+    } else {
+        let _ = std::fs::remove_file(marker);
+    }
+}
+
+/// Why the last run's game ended, when it ended by itself: read once at the start (app.rs), for
+/// the launcher's Play page.
+#[cfg(target_os = "ios")]
+static LAST_CRASH: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+#[cfg(target_os = "ios")]
+pub(crate) fn set_last_crash(crash: Option<String>) {
+    let _ = LAST_CRASH.set(crash);
+}
+#[cfg(target_os = "ios")]
+pub(crate) fn last_crash() -> Option<String> {
+    LAST_CRASH.get().cloned().flatten()
+}
+
 /// A build for others (CI's), as Horizon Android's: no developer launch arguments.
 #[cfg(target_os = "ios")]
 pub(crate) const PUBLIC_BUILD: bool = match option_env!("HORIZON_IOS_PUBLIC") {

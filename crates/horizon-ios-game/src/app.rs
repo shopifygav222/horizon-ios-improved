@@ -45,6 +45,38 @@ fn capture_stderr(home: &Path) {
     }
 }
 
+/// What the last run left, when its game ended by itself: the panic in its standard error
+/// (`logs/previous-stderr.log`), or, for a game that never came back to the launcher and said
+/// nothing (iOS ended it: memory, usually), the last step its diagnostics reached.
+fn last_crash(home: &Path, private: &Path) -> Option<String> {
+    let stderr = std::fs::read_to_string(home.join("logs/previous-stderr.log")).unwrap_or_default();
+    let lines: Vec<&str> = stderr.lines().collect();
+    if let Some(at) = lines.iter().rposition(|line| line.contains("panicked at")) {
+        let message: Vec<&str> = lines[at..].iter().take(3).map(|l| l.trim()).collect();
+        return Some(format!("Last time the game stopped: {}", message.join(" ")));
+    }
+    if !home.join("logs/playing").is_file() {
+        return None;
+    }
+    let phase = std::fs::read(private.join("performance/previous-session.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|session| session["phase"].as_str().map(str::to_owned))
+        .unwrap_or_else(|| "unknown".to_owned());
+    let tail: Vec<&str> = lines
+        .iter()
+        .rev()
+        .filter(|line| !line.trim().is_empty())
+        .take(2)
+        .map(|line| line.trim())
+        .collect();
+    Some(format!(
+        "Last time the game ended without a word (iOS ends an app that takes too much memory). \
+         Last step: {phase}. {}",
+        tail.into_iter().rev().collect::<Vec<_>>().join(" ")
+    ))
+}
+
 /// The environment `horizon-args.txt` in the private folder sets, as Android's (android.rs
 /// `command_line`): its `NAME=value` lines (`HORIZON_GPU_CULL=0`...), for tests.
 fn test_environment(private: &Path) -> Vec<(String, String)> {
@@ -111,6 +143,8 @@ pub fn main() {
     // game's own start finds it open.
     horizon_client::logging::init(&home, "Render thread");
     crate::set_home(home.clone());
+    // The browser's cache and packs, where the game's own catalog keeps them.
+    starling_catalog::set_game_home(home.clone());
     // Options > Diagnostics, as Android's: the session's checkpoints, from the start.
     if let Err(error) = horizon_client::diagnostics::initialize(
         &private,
@@ -121,6 +155,8 @@ pub fn main() {
     horizon_client::ios::install();
     horizon_protocol::install_system_srv_lookup(crate::dns::query_srv);
     let _ = std::fs::remove_file(home.join("ios-error.txt"));
+    crate::set_last_crash(last_crash(&home, &private));
+    crate::set_playing(false);
     let launcher = on_game_stack(|| crate::launcher::Launcher::new(home.clone()));
     let mut app = App { launcher };
     // UIKit's main loop never returns; this continues only when winit could not start it.

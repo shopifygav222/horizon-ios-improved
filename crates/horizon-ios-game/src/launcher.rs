@@ -113,7 +113,7 @@ impl Launcher {
             install_transfer: Default::default(),
             anim: Default::default(),
             worker: None,
-            error: None,
+            error: crate::last_crash(),
             catalog,
             targets: vec![],
             list_targets: vec![],
@@ -151,6 +151,8 @@ impl Launcher {
             drop(game);
         }
         crate::document_store::set_game_active(false);
+        crate::set_playing(false);
+        self.catalog.config.launcher_theme();
         horizon_client::performance::stop();
         let _ = crate::platform::capture_mouse(false);
         crate::platform::hide();
@@ -222,14 +224,18 @@ impl Launcher {
             Arc::new(events.create_window(Window::default_attributes().with_title("Starling"))?);
         crate::platform::attach_window(&window);
         crate::display::prepare(&window)?;
-        // The game's own menu art once it is installed; before that, the low-budget skin the app
-        // carries (Starling's setup draws with it too).
-        let resources = crate::official_install::resources();
-        let atlas_root = if resources.join("assets/minecraft/textures/gui").is_dir() {
-            resources
-        } else {
-            horizon_client::preparer::skin()
-                .ok_or("The app's menu art is missing: install it again.")?
+        // The low-budget skin the app carries (Starling's setup draws with it too): the pages
+        // draw no game sprite, and its atlas is ready at once where the game's own takes seconds
+        // to pack (a black screen meanwhile) and tens of megabytes to hold.
+        let atlas_root = match horizon_client::preparer::skin() {
+            Some(skin) => skin,
+            None => {
+                let resources = crate::official_install::resources();
+                if !resources.join("assets/minecraft/textures/gui").is_dir() {
+                    return Err("The app's menu art is missing: install it again.".into());
+                }
+                resources
+            }
         };
         let gui = Gui {
             atlas: HudAtlas::build(&atlas_root)?,
@@ -328,6 +334,8 @@ impl Launcher {
             self.catalog.config.apply_experimental_to_game(&self.home);
             let game_home = self.catalog.config.game_home(&self.home);
             std::fs::create_dir_all(&game_home)?;
+            // The first profile is the game folder itself: no argument, as the direct start.
+            let game_dir = (self.catalog.config.profile != 0).then(|| game_home.clone());
             let extra_arguments = if crate::PUBLIC_BUILD {
                 Vec::new()
             } else {
@@ -347,24 +355,36 @@ impl Launcher {
             let request = crate::game_launch::LaunchRequest {
                 resources: crate::official_install::resources(),
                 game_home,
+                game_dir,
                 server: self.catalog.config.server.clone(),
                 control_socket: (!crate::PUBLIC_BUILD).then(|| self.home.join("control.json")),
                 extra_arguments,
             };
             crate::document_store::set_game_active(true);
+            // The launcher's screen first: its renderer, its atlas and its window are gone
+            // before the game makes its own, so the game starts with the memory and the one
+            // window it has when the app starts it directly.
+            self.renderer = None;
+            self.gui = None;
+            self.window = None;
+            horizon_client::android_control_theme::reset_atlas();
+            // The game's controls draw with the same toolkit: at its own scale and colours.
+            crate::catalog::game_theme();
+            crate::set_playing(true);
             let game = match crate::game_launch::start(request) {
                 Ok(game) => game,
                 Err(error) => {
+                    crate::set_playing(false);
                     crate::document_store::set_game_active(false);
-                    horizon_client::performance::stop();
-                    return Err(error);
+                    self.launching = false;
+                    self.launch_pending_tick = false;
+                    self.catalog.config.launcher_theme();
+                    let _ = std::env::set_current_dir(&self.home);
+                    let message = error.to_string();
+                    self.open(events)?;
+                    return Err(message.into());
                 }
             };
-            // Android has one native window; release its surface before handing it over.
-            self.renderer = None;
-            self.window = None;
-            self.gui = None;
-            horizon_client::android_control_theme::reset_atlas();
             self.game = Some(game);
             if let Some(game) = &mut self.game {
                 game.new_events(events, winit::event::StartCause::Init);

@@ -29,6 +29,16 @@ pub fn truncate_player_name(name: &str) -> String {
     out
 }
 
+/// The toolkit as the game finds it when the app starts it directly: Starling's own theme, scale
+/// and motion, so the game's controls look and move as they do without the launcher.
+pub fn game_theme() {
+    use horizon_client::android_control_theme as theme;
+    theme::set_active_theme(theme::LauncherThemeConfig::default().resolve());
+    theme::set_ui_scale_percent(100);
+    theme::motion::set_reduced_motion(false);
+    theme::motion::set_launcher_animations_disabled(false);
+}
+
 /// The mods the app carries built in: none on Starling (its own are in the game's Mods screen).
 pub const BUNDLED: [(&str, &str, &str); 0] = [];
 
@@ -109,16 +119,20 @@ impl Config {
         let mut config: Self = serde_json::from_value(value).unwrap_or_default();
         config.name = truncate_player_name(&config.name);
         config.theme.sanitize();
-        horizon_client::android_control_theme::set_active_theme(config.theme.resolve());
-        horizon_client::android_control_theme::motion::set_reduced_motion(
-            config.disable_launcher_animations
-                || config.super_perf_mode
-                || config.battery_perf_mode,
-        );
-        horizon_client::android_control_theme::motion::set_game_animations_disabled(
-            config.disable_game_animations,
-        );
+        config.launcher_theme();
         config
+    }
+    /// The launcher's look in the toolkit it shares with the game's controls: its theme, its
+    /// scale and its motion. Set while the launcher shows; [`game_theme`] takes it back.
+    pub fn launcher_theme(&self) {
+        use horizon_client::android_control_theme as theme;
+        theme::set_active_theme(self.theme.resolve());
+        theme::set_ui_scale_percent(self.ui_scale_percent);
+        theme::motion::set_reduced_motion(
+            self.disable_launcher_animations || self.super_perf_mode || self.battery_perf_mode,
+        );
+        theme::motion::set_launcher_animations_disabled(self.disable_launcher_animations);
+        theme::motion::set_game_animations_disabled(self.disable_game_animations);
     }
     pub fn save(&self, home: &Path) -> Result<(), String> {
         let part = home.join("launcher.partial");
@@ -228,11 +242,6 @@ impl Config {
         }
         settings.horizon.resolution_scale = self.render_scale.percent().clamp(25, 100);
         settings.save(&options_path);
-        let touch_path = game.join("horizon-touch.json");
-        let mut touch_cfg = horizon_client::android_controls::Settings::load_from(&touch_path);
-        touch_cfg.disable_game_animations = self.disable_game_animations;
-        touch_cfg.resolution_scale_percent = self.render_scale.percent().clamp(25, 100);
-        let _ = touch_cfg.save_to(&touch_path);
     }
 }
 #[derive(Clone, Copy, PartialEq)]
@@ -1542,7 +1551,13 @@ impl Catalog {
                 query.everything = true;
                 browser::modrinth::Modrinth.search(&query)
             } else {
-                browser::horizon::Registry.search(&query)
+                // Not the native mods: iOS runs no code the app did not ship with.
+                browser::horizon::Registry.search(&query).map(|found| {
+                    found
+                        .into_iter()
+                        .filter(|p| !starling_catalog::is_native_mod(p))
+                        .collect()
+                })
             };
             let _ = tx.send(result);
         });
@@ -1649,31 +1664,14 @@ impl Catalog {
                     *progress.lock().unwrap_or_else(|e| e.into_inner()) = p.clamp(0.0, 1.0);
                 }
             };
-            let source = browser::source(project.source).ok_or("Unsupported download source")?;
-            let count = if project.kind == Kind::Shader
-                && project.source == browser::SourceId::Modrinth
-            {
-                crate::shader_catalog::install(source.as_ref(), &project, &game, &report)?
-            } else {
-                match browser::installed::install(source.as_ref(), &project, true, &game, &report) {
-                    Ok(entries) => entries.len(),
-                    Err(first_err)
-                        if project.kind == Kind::Mod
-                            && project.source == browser::SourceId::Modrinth =>
-                    {
-                        // Fallback for Modrinth Java mods without port-pack content: download the
-                        // primary .jar into horizon-mods/ and register it in Installed.
-                        install_modrinth_jar_fallback(source.as_ref(), &project, &game, &report)
-                            .map_err(|_| first_err)?
-                    }
-                    Err(e) => return Err(e),
-                }
-            };
+            // Starling's own install, as the game's catalog screen makes it: the same checks,
+            // the same folders and the same list of what is installed.
+            starling_catalog::install(&project, true, &game, &report)?;
             if cancelled.load(Ordering::Relaxed) {
                 return Err("Download cancelled".into());
             }
             Ok(Reply::Done(
-                format!("Installed {count} item(s). Open Play to load this profile."),
+                format!("Installed {}. It is on in the game's own list too.", project.title),
                 match project.kind {
                     Kind::Mod => crate::content_files::Kind::Mods,
                     Kind::Shader => crate::content_files::Kind::Shaders,
@@ -1947,71 +1945,6 @@ impl Catalog {
             }
         }
     }
-}
-
-fn install_modrinth_jar_fallback(
-    source: &dyn Source,
-    project: &Project,
-    home: &Path,
-    progress: &dyn Fn(&str, f32),
-) -> Result<usize, String> {
-    let versions = source.versions(project)?;
-    let version = browser::pick(Kind::Mod, &versions, true)
-        .or_else(|| versions.iter().find(|v| v.file().is_some()))
-        .ok_or_else(|| format!("{} has no downloadable mod version.", project.title))?;
-    let file = version
-        .file()
-        .ok_or_else(|| format!("{} has no primary file.", project.title))?;
-    let staging = home.join("mod-browser/downloads");
-    let title = format!("Downloading {} {}", project.title, version.number);
-    let downloaded = source.fetch(file, &staging, &|f| progress(&title, f))?;
-    let slug: String = project
-        .slug
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    let slug = if slug.is_empty() {
-        "mod".to_owned()
-    } else {
-        slug
-    };
-    let relative = format!("horizon-mods/{slug}.jar");
-    let target = home.join(&relative);
-    if let Some(parent) = target.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    std::fs::rename(&downloaded, &target).map_err(|e| e.to_string())?;
-    browser::java::set_enabled(home, &slug, true)?;
-    let (algo, hash) = file.checksum().unwrap_or(("SHA-1", ""));
-    let mut installed = Installed::load(home);
-    installed
-        .entries
-        .retain(|e| !(e.source == project.source && e.project == project.id));
-    installed.entries.push(browser::installed::Entry {
-        source: project.source,
-        project: project.id.clone(),
-        slug: slug.clone(),
-        title: project.title.clone(),
-        kind: Kind::Mod,
-        version: version.id.clone(),
-        number: version.number.clone(),
-        file: relative,
-        checksum: format!("{algo}:{hash}"),
-        page: project.page.clone(),
-        dependency: false,
-        verdict: Some("Downloaded".into()),
-        skipped: Vec::new(),
-        namespaces: vec![slug],
-    });
-    installed.save(home)?;
-    progress(&format!("Installed {}", project.title), 1.0);
-    Ok(1)
 }
 
 fn lookup_modrinth_by_name(title: &str, kind: Kind) -> Option<Project> {

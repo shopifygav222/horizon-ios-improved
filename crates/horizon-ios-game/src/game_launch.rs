@@ -8,6 +8,8 @@ use std::path::PathBuf;
 pub(crate) struct LaunchRequest {
     pub resources: PathBuf,
     pub game_home: PathBuf,
+    /// `--game-dir`, for a profile other than the first (whose folder is the game's home).
+    pub game_dir: Option<PathBuf>,
     pub server: String,
     pub control_socket: Option<PathBuf>,
     pub extra_arguments: Vec<String>,
@@ -17,9 +19,10 @@ impl LaunchRequest {
         let mut args = vec![
             "--resources".into(),
             self.resources.to_string_lossy().into_owned(),
-            "--game-dir".into(),
-            self.game_home.to_string_lossy().into_owned(),
         ];
+        if let Some(dir) = &self.game_dir {
+            args.extend(["--game-dir".into(), dir.to_string_lossy().into_owned()]);
+        }
         if let Some(socket) = &self.control_socket {
             args.extend([
                 "--control-socket".into(),

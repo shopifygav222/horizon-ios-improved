@@ -5802,7 +5802,10 @@ impl Launcher {
         f: impl FnOnce(&mut horizon_client::android_controls::Settings),
     ) {
         let game_home = self.catalog.config.game_home(&self.home);
-        let _ = std::fs::create_dir_all(&game_home);
+        // The layout is the game's to make: the launcher only changes one that is there.
+        if !game_home.join("horizon-touch.json").is_file() {
+            return;
+        }
         let mut t = horizon_client::android_controls::Settings::load_from(
             &game_home.join("horizon-touch.json"),
         );
