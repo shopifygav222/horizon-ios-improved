@@ -231,7 +231,7 @@ mod uikit {
     use std::ffi::c_void;
 
     mod picker;
-    pub use picker::{export, pick};
+    pub use picker::{export, pick, share};
 
     // Full CoreGraphics layouts, though only some fields are read.
     #[allow(dead_code)]
@@ -928,6 +928,18 @@ pub fn pick(kind: Pick, picked: Picked) -> bool {
     #[cfg(not(target_os = "ios"))]
     {
         let _ = (kind, picked);
+        false
+    }
+}
+
+/// The share sheet for the file at `path`: the apps that take it, and Save to Files. False when
+/// it could not open.
+pub fn share(path: &std::path::Path) -> bool {
+    #[cfg(target_os = "ios")]
+    return uikit::share(path);
+    #[cfg(not(target_os = "ios"))]
+    {
+        let _ = path;
         false
     }
 }

@@ -32,12 +32,13 @@ to GitHub, to start builds and follow them.
 2. Back on the Mods page, its top says which native mods this app has, and that the ones turned
    on aren't all in it. The first time, copy your token and press **Paste GitHub token**; then
    press **Build on GitHub**.
-3. Keep playing. The page follows the build (about 30 to 60 minutes) and says when it is done.
-   **See the build** opens it on GitHub.
-4. When it is done, press the app you sideload with (**SideStore**, **AltStore** or
-   **LiveContainer**), or **Download the .ipa** and open it with another signer. It installs over
-   Starling: the same app, so worlds, settings and accounts stay. Options > Mods lists the mods
-   that are in it; each turns off there like any other, without building again.
+3. Keep playing. The page follows the build (about 30 to 60 minutes), then downloads it with the
+   same token and says when it is ready. **See the build** opens it on GitHub.
+4. Press **Install...**: the share sheet opens with the .ipa; pick **SideStore**, **AltStore**,
+   **LiveContainer** or the app you sideload with (**Save to Files** keeps a copy instead). It
+   installs over Starling: the same app, so worlds, settings and accounts stay. Options > Mods
+   lists the mods that are in it; each turns off there like any other, without building again.
+   The downloaded .ipa is deleted once the new app runs, or when you press Dismiss.
 
 A build has every native mod turned on in the folder, and keeps the mods this app already has that
 are still on. To take mods out for good, turn them off and build again.
@@ -48,13 +49,14 @@ folder of `native-mods/` here (Starling's own, reviewed), or a native mod of Hor
 for Minecraft 26.3: its file's name without the version (`fps_overlay` for
 `fps_overlay-2.0.0.hnmod`). `python3 tools/ios_native_mods.py list INDEX` lists them all, with the
 registry's index.json (https://horizon-rust.github.io/horizon-mods/index.json) as INDEX. The .ipa
-is the run's artifact and its release, `ios-native-r<number>`.
+is the run's artifact, `starling-ios-<number>-native-mods`, kept 30 days. Builds are never
+published as releases: only people who can read this repository's Actions can download them.
 
 **What the build does:** it checks each mod first (an unknown id stops it within a minute),
 downloads it from the registry's own GitHub releases and checks its size and SHA-256, applies it
 to Starling's source as Starling's own Android mod builds do (horizon-mixins,
-`packaging/ios/native_stage.sh`), compiles the app, starts it once in the iOS Simulator with the
-mods in, and only then publishes it. The newest five builds stay published.
+`packaging/ios/native_stage.sh`), compiles the app and starts it once in the iOS Simulator with
+the mods in.
 
 **What can go wrong:** registry mods are written for Horizon, and Starling is a different branch
 of the same game. Most apply as they are (the build adapts the ones made before Horizon split its

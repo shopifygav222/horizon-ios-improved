@@ -1,13 +1,15 @@
 //! iOS: native mods (docs/ios.md). iOS runs no code its app did not ship with, so where Starling's
 //! Android app swaps in a library its build service compiled (native_builds.rs), a native mod here
 //! is compiled into the app itself: this repository's `ios` workflow, run with the mods, builds an
-//! .ipa with them and publishes it (`ios-native-r<run>`), which the player installs over this app.
+//! .ipa with them (the run's artifact, kept 30 days and never published as a release), which the
+//! player installs over this app.
 //!
 //! The Mods page's top (`ModList::native_game`, drawn as Android's) says which mods this app was
 //! built with (`native-mods.json` beside its program), and when the native mods turned on are not
 //! all in it, builds the app with them: the player's GitHub token (Actions: read and write on this
 //! repository, kept in the Keychain) starts the workflow, the build is followed while they play,
-//! and the finished .ipa is handed to SideStore, AltStore or LiveContainer, or downloaded.
+//! and the finished .ipa is downloaded with the same token and handed to the share sheet
+//! (SideStore, AltStore, LiveContainer or any other signer), or saved to Files.
 use super::Game;
 use horizon_client::mod_list::{NOT_BUILT, NativeGame, NativeGameAct, NativePage};
 use serde::{Deserialize, Serialize};
@@ -34,6 +36,10 @@ const KEYCHAIN_ACCOUNT: &str = "actions-token";
 const PENDING_FILE: &str = "native-build.json";
 /// What the program was built with, beside it (game/mods.rs BUILD_INFO).
 const BUILD_INFO: &str = "native-mods.json";
+/// Where the finished .ipa is kept until it is installed: the private folder's.
+const BUILDS_DIR: &str = "native-builds";
+/// The largest download taken for an .ipa's artifact.
+const LARGEST_ARTIFACT: u64 = 512 << 20;
 /// How often a build under way is looked at.
 const POLL: Duration = Duration::from_secs(20);
 /// A build that has not shown up as a run by then was not started.
@@ -49,7 +55,7 @@ struct Pending {
     run: Option<u64>,
     number: Option<u64>,
     page: Option<String>,
-    /// The finished .ipa's download.
+    /// The finished .ipa, downloaded into [`BUILDS_DIR`].
     ipa: Option<String>,
     failed: Option<String>,
 }
@@ -108,6 +114,15 @@ fn save_pending(pending: Option<&Pending>) {
 fn load_pending() -> Option<Pending> {
     let text = std::fs::read_to_string(pending_path()).ok()?;
     serde_json::from_str(&text).ok()
+}
+
+fn builds_dir() -> std::path::PathBuf {
+    horizon_client::logging::private_home().join(BUILDS_DIR)
+}
+
+/// The downloaded builds go: once installed or dismissed, nothing of them stays.
+fn forget_builds() {
+    let _ = std::fs::remove_dir_all(builds_dir());
 }
 
 fn token() -> Option<String> {
@@ -245,7 +260,7 @@ fn github(method: &str, path: &str, token: &str, body: Option<&str>) -> Result<V
     }
 }
 
-/// Starts the workflow with `mods`, then follows its run to the published .ipa, keeping
+/// Starts the workflow with `mods`, then follows its run to its .ipa, downloaded, keeping
 /// [`Shared`] (and [`PENDING_FILE`]) up to date. Runs on its own thread.
 fn follow(shared: Arc<Mutex<Shared>>, start: bool) {
     let set = |f: &dyn Fn(&mut Shared)| {
@@ -301,13 +316,22 @@ fn follow(shared: Arc<Mutex<Shared>>, start: bool) {
                 }
                 s.progress = "GitHub is about to build it.".to_owned();
             }),
-            Ok(Step::Built(ipa)) => {
-                return set(&|s| {
-                    if let Some(p) = &mut s.pending {
-                        p.ipa = Some(ipa.clone());
+            Ok(Step::Artifact { id, size }) => {
+                let number = p.number.unwrap_or_default();
+                let said = |progress: String| set(&|s| s.progress = progress.clone());
+                match download(id, size, number, &token, &said) {
+                    Ok(ipa) => {
+                        return set(&|s| {
+                            if let Some(p) = &mut s.pending {
+                                p.ipa = Some(ipa.to_string_lossy().into_owned());
+                            }
+                            s.following = false;
+                        });
                     }
-                    s.following = false;
-                });
+                    Err(why) => set(&|s| {
+                        s.progress = format!("The download stopped ({why}): trying again.");
+                    }),
+                }
             }
             Err(Fatal(why)) => return fail(why),
             Ok(Step::Retry(why)) => {
@@ -325,7 +349,8 @@ enum Step {
         number: u64,
         page: String,
     },
-    Built(String),
+    /// The run built: its artifact, the .ipa in a zip.
+    Artifact { id: u64, size: u64 },
     /// GitHub can't be reached now: asked again at the next look.
     Retry(String),
 }
@@ -409,24 +434,99 @@ fn check_run(run: u64, token: &str) -> Result<Step, Fatal> {
             ));
         }
     }
-    let number = state["run_number"].as_u64().unwrap_or_default();
-    let tag = format!("ios-native-r{number}");
-    match github(
-        "GET",
-        &format!("/repos/{REPO}/releases/tags/{tag}"),
-        token,
-        None,
-    ) {
-        Ok(release) => release["assets"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|a| a["browser_download_url"].as_str())
-            .find(|url| url.ends_with(".ipa"))
-            .map(|url| Step::Built(url.to_owned()))
-            .ok_or_else(|| Fatal("The build finished without an .ipa to install.".to_owned())),
-        Err(why) => Ok(Step::Retry(why)),
+    let path = format!("/repos/{REPO}/actions/runs/{run}/artifacts");
+    let artifacts = match github("GET", &path, token, None) {
+        Ok(artifacts) => artifacts,
+        Err(why) => return Ok(Step::Retry(why)),
+    };
+    let found = artifacts["artifacts"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|a| {
+            a["name"]
+                .as_str()
+                .is_some_and(|n| n.ends_with("-native-mods"))
+        });
+    match found {
+        Some(a) if a["expired"].as_bool() == Some(true) => Err(Fatal(
+            "GitHub no longer keeps that build (30 days): build again.".to_owned(),
+        )),
+        Some(a) => Ok(Step::Artifact {
+            id: a["id"].as_u64().unwrap_or_default(),
+            size: a["size_in_bytes"].as_u64().unwrap_or_default(),
+        }),
+        None => Err(Fatal(
+            "The build finished without an .ipa to install.".to_owned(),
+        )),
     }
+}
+
+/// The run's artifact (`size` bytes, a zip holding the .ipa) downloaded with the token, and its
+/// .ipa taken out into [`builds_dir`] as `Starling-native-r<number>.ipa`. GitHub answers with
+/// a link to its storage, which ureq follows without the token.
+fn download(
+    id: u64,
+    size: u64,
+    number: u64,
+    token: &str,
+    said: &dyn Fn(String),
+) -> Result<std::path::PathBuf, String> {
+    use std::io::{Read, Write};
+    if size > LARGEST_ARTIFACT {
+        return Err(format!("{} MB is more than a build", size >> 20));
+    }
+    let dir = builds_dir();
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(30))
+        .timeout_read(Duration::from_secs(60))
+        .build();
+    let response = agent
+        .get(&format!("{API}/repos/{REPO}/actions/artifacts/{id}/zip"))
+        .set("Accept", "application/vnd.github+json")
+        .set("X-GitHub-Api-Version", "2022-11-28")
+        .set("User-Agent", "starling-ios")
+        .set("Authorization", &format!("Bearer {token}"))
+        .call()
+        .map_err(|e| e.to_string())?;
+    let zip_path = dir.join("build.zip");
+    let mut file = std::fs::File::create(&zip_path).map_err(|e| e.to_string())?;
+    let mut reader = response.into_reader().take(LARGEST_ARTIFACT + 1);
+    let mut buffer = vec![0; 1 << 16];
+    let (mut done, mut shown) = (0u64, 0u64);
+    loop {
+        let n = reader.read(&mut buffer).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buffer[..n]).map_err(|e| e.to_string())?;
+        done += n as u64;
+        if done >> 20 != shown {
+            shown = done >> 20;
+            said(format!(
+                "Built. Downloading it: {shown} of {} MB.",
+                size.div_ceil(1 << 20)
+            ));
+        }
+    }
+    file.sync_all().map_err(|e| e.to_string())?;
+    drop(file);
+    let ipa = dir.join(format!("Starling-native-r{number}.ipa"));
+    let archive = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(archive).map_err(|e| e.to_string())?;
+    let name = archive
+        .file_names()
+        .find(|n| n.ends_with(".ipa") && !n.contains('/'))
+        .map(str::to_owned)
+        .ok_or("the build holds no .ipa")?;
+    let mut entry = archive.by_name(&name).map_err(|e| e.to_string())?;
+    let mut out = std::fs::File::create(&ipa).map_err(|e| e.to_string())?;
+    std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+    out.sync_all().map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(&zip_path);
+    Ok(ipa)
 }
 
 impl Game<'_> {
@@ -493,19 +593,16 @@ impl Game<'_> {
             } else if p.ipa.is_some() {
                 game.lines.push((
                     format!(
-                        "Built with {mods}. Install it over this app (your worlds, settings and \
-                         accounts stay), with the app you sideload with:"
+                        "Built with {mods} and downloaded. Install it over this app: your worlds, \
+                         settings and accounts stay. Install opens the share sheet: pick \
+                         SideStore, AltStore, LiveContainer or the app you sideload with."
                     ),
                     false,
                 ));
-                for (label, act) in [
-                    ("SideStore", NativeGameAct::InstallSideStore),
-                    ("AltStore", NativeGameAct::InstallAltStore),
-                    ("LiveContainer", NativeGameAct::InstallLiveContainer),
-                    ("Download the .ipa", NativeGameAct::DownloadIpa),
-                ] {
-                    game.buttons.push((label.to_owned(), act));
-                }
+                game.buttons
+                    .push(("Install...".to_owned(), NativeGameAct::Install));
+                game.buttons
+                    .push(("Save to Files".to_owned(), NativeGameAct::SaveIpa));
                 game.buttons
                     .push(("Dismiss".to_owned(), NativeGameAct::PlayWithout));
             } else {
@@ -580,11 +677,9 @@ impl Game<'_> {
         let ipa = shared(&self.native_builds)
             .pending
             .as_ref()
-            .and_then(|p| p.ipa.clone());
-        let install = |scheme: &str| {
-            ipa.as_deref()
-                .map(|url| format!("{scheme}://install?url={}", escape(url)))
-        };
+            .and_then(|p| p.ipa.clone())
+            .map(std::path::PathBuf::from)
+            .filter(|path| path.is_file());
         let mut message = None;
         match act {
             NativeGameAct::Compile => self.start_build(),
@@ -602,6 +697,7 @@ impl Game<'_> {
                 state.progress.clear();
                 state.changes += 1;
                 save_pending(None);
+                forget_builds();
             }
             NativeGameAct::Token => {
                 let pasted = horizon_gamecontroller::clipboard_text().unwrap_or_default();
@@ -628,27 +724,20 @@ impl Game<'_> {
                     )
                 });
             }
-            NativeGameAct::InstallSideStore
-            | NativeGameAct::InstallAltStore
-            | NativeGameAct::InstallLiveContainer => {
-                let scheme = match act {
-                    NativeGameAct::InstallSideStore => "sidestore",
-                    NativeGameAct::InstallAltStore => "altstore",
-                    _ => "livecontainer",
-                };
-                if let Some(url) = install(scheme)
-                    && !horizon_gamecontroller::open_url(&url)
-                {
+            NativeGameAct::Install | NativeGameAct::SaveIpa => {
+                let opened = ipa.as_deref().is_some_and(|path| {
+                    if act == NativeGameAct::Install {
+                        horizon_gamecontroller::share(path)
+                    } else {
+                        horizon_gamecontroller::export(&[path.to_owned()])
+                    }
+                });
+                if !opened {
                     message = Some((
-                        "That app isn't on this phone: use another, or Download the .ipa."
+                        "The .ipa couldn't be opened here: press Dismiss and build again."
                             .to_owned(),
                         true,
                     ));
-                }
-            }
-            NativeGameAct::DownloadIpa => {
-                if let Some(url) = &ipa {
-                    horizon_gamecontroller::open_url(url);
                 }
             }
             _ => {}
@@ -717,6 +806,13 @@ impl Game<'_> {
             {
                 pending = None;
                 save_pending(None);
+                forget_builds();
+            }
+            // A downloaded .ipa that went (iOS clears caches; it is not one) comes again.
+            if let Some(p) = &mut pending
+                && p.ipa.as_ref().is_some_and(|f| !std::path::Path::new(f).is_file())
+            {
+                p.ipa = None;
             }
             let follow_it = pending
                 .as_ref()
@@ -765,11 +861,9 @@ mod tests {
     }
 
     #[test]
-    fn urls_are_escaped_for_an_install_link() {
-        assert_eq!(
-            escape("https://github.com/a/b/releases/download/x/S.ipa"),
-            "https%3A%2F%2Fgithub.com%2Fa%2Fb%2Freleases%2Fdownload%2Fx%2FS.ipa"
-        );
+    fn query_values_are_escaped() {
+        assert_eq!(escape("starling-ios"), "starling-ios");
+        assert_eq!(escape("feature/ios mods"), "feature%2Fios%20mods");
     }
 
     #[test]

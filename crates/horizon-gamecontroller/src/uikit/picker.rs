@@ -202,3 +202,64 @@ pub fn export(paths: &[PathBuf]) -> bool {
     }
     !urls.is_empty() && present(mtm, &urls, EXPORT_TO_SERVICE, false, None)
 }
+
+/// The share sheet for the file at `path`: the apps that take it (SideStore, AltStore and
+/// LiveContainer take an .ipa), and Save to Files. False when it could not open.
+pub fn share(path: &std::path::Path) -> bool {
+    if MainThreadMarker::new().is_none() {
+        return false;
+    }
+    let Some(window) = key_window() else {
+        return false;
+    };
+    let path = NSString::from_str(&path.to_string_lossy());
+    // SAFETY: main-thread UIKit and Foundation calls with live objects; the sheet is retained by
+    // the controller that presents it.
+    unsafe {
+        let url: Option<Retained<AnyObject>> = msg_send![class!(NSURL), fileURLWithPath: &*path];
+        let Some(url) = url else {
+            return false;
+        };
+        let Some(items) = array(&[url]) else {
+            return false;
+        };
+        let root: Option<Retained<AnyObject>> = msg_send![&*window, rootViewController];
+        let Some(root) = root else {
+            return false;
+        };
+        let shown = topmost(root);
+        let alloc: Allocated<AnyObject> = msg_send![class!(UIActivityViewController), alloc];
+        let none: *const AnyObject = std::ptr::null();
+        let sheet: Option<Retained<AnyObject>> =
+            msg_send![alloc, initWithActivityItems: &*items, applicationActivities: none];
+        let Some(sheet) = sheet else {
+            return false;
+        };
+        // An iPad shows it as a popover, which needs a place: the screen's middle.
+        let popover: Option<Retained<AnyObject>> = msg_send![&*sheet, popoverPresentationController];
+        let view: Option<Retained<AnyObject>> = msg_send![&*shown, view];
+        if let (Some(popover), Some(view)) = (popover, view) {
+            let bounds: super::Rect = msg_send![&*view, bounds];
+            let middle = super::Rect {
+                origin: super::Point {
+                    x: bounds.origin.x + bounds.size.width / 2.0,
+                    y: bounds.origin.y + bounds.size.height / 2.0,
+                },
+                size: super::Size {
+                    width: 0.0,
+                    height: 0.0,
+                },
+            };
+            let _: () = msg_send![&*popover, setSourceView: &*view];
+            let _: () = msg_send![&*popover, setSourceRect: middle];
+        }
+        let completion: *const c_void = std::ptr::null();
+        let _: () = msg_send![
+            &*shown,
+            presentViewController: &*sheet,
+            animated: true,
+            completion: completion
+        ];
+    }
+    true
+}

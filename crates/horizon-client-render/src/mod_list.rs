@@ -75,15 +75,12 @@ pub enum NativeGameAct {
     /// iOS (game/native_builds_ios.rs): the GitHub token, pasted from the clipboard.
     #[cfg(target_os = "ios")]
     Token,
-    /// iOS: the finished .ipa, handed to the app the player sideloads with, or downloaded.
+    /// iOS: the finished .ipa in the share sheet (SideStore, AltStore, LiveContainer...).
     #[cfg(target_os = "ios")]
-    InstallSideStore,
+    Install,
+    /// iOS: the finished .ipa saved where the player picks in Files.
     #[cfg(target_os = "ios")]
-    InstallAltStore,
-    #[cfg(target_os = "ios")]
-    InstallLiveContainer,
-    #[cfg(target_os = "ios")]
-    DownloadIpa,
+    SaveIpa,
 }
 
 /// One installed mod as the Mods page shows it.
