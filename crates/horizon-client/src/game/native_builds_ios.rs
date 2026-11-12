@@ -371,7 +371,10 @@ enum Step {
         page: String,
     },
     /// The run built: its artifact, the .ipa in a zip.
-    Artifact { id: u64, size: u64 },
+    Artifact {
+        id: u64,
+        size: u64,
+    },
     /// GitHub can't be reached now: asked again at the next look.
     Retry(String),
 }
@@ -537,12 +540,17 @@ fn download(
     let ipa = dir.join(format!("Starling-native-r{number}.ipa"));
     let archive = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(archive).map_err(|e| e.to_string())?;
-    let name = archive
-        .file_names()
-        .find(|n| n.ends_with(".ipa") && !n.contains('/'))
-        .map(str::to_owned)
-        .ok_or("the build holds no .ipa")?;
-    let mut entry = archive.by_name(&name).map_err(|e| e.to_string())?;
+    let mut found = None;
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        let name = entry.name().map_err(|e| e.to_string())?;
+        if name.ends_with(".ipa") && !name.contains('/') {
+            found = Some(i);
+            break;
+        }
+    }
+    let index = found.ok_or("the build holds no .ipa")?;
+    let mut entry = archive.by_index(index).map_err(|e| e.to_string())?;
     let mut out = std::fs::File::create(&ipa).map_err(|e| e.to_string())?;
     std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
     out.sync_all().map_err(|e| e.to_string())?;
@@ -890,7 +898,9 @@ impl Game<'_> {
             }
             // A downloaded .ipa that went (iOS clears caches; it is not one) comes again.
             if let Some(p) = &mut pending
-                && p.ipa.as_ref().is_some_and(|f| !std::path::Path::new(f).is_file())
+                && p.ipa
+                    .as_ref()
+                    .is_some_and(|f| !std::path::Path::new(f).is_file())
             {
                 p.ipa = None;
             }

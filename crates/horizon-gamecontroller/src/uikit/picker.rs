@@ -236,7 +236,8 @@ pub fn share(path: &std::path::Path) -> bool {
             return false;
         };
         // An iPad shows it as a popover, which needs a place: the screen's middle.
-        let popover: Option<Retained<AnyObject>> = msg_send![&*sheet, popoverPresentationController];
+        let popover: Option<Retained<AnyObject>> =
+            msg_send![&*sheet, popoverPresentationController];
         let view: Option<Retained<AnyObject>> = msg_send![&*shown, view];
         if let (Some(popover), Some(view)) = (popover, view) {
             let bounds: super::Rect = msg_send![&*view, bounds];
