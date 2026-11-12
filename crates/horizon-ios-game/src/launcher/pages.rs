@@ -4605,12 +4605,10 @@ impl Launcher {
                         "4 MiB chunk upload budget boost & leaf culling",
                         SettingControl::SectionHeader("Engine Tuning", Icon::Gear),
                     ),
-                    ),
                     (
                         "Fast Chunk Mesh Upload Boost",
                         "Increases per-frame GPU upload budget to 4 MiB to eliminate movement stutter",
                         SettingControl::Toggle(c.fast_chunk_upload, Action::ToggleFastChunkUpload),
-                    ),
                     ),
                     (
                         "Experimental Leaf Culling",
