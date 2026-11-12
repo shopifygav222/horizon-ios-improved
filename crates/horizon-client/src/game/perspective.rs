@@ -828,36 +828,42 @@ impl Game<'_> {
                 &mut verts,
             );
         });
-        let chest = self.armor[1]
-            .as_ref()
-            .filter(|_| in_world)
-            .map(|s| &*s.item);
-        if !self.own_invisible() {
-            self.player_cape_geometry(&m, chest, camera, 1.0, 240 | 240 << 8, &mut verts);
+        // The layers read the world's resources (its mob types, items, mob data), which the title
+        // screen's player can come before (`draw_title_player`, given `data` for its body): only
+        // the body until they have loaded. A phone that starts upright first draws it later.
+        let mut wings = verts.len()..verts.len();
+        if self.res.rest_ready() {
+            let chest = self.armor[1]
+                .as_ref()
+                .filter(|_| in_world)
+                .map(|s| &*s.item);
+            if !self.own_invisible() {
+                self.player_cape_geometry(&m, chest, camera, 1.0, 240 | 240 << 8, &mut verts);
+            }
+            self.player_ears_geometry(
+                &m,
+                &self.own_profile_name(),
+                camera,
+                1.0,
+                240 | 240 << 8,
+                &mut verts,
+            );
+            if horizon_cosmetics::enabled() {
+                let base = horizon_client::mobs::render::base_transform(&m, 1.0, camera);
+                self.cosmetics_geometry(&m, true, base, 1.0, 240 | 240 << 8, false, &mut verts);
+            }
+            // `WingsLayer` draws through `RenderTypes.armorCutoutNoCull`: the
+            // wings' faces show from both sides (the elytra texture is empty on
+            // the face that looks at the body).
+            let wings_start = verts.len();
+            self.player_elytra_geometry(&m, chest, camera, 1.0, 240 | 240 << 8, &mut verts);
+            wings = wings_start..verts.len();
+            self.shoulder_parrots_geometry(&m, camera, 1.0, 240 | 240 << 8, &mut verts);
+            if in_world {
+                self.held_item_geometry(&m, camera, 1.0, 240 | 240 << 8, false, None, &mut verts);
+            }
+            self.head_item_geometry(&m, camera, 1.0, 240 | 240 << 8, false, &mut verts);
         }
-        self.player_ears_geometry(
-            &m,
-            &self.own_profile_name(),
-            camera,
-            1.0,
-            240 | 240 << 8,
-            &mut verts,
-        );
-        if horizon_cosmetics::enabled() {
-            let base = horizon_client::mobs::render::base_transform(&m, 1.0, camera);
-            self.cosmetics_geometry(&m, true, base, 1.0, 240 | 240 << 8, false, &mut verts);
-        }
-        // `WingsLayer` draws through `RenderTypes.armorCutoutNoCull`: the
-        // wings' faces show from both sides (the elytra texture is empty on
-        // the face that looks at the body).
-        let wings_start = verts.len();
-        self.player_elytra_geometry(&m, chest, camera, 1.0, 240 | 240 << 8, &mut verts);
-        let wings = wings_start..verts.len();
-        self.shoulder_parrots_geometry(&m, camera, 1.0, 240 | 240 << 8, &mut verts);
-        if in_world {
-            self.held_item_geometry(&m, camera, 1.0, 240 | 240 << 8, false, None, &mut verts);
-        }
-        self.head_item_geometry(&m, camera, 1.0, 240 | 240 << 8, false, &mut verts);
         let height = if m.extra.crouching { 1.5 } else { 1.8 };
         // PictureInPictureRenderer: the box centre, (size, size, -size);
         // then the translation and Rz(pi) * Rx(y_angle * 20 degrees).

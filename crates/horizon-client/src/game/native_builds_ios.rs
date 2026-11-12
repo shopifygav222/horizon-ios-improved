@@ -226,8 +226,10 @@ fn github(method: &str, path: &str, token: &str, body: Option<&str>) -> Result<V
                 .and_then(|v| v["message"].as_str().map(str::to_owned))
                 .unwrap_or_default();
             Err(match code {
-                401 => "GitHub doesn't accept the token (expired or copied wrong): paste a new one."
-                    .to_owned(),
+                401 => {
+                    "GitHub doesn't accept the token (expired or copied wrong): paste a new one."
+                        .to_owned()
+                }
                 403 if said.contains("rate limit") => {
                     "GitHub asks to wait a little (too many requests): try again in a few minutes."
                         .to_owned()
@@ -318,7 +320,11 @@ fn follow(shared: Arc<Mutex<Shared>>, start: bool) {
 
 enum Step {
     Wait(String),
-    Found { run: u64, number: u64, page: String },
+    Found {
+        run: u64,
+        number: u64,
+        page: String,
+    },
     Built(String),
     /// GitHub can't be reached now: asked again at the next look.
     Retry(String),
@@ -336,13 +342,19 @@ fn find_run(p: &Pending, token: &str) -> Result<Step, Fatal> {
         Err(why) => return Ok(Step::Retry(why)),
     };
     let name = format!("native mods {} ·", p.mods.join(" "));
-    let found = runs["workflow_runs"].as_array().into_iter().flatten().find(|run| {
-        run["display_title"].as_str().is_some_and(|t| t.contains(&name))
-            && run["created_at"]
+    let found = runs["workflow_runs"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|run| {
+            run["display_title"]
                 .as_str()
-                .and_then(unix_time)
-                .is_some_and(|at| at + 120 >= p.asked)
-    });
+                .is_some_and(|t| t.contains(&name))
+                && run["created_at"]
+                    .as_str()
+                    .and_then(unix_time)
+                    .is_some_and(|at| at + 120 >= p.asked)
+        });
     match found {
         Some(run) => Ok(Step::Found {
             run: run["id"].as_u64().unwrap_or_default(),
@@ -358,7 +370,12 @@ fn find_run(p: &Pending, token: &str) -> Result<Step, Fatal> {
 }
 
 fn check_run(run: u64, token: &str) -> Result<Step, Fatal> {
-    let state = match github("GET", &format!("/repos/{REPO}/actions/runs/{run}"), token, None) {
+    let state = match github(
+        "GET",
+        &format!("/repos/{REPO}/actions/runs/{run}"),
+        token,
+        None,
+    ) {
         Ok(state) => state,
         Err(why) => return Ok(Step::Retry(why)),
     };
@@ -394,7 +411,12 @@ fn check_run(run: u64, token: &str) -> Result<Step, Fatal> {
     }
     let number = state["run_number"].as_u64().unwrap_or_default();
     let tag = format!("ios-native-r{number}");
-    match github("GET", &format!("/repos/{REPO}/releases/tags/{tag}"), token, None) {
+    match github(
+        "GET",
+        &format!("/repos/{REPO}/releases/tags/{tag}"),
+        token,
+        None,
+    ) {
         Ok(release) => release["assets"]
             .as_array()
             .into_iter()
@@ -460,7 +482,8 @@ impl Game<'_> {
         if let Some(p) = &pending {
             let mods = mods_label(&p.mods);
             if let Some(why) = &p.failed {
-                game.lines.push((format!("The build with {mods} failed. {why}"), true));
+                game.lines
+                    .push((format!("The build with {mods} failed. {why}"), true));
                 if p.page.is_some() {
                     game.buttons
                         .push(("See the build".to_owned(), NativeGameAct::ShowCompile));
@@ -599,7 +622,10 @@ impl Game<'_> {
                 {
                     ("Token saved in the Keychain.".to_owned(), false)
                 } else {
-                    ("The Keychain didn't take the token: try again.".to_owned(), true)
+                    (
+                        "The Keychain didn't take the token: try again.".to_owned(),
+                        true,
+                    )
                 });
             }
             NativeGameAct::InstallSideStore
@@ -750,6 +776,9 @@ mod tests {
     fn mod_lists_read_as_words() {
         assert_eq!(mods_label(&[]), "no native mods");
         assert_eq!(mods_label(&["a".into()]), "a");
-        assert_eq!(mods_label(&["a".into(), "b".into(), "c".into()]), "a, b and c");
+        assert_eq!(
+            mods_label(&["a".into(), "b".into(), "c".into()]),
+            "a, b and c"
+        );
     }
 }
