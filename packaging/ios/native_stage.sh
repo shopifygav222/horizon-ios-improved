@@ -22,10 +22,12 @@ MIXINS_REV=$(sed -n 's/^MIXINS_REV=\([0-9a-f]\{40\}\)$/\1/p' "$here/../android/n
 fail() { echo "native_stage: $*" >&2; exit 1; }
 [ $# -eq 2 ] || fail "usage: native_stage.sh SOURCE BUNDLES"
 [ -n "$MIXINS_REV" ] || fail "packaging/android/native_build.sh no longer says MIXINS_REV"
-source=$(cd "$1" && pwd)
-bundles=$(cd "$2" && pwd)
+# Real paths: horizon-mixins refuses output paths through a symlink (macOS's /var is one).
+source=$(cd "$1" && pwd -P)
+bundles=$(cd "$2" && pwd -P)
 cache=${NATIVE_CACHE:-$HOME/.cache/starling-native}
 mkdir -p "$cache"
+cache=$(cd "$cache" && pwd -P)
 
 tools=$cache/mixins-${MIXINS_REV:0:12}
 if [ ! -x "$tools/bin/horizon-mixins" ]; then
@@ -33,7 +35,7 @@ if [ ! -x "$tools/bin/horizon-mixins" ]; then
 fi
 
 commit=$(git -C "$source" rev-parse HEAD)
-work=$(mktemp -d)
+work=$(cd "$(mktemp -d)" && pwd -P)
 trap 'rm -rf "$work"' EXIT
 
 # The source as committed, without links (horizon-mixins refuses them and nothing needs them).
