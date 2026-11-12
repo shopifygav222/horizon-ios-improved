@@ -55,10 +55,18 @@ Photos, the iOS keyboard, Keychain sign-ins, and native mods compiled into the a
 to sideload apps: [SideStore](https://sidestore.io), [AltStore](https://altstore.io),
 [Sideloadly](https://sideloadly.io) from a computer, or [LiveContainer](https://github.com/LiveContainer/LiveContainer).
 
-1. **Get the app.** Open this repository's [Actions](../../actions/workflows/ios.yml), pick the latest
-   run with a `horizon-pe-ios-<number>` artifact, and download it (GitHub asks you to sign in). Unzip it
-   to get `HorizonPE-iOS-unsigned.ipa`. To make a fresh one, press **Run workflow** there with **Make and
-   keep the unsigned .ipa** ticked.
+1. **Get the app**, one of two ways:
+   - **Just to play: a ready build.** Open this repository's [Actions](../../actions/workflows/ios.yml),
+     pick the latest run with a `horizon-pe-ios-<number>` artifact, and download it (any GitHub account
+     can; GitHub asks you to sign in). Unzip it to get `HorizonPE-iOS-unsigned.ipa`. Everything works in
+     it, except building native mods: that needs the second way.
+   - **Your own copy, for native mods.** Native mods are compiled on GitHub, in the repository the app
+     was built from, and only that repository's owner can start a build there. So make your own: sign
+     in to GitHub, open this repository and tap **Fork**. In your fork, open the **Actions** tab and
+     allow workflows to run (GitHub asks once for a new fork). Then **Actions > ios > Run workflow**,
+     tick **Make and keep the unsigned .ipa**, and run it. About 40 to 60 minutes later the run has a
+     `horizon-pe-ios-<number>` artifact: the app built from your fork, which builds native mods there.
+     It costs nothing: GitHub's macOS machines are free for public repositories.
 2. **Sideload it.** Open the `.ipa` with your sideloading app, or drop it on Sideloadly. The `.ipa` is
    unsigned: the sideloading app signs it with your Apple ID. With a free Apple ID the signature lasts
    7 days; refresh it (SideStore and AltStore do that for you) and nothing is lost.
@@ -112,28 +120,34 @@ shader packs, mods, screenshots and logs. Open a pack, a world, a skin or a mod 
 ## Native mods
 
 Horizon's native mods change the game's own code, and iOS runs no code its app did not ship with, so
-on iOS a native mod is compiled into the app. GitHub does the compiling; you pick the mods in the game:
+on iOS a native mod is compiled into the app. GitHub does the compiling, in the repository the app was
+built from; you pick the mods in the game. **You need the app built from your own fork** ([Install](#install),
+second way): only a repository's owner can start builds in it, so the app from someone else's
+repository can't build mods for you.
 
 1. Options > Mods > **Catalog**: install native mods, as on Android.
-2. The Mods page then offers **Build on GitHub**. The first time, it asks for a GitHub token
-   (fine-grained, for this repository only, with **Actions: Read and write**), kept in the Keychain.
-3. Keep playing: about 30 to 60 minutes later a toast and a line on the title screen say the build is
+2. On the Mods page, tap **Make a token**. GitHub's token form opens, filled in: its name, one year, and
+   the permission **Actions: Read and write**. Under **Repository access** choose **Only select
+   repositories** and pick your fork, then **Generate token** and copy it. (The same form:
+   [this link](https://github.com/settings/personal-access-tokens/new?name=Horizon+PE&description=Builds+native+mods+from+the+game&expires_in=365&actions=write).) GitHub shows the token once.
+3. Back in the game, tap **Paste GitHub token**, then **Build on GitHub**. The token stays in your
+   phone's Keychain and only ever goes to GitHub.
+4. Keep playing: about 30 to 60 minutes later a toast and a line on the title screen say the build is
    ready. **Install...** opens the share sheet: pick SideStore, AltStore, LiveContainer or your signer.
    Your worlds stay.
 
 Every build is checked before it is installed: each mod is downloaded from the registry's own releases
 and checked against its size and SHA-256, applied to the source the way Starling's own mod builds do,
-compiled, and started once in the iOS Simulator. Builds stay in the repository's Actions; nothing is
-published as a release. You can also start one from the Actions tab with a list of mod ids. All of it,
-step by step: [docs/ios.md](docs/ios.md#native-mods).
+compiled, and started once in the iOS Simulator. Builds stay in your repository's Actions for 30 days
+and are never published as releases, but a public repository's run artifacts can be downloaded by
+anyone signed in to GitHub: they hold the game and the mods you picked, nothing of yours. You can also
+start a build from your fork's Actions tab with a list of mod ids. All of it, step by step:
+[docs/ios.md](docs/ios.md#native-mods).
 
 ## Build it yourself
 
-You don't need a Mac: GitHub's Macs build it.
-
-1. **Fork** this repository (keep it public: GitHub's macOS runners are free for public repositories).
-2. In your fork, **Actions > ios > Run workflow** with **Make and keep the unsigned .ipa** ticked. About
-   40 to 60 minutes later the run has a `horizon-pe-ios-<number>` artifact.
+You don't need a Mac: GitHub's Macs build it, in your fork ([Install](#install), second way; keep
+the fork public, so the macOS machines cost nothing).
 
 Every push to `main` runs the same build without keeping the `.ipa`: the game compiled for iOS and
 linted, the game files prepared and proved to come out the same on the phone, the app bundled and

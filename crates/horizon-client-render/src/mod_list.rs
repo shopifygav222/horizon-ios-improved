@@ -75,6 +75,9 @@ pub enum NativeGameAct {
     /// iOS (game/native_builds_ios.rs): the GitHub token, pasted from the clipboard.
     #[cfg(target_os = "ios")]
     Token,
+    /// iOS: GitHub's form for that token, opened filled in.
+    #[cfg(target_os = "ios")]
+    MakeToken,
     /// iOS: the finished .ipa in the share sheet (SideStore, AltStore, LiveContainer...).
     #[cfg(target_os = "ios")]
     Install,

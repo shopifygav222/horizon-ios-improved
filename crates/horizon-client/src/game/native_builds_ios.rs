@@ -34,6 +34,11 @@ const BRANCH: &str = match option_env!("HORIZON_IOS_BRANCH") {
     None => "main",
 };
 const WORKFLOW: &str = "ios.yml";
+/// GitHub's form for a fine-grained token, filled in: its name, a year, and Actions: Read and
+/// write. The repository is the player's to pick (GitHub can't pre-select one); the owner is the
+/// one signed in, which is the fork's owner.
+const TOKEN_FORM: &str = "https://github.com/settings/personal-access-tokens/new?name=Horizon+PE\
+    &description=Builds+native+mods+from+the+game&expires_in=365&actions=write";
 const API: &str = "https://api.github.com";
 /// The token, in the Keychain: this app's, on this device.
 const KEYCHAIN_SERVICE: &str = "dev.horizon.starling.github";
@@ -266,8 +271,9 @@ fn github(method: &str, path: &str, token: &str, body: Option<&str>) -> Result<V
                         .to_owned()
                 }
                 403 | 404 => format!(
-                    "The token may not run {REPO}'s Actions: make it for that repository, with \
-                     Actions: Read and write ({code})."
+                    "GitHub refused ({code}): the token can't run {REPO}'s Actions. Make it for \
+                     {REPO} with Actions: Read and write. If {REPO} isn't yours, fork it and use \
+                     the app built from your fork."
                 ),
                 _ => format!("GitHub said {code}: {said}"),
             })
@@ -684,16 +690,30 @@ impl Game<'_> {
                 game.buttons
                     .push(("Build on GitHub".to_owned(), NativeGameAct::Compile));
                 game.buttons
-                    .push(("New token".to_owned(), NativeGameAct::Token));
+                    .push(("Make a token".to_owned(), NativeGameAct::MakeToken));
+                game.buttons
+                    .push(("Paste new token".to_owned(), NativeGameAct::Token));
             } else {
                 game.lines.push((
                     format!(
-                        "First, a GitHub token: on github.com, Settings > Developer settings > \
-                         Fine-grained tokens > Generate, for {REPO} only, with Actions: Read and \
-                         write. Copy it, then paste it here (it stays in this device's Keychain)."
+                        "Builds run on GitHub, in {REPO}, where this app was built from, and only \
+                         its owner can start them. Not yours? Fork it on GitHub and use the app \
+                         built from your fork (its README says how)."
                     ),
                     false,
                 ));
+                game.lines.push((
+                    format!(
+                        "Then a token, once: Make a token opens GitHub's form, filled in. Under \
+                         Repository access choose Only select repositories and pick {}, generate \
+                         it, copy it, and press Paste GitHub token. It stays in this device's \
+                         Keychain.",
+                        REPO.rsplit('/').next().unwrap_or(REPO)
+                    ),
+                    false,
+                ));
+                game.buttons
+                    .push(("Make a token".to_owned(), NativeGameAct::MakeToken));
                 game.buttons
                     .push(("Paste GitHub token".to_owned(), NativeGameAct::Token));
             }
@@ -739,6 +759,11 @@ impl Game<'_> {
                     .and_then(|p| p.page.clone())
                     .unwrap_or_else(|| format!("https://github.com/{REPO}/actions"));
                 horizon_gamecontroller::open_url(&page);
+            }
+            NativeGameAct::MakeToken => {
+                if !horizon_gamecontroller::open_url(TOKEN_FORM) {
+                    message = Some((format!("Open this in Safari: {TOKEN_FORM}"), true));
+                }
             }
             NativeGameAct::PlayWithout => {
                 let mut state = shared(&self.native_builds);
@@ -960,6 +985,13 @@ mod tests {
         assert!(looks_like_token("ghp_0123456789abcdefABCDEF0123456789abcd"));
         assert!(!looks_like_token("github_pat_ has a space"));
         assert!(!looks_like_token("hello"));
+    }
+
+    #[test]
+    fn the_token_form_is_one_link() {
+        assert!(!TOKEN_FORM.contains(char::is_whitespace));
+        assert!(TOKEN_FORM.contains("?name=Horizon+PE&description="));
+        assert!(TOKEN_FORM.ends_with("&expires_in=365&actions=write"));
     }
 
     #[test]

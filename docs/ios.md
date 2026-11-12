@@ -21,10 +21,19 @@ A native mod changes the game's own code, and iOS runs no code its app did not s
 iOS a native mod is compiled into the app. GitHub does the compiling; everything else happens in
 the game.
 
-**Once: a GitHub token.** On github.com (Safari works), Settings > Developer settings >
-Fine-grained tokens > Generate new token, for this repository only, with the permission
-**Actions: Read and write**. Copy it. The game keeps it in the phone's Keychain and sends it only
-to GitHub, to start builds and follow them.
+**First, the app from your own fork.** Builds run on GitHub, in the repository the app was built
+from, and only that repository's owner can start them: the app from someone else's repository
+can't build mods for you. Sign in to GitHub, open this repository and tap **Fork**; in your fork's
+**Actions** tab, allow workflows to run (GitHub asks once); then **Actions > ios > Run workflow**
+with **Make and keep the unsigned .ipa** ticked, and install that app (the README's Install). It
+costs nothing: GitHub's macOS machines are free for public repositories.
+
+**Once: a GitHub token.** On the Mods page, **Make a token** opens GitHub's token form, filled in:
+its name, one year, and **Actions: Read and write** (the same form: [this link](https://github.com/settings/personal-access-tokens/new?name=Horizon+PE&description=Builds+native+mods+from+the+game&expires_in=365&actions=write)).
+Under **Repository access** choose **Only select repositories** and pick your fork, then **Generate
+token** and copy it; GitHub shows it once. The game keeps it in the phone's Keychain and sends it
+only to GitHub, to start builds and follow them. It lasts a year: then make another the same way
+and press **Paste new token**.
 
 **Then, in the game:**
 
@@ -32,7 +41,8 @@ to GitHub, to start builds and follow them.
    "(native mod)". Install the ones you want, as on Android.
 2. Back on the Mods page, its top says which native mods this app has, and that the ones turned
    on aren't all in it. The first time, copy your token and press **Paste GitHub token**; then
-   press **Build on GitHub**.
+   press **Build on GitHub**. If GitHub refuses, the page says why: most often the token was made
+   for another repository than the one the app was built from.
 3. Keep playing. The game follows the build (about 30 to 60 minutes), then downloads it with the
    same token. When it is ready (or if it failed) a toast says so wherever you are, and the title
    screen shows a line under the account button until you install or dismiss it; tapping it
@@ -50,24 +60,15 @@ A build has every native mod turned on in the folder, and keeps the mods this ap
 are still on. A mod turned off stops at once; the Mods page then offers a build without it, which
 takes it out of the app. With every native mod off, the normal Horizon PE build has none.
 
-## Installed packs and mods
-
-Each catalog shelf (Mods, Resource packs, Shader packs) has an **Installed** button: it lists
-everything in that shelf's folders, whether it came from the catalog, the Files app or an import,
-with its size and where it came from, and the search box narrows it. **Remove** asks first, then
-deletes it (through the catalog when the catalog installed it, so its list stays right). A
-removed resource pack or shader pack leaves its page at once; a removed content mod leaves when
-the game next starts; a removed native mod also turns off. A native mod compiled into the app has
-no file to delete: its row has **Turn off** instead.
-
-**Without the game:** open this repository's **Actions** tab, pick **ios**, then **Run workflow**,
+**Without the game:** open your fork's **Actions** tab, pick **ios**, then **Run workflow**,
 and type the mods' ids in **Native mods to build in** (`wrench fps_overlay coords_hud`). An id is a
 folder of `native-mods/` here (Starling's own, reviewed), or a native mod of Horizon's registry
 for Minecraft 26.3: its file's name without the version (`fps_overlay` for
 `fps_overlay-2.0.0.hnmod`). `python3 tools/ios_native_mods.py list INDEX` lists them all, with the
 registry's index.json (https://horizon-rust.github.io/horizon-mods/index.json) as INDEX. The .ipa
 is the run's artifact, `horizon-pe-ios-<number>-native-mods`, kept 30 days. Builds are never
-published as releases: only people who can read this repository's Actions can download them.
+published as releases, but anyone signed in to GitHub can download a public repository's run
+artifacts: they hold the game and the mods picked, nothing else.
 
 **What the build does:** it checks each mod first (an unknown id stops it within a minute),
 downloads it from the registry's own GitHub releases and checks its size and SHA-256, applies it
@@ -84,6 +85,16 @@ can't be fetched by GitHub: the build says which.
 
 Native mods are not sandboxed: their code runs with the app's full access. Only the registry's
 reviewed mods and this repository's `native-mods/` can be built in.
+
+## Installed packs and mods
+
+Each catalog shelf (Mods, Resource packs, Shader packs) has an **Installed** button: it lists
+everything in that shelf's folders, whether it came from the catalog, the Files app or an import,
+with its size and where it came from, and the search box narrows it. **Remove** asks first, then
+deletes it (through the catalog when the catalog installed it, so its list stays right). A
+removed resource pack or shader pack leaves its page at once; a removed content mod leaves when
+the game next starts; a removed native mod also turns off. A native mod compiled into the app has
+no file to delete: its row has **Turn off** instead.
 
 ## Device checklist
 
