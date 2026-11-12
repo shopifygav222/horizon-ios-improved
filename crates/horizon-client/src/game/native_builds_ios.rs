@@ -651,7 +651,11 @@ impl Game<'_> {
         let building = pending
             .as_ref()
             .is_some_and(|p| p.failed.is_none() && p.ipa.is_none());
-        let leftover: Vec<String> = have.iter().filter(|id| !build.contains(*id)).cloned().collect();
+        let leftover: Vec<String> = have
+            .iter()
+            .filter(|id| !build.contains(*id))
+            .cloned()
+            .collect();
         if (missing || !leftover.is_empty()) && !building && build.is_empty() {
             game.lines.push((
                 "Every native mod is off, so none of them runs. Installing the normal Starling \

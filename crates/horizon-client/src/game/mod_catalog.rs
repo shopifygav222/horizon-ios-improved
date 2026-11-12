@@ -210,7 +210,8 @@ fn local_items(home: &std::path::Path, shelf: Shelf) -> Vec<Local> {
                 match horizon_mods::Package::read(&path) {
                     Ok(package) => {
                         if entry.is_none() {
-                            title = format!("{} {}", package.manifest.name, package.manifest.version);
+                            title =
+                                format!("{} {}", package.manifest.name, package.manifest.version);
                         }
                         mod_id = Some(package.manifest.id);
                     }
@@ -700,7 +701,14 @@ fn draw_local_list(ui: &mut Ui<'_>, card: &Catalog, edge: f32, drawn: &mut Vec<(
         "Nothing installed matches."
     };
     let line_y = y + (END_H - BODY_LINE) / 2.0;
-    ui.text(Face::Regular, BODY_TEXT, MARGIN + 14.0, line_y, color::MUTED, line);
+    ui.text(
+        Face::Regular,
+        BODY_TEXT,
+        MARGIN + 14.0,
+        line_y,
+        color::MUTED,
+        line,
+    );
 }
 
 /// The title, Close, the three shelves and the search box.
@@ -913,8 +921,9 @@ impl Game<'_> {
         }
         let home = Self::game_dir();
         let removed = match &item.entry {
-            Some(entry) => starling_catalog::browser::installed::remove(&home, &entry.project)
-                .map(|_| ()),
+            Some(entry) => {
+                starling_catalog::browser::installed::remove(&home, &entry.project).map(|_| ())
+            }
             None => delete_local(&home, &item.file),
         };
         if let Err(e) = removed {
@@ -956,7 +965,10 @@ impl Game<'_> {
         self.settings.mods.save(&Self::game_dir());
         self.refresh_mods_page(None);
         self.catalog.notice = Some((
-            format!("{} is off. It stays in the app until a build without it.", item.title),
+            format!(
+                "{} is off. It stays in the app until a build without it.",
+                item.title
+            ),
             false,
         ));
         self.refresh_installed();
