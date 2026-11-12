@@ -135,7 +135,7 @@ You don't need a Mac: GitHub's Macs build it.
 2. In your fork, **Actions > ios > Run workflow** with **Make and keep the unsigned .ipa** ticked. About
    40 to 60 minutes later the run has a `horizon-pe-ios-<number>` artifact.
 
-Every push to `main` runs the same build without keeping the `.ipa`: the game compiled for iOS and
+Every push to `starling-ios` (the default branch) runs the same build without keeping the `.ipa`: the game compiled for iOS and
 linted, the game files prepared and proved to come out the same on the phone, the app bundled and
 checked to carry none of Mojang's files, and the app started in the iOS Simulator
 ([`ios.yml`](.github/workflows/ios.yml)). [`ios-guard.yml`](.github/workflows/ios-guard.yml) checks that

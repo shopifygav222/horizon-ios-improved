@@ -1,10 +1,10 @@
 name: ios-guard
 # The iOS work must leave Starling's desktop and Android builds as Starling has them: rustfmt, and clippy with
-# warnings as errors over the client for the desktop and over the Android library, on every push to main.
+# warnings as errors over the client for the desktop and over the Android library, on every push to starling-ios.
 # The iOS build itself is ios.yml.
 on:
   push:
-    branches: [main]
+    branches: [starling-ios]
   workflow_dispatch:
 permissions:
   contents: read
