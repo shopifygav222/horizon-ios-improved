@@ -143,8 +143,7 @@ pub fn poll() -> Vec<Output> {
         if new == *old {
             return vec![];
         }
-        let out =
-            crate::ime_edit::editor_changes(old, &new, MULTILINE.with(|mode| mode.get()));
+        let out = crate::ime_edit::editor_changes(old, &new, MULTILINE.with(|mode| mode.get()));
         *old = new;
         out
     })

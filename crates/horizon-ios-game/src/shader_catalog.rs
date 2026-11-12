@@ -1,6 +1,6 @@
 //! Explicit classic shader downloads; native .hshader files keep the registry path.
-use starling_catalog::browser::{self, Kind, Project, Source, SourceId, Version, installed};
 use serde::{Deserialize, Serialize};
+use starling_catalog::browser::{self, Kind, Project, Source, SourceId, Version, installed};
 use std::{fs, path::Path};
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

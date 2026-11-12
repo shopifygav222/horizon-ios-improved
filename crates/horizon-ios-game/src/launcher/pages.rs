@@ -1,9 +1,9 @@
 use super::*;
 use crate::catalog::SettingsCategory;
 use horizon_client::{
-    gfx::Renderer,
     android_control_keyboard::Output,
     android_control_theme::{Icon, color},
+    gfx::Renderer,
 };
 use std::sync::atomic::Ordering;
 use winit::{
@@ -67,7 +67,10 @@ fn my3_pause_bg() -> u32 {
 }
 #[inline]
 fn my3_cancel_bg() -> u32 {
-    color::with_alpha(horizon_client::android_control_theme::active_theme().danger, 0.28)
+    color::with_alpha(
+        horizon_client::android_control_theme::active_theme().danger,
+        0.28,
+    )
 }
 #[inline]
 fn my3_text() -> u32 {
@@ -1532,9 +1535,7 @@ impl Launcher {
                 .filter(|(_, p)| {
                     !(page == Page::Mods
                         && p.source == starling_catalog::browser::SourceId::Horizon
-                        && crate::catalog::BUNDLED
-                            .iter()
-                            .any(|(id, _, _)| *id == p.id))
+                        && crate::catalog::BUNDLED.iter().any(|(id, _, _)| *id == p.id))
                 })
                 .collect();
             let row_h = 72.0;
@@ -3435,11 +3436,7 @@ impl Launcher {
             c.render_scale.percent(),
             c.screen.aspect.label()
         );
-        let prof_txt = format!(
-            "Profile {}  •  UI {}",
-            c.profile + 1,
-            c.ui_scale_label()
-        );
+        let prof_txt = format!("Profile {}  •  UI {}", c.profile + 1, c.ui_scale_label());
         let anim_txt = format!(
             "Launcher Anim: {}  •  Game Anim: {}",
             if c.disable_launcher_animations {
@@ -5266,9 +5263,8 @@ impl Launcher {
                 self.chooser = None;
             }
             Some(Action::Logs) => {
-                self.catalog.status = horizon_client::diagnostics::summary(
-                    &horizon_client::logging::private_home(),
-                );
+                self.catalog.status =
+                    horizon_client::diagnostics::summary(&horizon_client::logging::private_home());
                 if let Ok(error) = std::fs::read_to_string(self.home.join("ios-error.txt")) {
                     self.catalog.status = format!(
                         "Last handled error: {}. {}",
@@ -5345,7 +5341,9 @@ impl Launcher {
             }
             Some(Action::SelectThemePreset(preset)) => {
                 self.catalog.config.theme.apply_preset(preset);
-                horizon_client::android_control_theme::set_active_theme(self.catalog.config.theme.resolve());
+                horizon_client::android_control_theme::set_active_theme(
+                    self.catalog.config.theme.resolve(),
+                );
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;
                 self.catalog.status = format!("Applied '{}' theme.", preset.label());
@@ -5359,14 +5357,18 @@ impl Launcher {
                     self.catalog.config.theme.preset =
                         horizon_client::android_control_theme::ThemePreset::ObsidianViolet;
                 }
-                horizon_client::android_control_theme::set_active_theme(self.catalog.config.theme.resolve());
+                horizon_client::android_control_theme::set_active_theme(
+                    self.catalog.config.theme.resolve(),
+                );
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;
                 self.catalog.status = format!("Switched to {}.", appearance.label());
             }
             Some(Action::SetThemeBackgroundMode(mode)) => {
                 self.catalog.config.theme.background_mode = mode;
-                horizon_client::android_control_theme::set_active_theme(self.catalog.config.theme.resolve());
+                horizon_client::android_control_theme::set_active_theme(
+                    self.catalog.config.theme.resolve(),
+                );
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;
                 self.catalog.status = format!("Background style set to {}.", mode.label());
@@ -5375,7 +5377,9 @@ impl Launcher {
                 self.catalog.config.theme.gradient_direction = dir;
                 self.catalog.config.theme.background_mode =
                     horizon_client::android_control_theme::BackgroundMode::Gradient;
-                horizon_client::android_control_theme::set_active_theme(self.catalog.config.theme.resolve());
+                horizon_client::android_control_theme::set_active_theme(
+                    self.catalog.config.theme.resolve(),
+                );
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;
                 self.catalog.status = format!("Gradient direction set to {}.", dir.label());
@@ -5385,7 +5389,9 @@ impl Launcher {
                     !self.catalog.config.theme.use_three_stops;
                 self.catalog.config.theme.background_mode =
                     horizon_client::android_control_theme::BackgroundMode::Gradient;
-                horizon_client::android_control_theme::set_active_theme(self.catalog.config.theme.resolve());
+                horizon_client::android_control_theme::set_active_theme(
+                    self.catalog.config.theme.resolve(),
+                );
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;
             }
@@ -5407,32 +5413,42 @@ impl Launcher {
                 self.catalog.config.theme.gradient_mid_pos = next;
                 self.catalog.config.theme.background_mode =
                     horizon_client::android_control_theme::BackgroundMode::Gradient;
-                horizon_client::android_control_theme::set_active_theme(self.catalog.config.theme.resolve());
+                horizon_client::android_control_theme::set_active_theme(
+                    self.catalog.config.theme.resolve(),
+                );
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;
             }
             Some(Action::SelectAccentSwatch(rgb)) => {
                 self.catalog.config.theme.custom_accent_hex =
                     horizon_client::android_control_theme::format_hex_color(rgb);
-                self.catalog.config.theme.preset = horizon_client::android_control_theme::ThemePreset::Custom;
-                horizon_client::android_control_theme::set_active_theme(self.catalog.config.theme.resolve());
+                self.catalog.config.theme.preset =
+                    horizon_client::android_control_theme::ThemePreset::Custom;
+                horizon_client::android_control_theme::set_active_theme(
+                    self.catalog.config.theme.resolve(),
+                );
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;
             }
             Some(Action::SelectBgSwatch(rgb)) => {
                 self.catalog.config.theme.custom_bg_hex =
                     horizon_client::android_control_theme::format_hex_color(rgb);
-                self.catalog.config.theme.preset = horizon_client::android_control_theme::ThemePreset::Custom;
+                self.catalog.config.theme.preset =
+                    horizon_client::android_control_theme::ThemePreset::Custom;
                 self.catalog.config.theme.background_mode =
                     horizon_client::android_control_theme::BackgroundMode::Solid;
-                horizon_client::android_control_theme::set_active_theme(self.catalog.config.theme.resolve());
+                horizon_client::android_control_theme::set_active_theme(
+                    self.catalog.config.theme.resolve(),
+                );
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;
             }
             Some(Action::ResetTheme) => {
                 self.catalog.config.theme =
                     horizon_client::android_control_theme::LauncherThemeConfig::default();
-                horizon_client::android_control_theme::set_active_theme(self.catalog.config.theme.resolve());
+                horizon_client::android_control_theme::set_active_theme(
+                    self.catalog.config.theme.resolve(),
+                );
                 self.anim.trigger_theme_pulse();
                 self.catalog.config.save(&self.home)?;
                 self.catalog.status = "Theme reset to Horizon default (Obsidian Violet).".into();

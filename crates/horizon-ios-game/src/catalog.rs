@@ -1,7 +1,7 @@
 //! iOS mobile launcher state. Browser operations are Starling's own (starling-catalog), as the
 //! game's catalog screen uses them: what one installs the other lists.
-use starling_catalog::browser::{self, Kind, Project, Query, Source, installed::Installed};
 use serde::{Deserialize, Serialize};
+use starling_catalog::browser::{self, Kind, Project, Query, Source, installed::Installed};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -661,9 +661,7 @@ impl Catalog {
                     crate::content_files::Kind::Packs => {
                         settings.resource_packs.contains(&format!("file/{name}"))
                     }
-                    crate::content_files::Kind::Shaders => {
-                        settings.horizon.shader_pack == name
-                    }
+                    crate::content_files::Kind::Shaders => settings.horizon.shader_pack == name,
                     crate::content_files::Kind::Mods => name
                         .strip_suffix(".hmod")
                         .or_else(|| name.strip_suffix(".jar"))
@@ -1931,10 +1929,14 @@ impl Catalog {
                 }
                 if is_theme_field {
                     self.config.theme.sanitize();
-                    horizon_client::android_control_theme::set_active_theme(self.config.theme.resolve());
+                    horizon_client::android_control_theme::set_active_theme(
+                        self.config.theme.resolve(),
+                    );
                     self.status = "Custom theme color applied and saved.".into();
                 } else {
-                    horizon_client::android_control_theme::set_active_theme(self.config.theme.resolve());
+                    horizon_client::android_control_theme::set_active_theme(
+                        self.config.theme.resolve(),
+                    );
                 }
                 self.editing = None;
                 let _ = self.config.save(home);
@@ -2018,8 +2020,14 @@ fn lookup_modrinth_by_name(title: &str, kind: Kind) -> Option<Project> {
     query.everything = true;
     query.limit = 5;
     let hits = if kind == Kind::Shader {
-        starling_catalog::search(starling_catalog::Shelf::ShaderPacks, &query.text, true, 0, 5)
-            .ok()?
+        starling_catalog::search(
+            starling_catalog::Shelf::ShaderPacks,
+            &query.text,
+            true,
+            0,
+            5,
+        )
+        .ok()?
     } else {
         browser::modrinth::Modrinth.search(&query).ok()?
     };

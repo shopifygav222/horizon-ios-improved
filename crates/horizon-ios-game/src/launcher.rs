@@ -15,9 +15,9 @@ pub(super) struct Gui {
 }
 use horizon_client::{
     Result,
+    android_control_theme::{Face, Ui},
     gfx::Renderer,
     hud::{HudAtlas, HudBatch},
-    android_control_theme::{Face, Ui},
 };
 use std::{
     path::PathBuf,
@@ -73,7 +73,8 @@ impl Launcher {
         if self.login.edit(self.catalog.editing, &output) {
             if matches!(
                 output,
-                horizon_client::android_control_keyboard::Output::Enter | horizon_client::android_control_keyboard::Output::Close
+                horizon_client::android_control_keyboard::Output::Enter
+                    | horizon_client::android_control_keyboard::Output::Close
             ) {
                 self.catalog.editing = None;
                 crate::platform::hide();
@@ -85,7 +86,9 @@ impl Launcher {
 
     pub(super) fn new(home: PathBuf) -> Self {
         let catalog = Catalog::new(&home);
-        horizon_client::android_control_theme::set_ui_scale_percent(catalog.config.ui_scale_percent);
+        horizon_client::android_control_theme::set_ui_scale_percent(
+            catalog.config.ui_scale_percent,
+        );
         horizon_client::android_control_theme::motion::set_launcher_animations_disabled(
             catalog.config.disable_launcher_animations,
         );
@@ -202,7 +205,9 @@ impl Launcher {
         crate::platform::set_orientation(self.catalog.config.orientation);
         self.configure_screen();
         horizon_client::android_control_theme::set_android_dpi(crate::platform::display_density());
-        horizon_client::android_control_theme::set_ui_scale_percent(self.catalog.config.ui_scale_percent);
+        horizon_client::android_control_theme::set_ui_scale_percent(
+            self.catalog.config.ui_scale_percent,
+        );
         crate::display::set_scale(self.catalog.config.render_scale);
         if let (Some(renderer), Some(window)) = (&mut self.renderer, &self.window) {
             if let Some(size) = crate::display::prepare(window)? {
@@ -484,7 +489,9 @@ impl ApplicationHandler for Launcher {
             }
             WindowEvent::Touch(touch) => self.touch_event(events, touch),
             WindowEvent::Focused(false) => {
-                horizon_client::diagnostics::heartbeat("launcher_background", || serde_json::json!({}));
+                horizon_client::diagnostics::heartbeat("launcher_background", || {
+                    serde_json::json!({})
+                });
                 self.controller_repeat = None;
                 self.mouse_down = false;
                 self.drag = None;

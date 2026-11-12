@@ -20,7 +20,6 @@ impl Default for RenderScale {
 }
 
 impl RenderScale {
-
     pub fn new(percent: u32) -> Self {
         Self(percent.clamp(25, 100))
     }
