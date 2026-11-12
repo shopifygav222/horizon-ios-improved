@@ -1,8 +1,10 @@
 # Horizon Pocket Edition (iOS): the sync ledger
 
-`starling-ios`, the default branch of shopifygav222/horizon-ios-improved, is Starling with an iOS layer: the iOS app,
-Horizon Pocket Edition ("Horizon PE" under its icon), is Starling's phone build, as its Android one. The older Horizon
-Android iOS port is on `main`, and kept under `archive/horizon-android-ios` too.
+`main` of shopifygav222/horizon-ios-improved is Starling with an iOS layer: the iOS app,
+Horizon Pocket Edition ("Horizon PE" under its icon), is an iOS port of Horizon based on Starling, Horizon's Android
+port. The older Horizon
+Android iOS port is kept under `archive/horizon-android-ios`, and `main`'s history holds it as a parent; this app was
+developed on `starling-ios` until it moved to `main`.
 
 - **Base:** starling-client/starling `starling` @ `ac874422ed` (tag `v0.8.0`, "the first release of Starling and
   Horizon Android together"). Remote: `starling`. Starling 0.8.0 took Horizon Android's control system, account
@@ -39,7 +41,7 @@ Android iOS port is on `main`, and kept under `archive/horizon-android-ios` too.
 2. Resolve each conflict with the engine-edit ledger: every row says what the change is and why.
 3. Walk the Android gates the merge added (`git diff <old base> <new base> | grep target_os`), and classify each one in
    the gate ledger.
-4. `ios.yml` and `ios-guard.yml` green, then merge into `starling-ios` and move **Base** above.
+4. `ios.yml` and `ios-guard.yml` green, then merge into `main` and move **Base** above.
 5. When Starling takes one of the features below itself, switch to Starling's and mark the row "upstream"; ours goes
    once Starling's passes the same checks.
 

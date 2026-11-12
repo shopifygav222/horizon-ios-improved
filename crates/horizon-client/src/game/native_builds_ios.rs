@@ -31,7 +31,7 @@ const REPO: &str = match option_env!("HORIZON_IOS_REPO") {
 };
 const BRANCH: &str = match option_env!("HORIZON_IOS_BRANCH") {
     Some(branch) => branch,
-    None => "starling-ios",
+    None => "main",
 };
 const WORKFLOW: &str = "ios.yml";
 const API: &str = "https://api.github.com";

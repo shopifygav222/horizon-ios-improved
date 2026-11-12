@@ -1,6 +1,7 @@
-# Horizon Pocket Edition, Starling's phone game on iOS, as an XcodeGen spec (IOS-SYNC.md). Its
-# targets and its executable keep Starling's names (and its bundle identifier, dev.horizon.starling):
-# the player sees "Horizon PE" (GameInfo.plist), and an app renamed inside would install as another.
+# Horizon Pocket Edition, an iOS port of Horizon based on Starling's Android port, as an XcodeGen spec
+# (IOS-SYNC.md). Its targets and its executable keep Starling's names (and its bundle identifier,
+# dev.horizon.starling): the player sees "Horizon PE" (GameInfo.plist), and an app renamed inside
+# would install as another.
 #
 # Xcode does not like being edited in source control, so the repository keeps this file and
 # `xcodegen` writes StarlingIOS.xcodeproj from it:

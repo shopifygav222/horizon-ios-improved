@@ -2,7 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Horizon Pocket Edition, "Horizon PE" under its icon (packaging/ios/project.yml's StarlingGame target,
-  IOS-SYNC.md): Starling's phone game on iOS, drawn with Metal. Its executable is the cross-compiled
+  IOS-SYNC.md): an iOS port of Horizon (Minecraft: Java Edition in Rust) based on Starling, Horizon's Android
+  port, drawn with Metal. Its executable is the cross-compiled
   `horizon-ios-game` binary. The bundle identifier and the executable's name are still Starling's
   (dev.horizon.starling, Starling): changed, the app would install as another one, without the player's
   worlds. A separate app from Horizon's iOS app (dev.horizon.game): both install side by side, and the
@@ -47,7 +48,7 @@
 	<key>MinimumOSVersion</key>
 	<string>16.0</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Horizon Pocket Edition is built on Starling and Horizon, all MIT licensed. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</string>
+	<string>Horizon Pocket Edition is an iOS port of Horizon, based on Starling; all MIT licensed. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>A native mod built into this app asked to use the microphone.</string>
 	<key>UIFileSharingEnabled</key>

@@ -2,8 +2,8 @@
   <img src="https://img.shields.io/badge/Minecraft-Java%2026.3-5D9C3F" alt="Minecraft Java 26.3">
   <img src="https://img.shields.io/badge/platform-iOS%20%26%20iPadOS%2016%2B-1C1C1E?logo=apple&logoColor=white" alt="iOS and iPadOS 16 or newer">
   <img src="https://img.shields.io/badge/graphics-Metal-8E8E93" alt="Metal">
-  <a href="https://github.com/starling-client/starling"><img src="https://img.shields.io/badge/built%20on-Starling-2A2470" alt="Built on Starling"></a>
-  <a href="https://github.com/ludovic111/horizon"><img src="https://img.shields.io/badge/engine-Horizon-F0795A" alt="Horizon engine"></a>
+  <a href="https://github.com/ludovic111/horizon"><img src="https://img.shields.io/badge/port%20of-Horizon-F0795A" alt="Port of Horizon"></a>
+  <a href="https://github.com/starling-client/starling"><img src="https://img.shields.io/badge/based%20on-Starling-2A2470" alt="Based on Starling"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3B2F7E" alt="MIT license"></a>
 </p>
 
@@ -19,14 +19,14 @@
 # Horizon Pocket Edition (iOS)
 
 **Minecraft: Java Edition 26.3 on iPhone and iPad, running natively.** Horizon Pocket Edition
-("Horizon PE" under its icon) is the iOS port of [Starling](https://github.com/starling-client/starling),
-the phone build of [Horizon](https://github.com/ludovic111/horizon): Minecraft's Java game rewritten in
-Rust, which reads the same worlds, follows the same rules and generates the same terrain as Java
-Edition. There is no Java virtual machine and no OpenGL translation in between: the game draws with
-Metal, so it starts fast and plays smoothly on a phone.
+("Horizon PE" under its icon) is an iOS port of [Horizon](https://github.com/ludovic111/horizon),
+Minecraft's Java game rewritten in Rust, which reads the same worlds, follows the same rules and
+generates the same terrain as Java Edition. It is based on [Starling](https://github.com/starling-client/starling),
+Horizon's Android port. There is no Java virtual machine and no OpenGL translation in between: the game
+draws with Metal, so it starts fast and plays smoothly on a phone.
 
-It is Starling's phone game, feature for feature (its touch controls, accounts, skins, catalog and
-shader packs), with what iOS needs on top: the game files laid out without Java, the Files app,
+From Starling it keeps everything made for phones (the touch controls, accounts, skins, catalog and
+shader packs), and adds what iOS needs on top: the game files laid out without Java, the Files app,
 Photos, the iOS keyboard, Keychain sign-ins, and native mods compiled into the app itself.
 
 > **Not an official Minecraft product.** Not approved by or associated with Mojang or Microsoft.
@@ -135,7 +135,7 @@ You don't need a Mac: GitHub's Macs build it.
 2. In your fork, **Actions > ios > Run workflow** with **Make and keep the unsigned .ipa** ticked. About
    40 to 60 minutes later the run has a `horizon-pe-ios-<number>` artifact.
 
-Every push to `starling-ios` (the default branch) runs the same build without keeping the `.ipa`: the game compiled for iOS and
+Every push to `main` runs the same build without keeping the `.ipa`: the game compiled for iOS and
 linted, the game files prepared and proved to come out the same on the phone, the app bundled and
 checked to carry none of Mojang's files, and the app started in the iOS Simulator
 ([`ios.yml`](.github/workflows/ios.yml)). [`ios-guard.yml`](.github/workflows/ios-guard.yml) checks that
@@ -148,8 +148,9 @@ carries), then `brew install xcodegen && cd packaging/ios && xcodegen generate` 
 
 ## How the repository is laid out
 
-This is Starling's source with an iOS layer; [IOS-SYNC.md](IOS-SYNC.md) records the Starling version
-it is built on, every change to Starling's own files, and how to take in a new Starling release.
+The repository is Starling's source (Horizon with Starling's Android port) with an iOS layer on top;
+[IOS-SYNC.md](IOS-SYNC.md) records the Starling version it is based on, every change to Starling's own
+files, and how to take in a new Starling release.
 
 | Path | What it is |
 | --- | --- |
@@ -165,11 +166,12 @@ it is built on, every change to Starling's own files, and how to take in a new S
 
 ## Credits
 
-- **[Horizon](https://github.com/ludovic111/horizon)** by Ludovic and its contributors: the game,
-  Minecraft: Java Edition rewritten in Rust.
+- **[Horizon](https://github.com/ludovic111/horizon)** by Ludovic and its contributors: the game this
+  app ports, Minecraft: Java Edition rewritten in Rust.
 - **[Starling](https://github.com/starling-client/starling)**, formerly Horizon Android, by
-  [JuanLuci](https://github.com/JuanLuci) and [Vasysik](https://github.com/Vasysik): the phone build
-  this app is, its touch controls, accounts, catalog, skins and Starling Visuals.
+  [JuanLuci](https://github.com/JuanLuci) and [Vasysik](https://github.com/Vasysik): Horizon's Android
+  port, which this app is based on, with its touch controls, accounts, catalog, skins and Starling
+  Visuals.
 - **[horizon-iOS](https://github.com/meehandaniel4/horizon-iOS)**: the first native mod builds for
   iOS on GitHub Actions, which this app's follow.
 

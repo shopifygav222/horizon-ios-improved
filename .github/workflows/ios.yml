@@ -1,7 +1,7 @@
 name: ios
 run-name: iOS · ${{ inputs.mods && format('native mods {0} · ', inputs.mods) || '' }}${{ github.sha }}
-# Horizon Pocket Edition (iOS): Starling's phone game for iPhone and iPad (IOS-SYNC.md), on every push
-# to starling-ios, the default branch:
+# Horizon Pocket Edition (iOS): Horizon for iPhone and iPad, based on Starling (IOS-SYNC.md), on every push
+# to main:
 #   ipa: `horizon-ios-game` cross-compiled for aarch64-apple-ios and linted; the game files Starling's
 #        Android app prepares with Java, prepared here (tools/ios_prepare.py) and proved to come back on
 #        the phone file for file; the app bundled and checked to carry none of Mojang's files. The
@@ -11,7 +11,7 @@ run-name: iOS · ${{ inputs.mods && format('native mods {0} · ', inputs.mods) |
 # iPhone runs no code its app did not ship with, so a native mod is part of the app itself.
 on:
   push:
-    branches: [starling-ios]
+    branches: [main]
   workflow_dispatch:
     inputs:
       deliver:

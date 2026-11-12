@@ -1,7 +1,8 @@
 # Horizon Pocket Edition (iOS)
 
-Horizon Pocket Edition ("Horizon PE" under its icon) is an unofficial iOS build of Starling 0.8.0
-(see `IOS-SYNC.md` for how it follows Starling). It is Starling's phone build: the same setup, title screen, control system, accounts, skins, catalog and
+Horizon Pocket Edition ("Horizon PE" under its icon) is an unofficial iOS port of Horizon, Minecraft:
+Java Edition rewritten in Rust, based on Starling 0.8.0, Horizon's Android port (see `IOS-SYNC.md` for
+how it follows Starling). It has Starling's phone features: the same setup, title screen, control system, accounts, skins, catalog and
 Diagnostics as the Android app. GitHub Actions builds it (`.github/workflows/ios.yml`); the IPA is
 unsigned, so install it with a sideloading tool that signs it for your device.
 
