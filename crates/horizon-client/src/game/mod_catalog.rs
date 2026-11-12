@@ -220,6 +220,11 @@ fn button(
 /// What to do next, after an install.
 fn done_notice(done: Done, title: &str) -> String {
     match done {
+        // iOS compiles it into the app on GitHub (native_builds_ios.rs), from the Mods page's top.
+        Done::NativeMod if cfg!(target_os = "ios") => format!(
+            "{title} is in. Close this and press Build on GitHub at the top of the Mods page to \
+             play with it."
+        ),
         Done::NativeMod => {
             format!("{title} is in. Close this and press Compile on its row to play with it.")
         }
@@ -851,11 +856,7 @@ impl Game<'_> {
         self.catalog.notice = Some(match result {
             Ok(done) => {
                 match done {
-                    #[cfg(target_os = "android")]
                     Done::NativeMod => self.list_new_native_mods(),
-                    // iOS: the catalog offers no native mod (it could not be built or loaded).
-                    #[cfg(target_os = "ios")]
-                    Done::NativeMod => {}
                     Done::ShaderPack => {
                         self.settings.shader_packs =
                             horizon_client::shader_pack_list::scan(&Self::shader_packs_dir());

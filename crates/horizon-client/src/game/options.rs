@@ -522,10 +522,11 @@ impl Game<'_> {
                 }
                 Event::OpenShaderPackFolder => self.open_game_folder(&Self::shader_packs_dir()),
                 Event::NativeButton(i, b) => {
-                    // Android: the Native mods row's button opens its card (native_builds.rs).
-                    #[cfg(target_os = "android")]
+                    // Android: the Native mods row's button opens its card (native_builds.rs);
+                    // iOS: a mod not in the app builds it (native_builds_ios.rs).
+                    #[cfg(any(target_os = "android", target_os = "ios"))]
                     let card = self.native_builds_button(i);
-                    #[cfg(not(target_os = "android"))]
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
                     let card = false;
                     if !card {
                         self.native_settings_event(i, b);

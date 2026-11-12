@@ -626,5 +626,5 @@
   "starling.mods.native.next_build": "Next start: with %s, compiled %s.",
   "horizon.mods.not_built_tip": "Installed, not built into this game: build the game with it in the launcher (Settings > Native mods), then play the instance that build is in.",
   "starling.mods.native.not_built_tip": "Installed, not in this game yet: Compile builds the game with it on Starling's build server.",
-  "starling.mods.native.not_built_tip_ios": "Installed, not in this app: on iOS a native mod is compiled into the app. Build the app with its id (GitHub Actions, ios, Run workflow, native mods) and install that build over this one: your worlds stay."
+  "starling.mods.native.not_built_tip_ios": "Installed, not in this app yet: on iOS a native mod is compiled into the app. Build on GitHub, at the top of this page, makes the app with it; install that over this one and your worlds stay."
 }

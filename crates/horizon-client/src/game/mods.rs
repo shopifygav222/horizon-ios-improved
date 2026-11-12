@@ -475,36 +475,46 @@ const NOTICE_SEEN: &str = ".native-notice";
 impl Game<'_> {
     /// The Mods page opened: native mods copied into the folder since the game started (the Files
     /// app, a computer) get their rows, as the catalog's do. Only a phone compiles them.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn list_copied_native_mods(&mut self) {
         self.list_new_native_mods();
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub(super) fn list_copied_native_mods(&mut self) {}
 
     /// Installed mod `i` was turned on or off on the Mods page: a native one changes which build
     /// the next start runs (`native_builds.rs`). Only a phone has builds.
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn mod_toggled(&mut self, i: usize) {
         self.native_mod_toggled(i);
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub(super) fn mod_toggled(&mut self, _i: usize) {}
 
     /// A button of the Mods page's game with native mods (`native_builds.rs`).
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     pub(super) fn native_game_button(&mut self, act: mod_list::NativeGameAct) {
         self.native_game_act(act);
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub(super) fn native_game_button(&mut self, _act: mod_list::NativeGameAct) {}
 
     /// A native mod the catalog just put in the folder: its row on the Mods page, with Compile.
     #[cfg(target_os = "android")]
     pub(super) fn list_new_native_mods(&mut self) {
         let built = super::native_builds::running_build_info().unwrap_or_default();
+        self.list_new_native_mods_with(&built);
+    }
+    /// iOS: as Android, with the mods this app was built with (game/native_builds_ios.rs).
+    #[cfg(target_os = "ios")]
+    pub(super) fn list_new_native_mods(&mut self) {
+        let built = super::native_builds_ios::running_build_info().unwrap_or_default();
+        self.list_new_native_mods_with(&built);
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    fn list_new_native_mods_with(&mut self, built: &str) {
         let native_dir = Self::game_dir().join(mod_list::NATIVE_DIR);
-        let unbuilt = not_built(&native_dir, &built, &self.settings.mods.installed);
+        let unbuilt = not_built(&native_dir, built, &self.settings.mods.installed);
         self.settings.mods.installed.extend(unbuilt);
         self.offer_compile();
     }
@@ -591,7 +601,7 @@ impl Game<'_> {
         let native_dir = Self::game_dir().join(mod_list::NATIVE_DIR);
         let unbuilt = not_built(&native_dir, &built, &self.settings.mods.installed);
         self.settings.mods.installed.extend(unbuilt);
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         self.offer_compile();
         let installed = &self.settings.mods.installed;
         self.mods.stopped = installed

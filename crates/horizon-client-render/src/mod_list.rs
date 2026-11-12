@@ -28,10 +28,11 @@ pub const NOT_BUILT_TIP: &str = "horizon.mods.not_built_tip";
 pub const NOT_BUILT_TIP: &str = "starling.mods.native.not_built_tip_ios";
 #[cfg(target_os = "android")]
 pub const NOT_BUILT_TIP: &str = "starling.mods.native.not_built_tip";
-/// iOS runs no code it did not ship with: a native mod is compiled into the app itself, by the
-/// iOS workflow run with its id (docs/ios.md).
+/// iOS runs no code it did not ship with: a native mod is compiled into the app itself, which the
+/// Mods page's top builds on GitHub (game/native_builds_ios.rs, docs/ios.md).
 #[cfg(target_os = "ios")]
-pub const NOT_BUILT: &str = "Installed, not in this app: on iOS a native mod is compiled into the app. Build the app with its id (GitHub Actions, ios, Run workflow, native mods) and install that build over this one.";
+pub const NOT_BUILT: &str =
+    "Installed, not in this app yet: Build on GitHub, at the top of this page, compiles it in.";
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ModList {
@@ -71,6 +72,18 @@ pub enum NativeGameAct {
     PlayWithout,
     /// Another build server.
     BuildServer,
+    /// iOS (game/native_builds_ios.rs): the GitHub token, pasted from the clipboard.
+    #[cfg(target_os = "ios")]
+    Token,
+    /// iOS: the finished .ipa, handed to the app the player sideloads with, or downloaded.
+    #[cfg(target_os = "ios")]
+    InstallSideStore,
+    #[cfg(target_os = "ios")]
+    InstallAltStore,
+    #[cfg(target_os = "ios")]
+    InstallLiveContainer,
+    #[cfg(target_os = "ios")]
+    DownloadIpa,
 }
 
 /// One installed mod as the Mods page shows it.

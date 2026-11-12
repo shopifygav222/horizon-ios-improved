@@ -226,6 +226,9 @@ mod native_biome_colors;
 pub mod native_block_entity_draw;
 #[cfg(target_os = "android")]
 mod native_builds;
+// iOS: native mods compiled into the app on GitHub (its own module: iOS has no library to swap).
+#[cfg(target_os = "ios")]
+mod native_builds_ios;
 mod native_claimed_items;
 mod native_components;
 mod native_criteria;
@@ -2955,6 +2958,8 @@ struct Game<'a> {
     update_offer: update_offer::UpdateOffer,
     #[cfg(target_os = "android")]
     native_builds: native_builds::NativeBuilds,
+    #[cfg(target_os = "ios")]
+    native_builds: native_builds_ios::NativeBuilds,
     #[cfg(any(target_os = "android", target_os = "ios"))]
     catalog: mod_catalog::Catalog,
     /// Bedrock Inventory with the pointer on its inventory window: the item tab the other window
@@ -18826,6 +18831,8 @@ impl Game<'_> {
             self.poll_update_offer();
             self.poll_native_builds();
         }
+        #[cfg(target_os = "ios")]
+        self.poll_native_builds();
         #[cfg(any(target_os = "android", target_os = "ios"))]
         self.poll_catalog();
         horizon_client::spans::time("pads", || self.poll_pads(event_loop));
@@ -19328,7 +19335,7 @@ impl<'a> Game<'a> {
             files_offer: Default::default(),
             #[cfg(target_os = "android")]
             update_offer: Default::default(),
-            #[cfg(target_os = "android")]
+            #[cfg(any(target_os = "android", target_os = "ios"))]
             native_builds: Default::default(),
             #[cfg(any(target_os = "android", target_os = "ios"))]
             catalog: Default::default(),
