@@ -1671,7 +1671,10 @@ impl Catalog {
                 return Err("Download cancelled".into());
             }
             Ok(Reply::Done(
-                format!("Installed {}. It is on in the game's own list too.", project.title),
+                format!(
+                    "Installed {}. It is on in the game's own list too.",
+                    project.title
+                ),
                 match project.kind {
                     Kind::Mod => crate::content_files::Kind::Mods,
                     Kind::Shader => crate::content_files::Kind::Shaders,
