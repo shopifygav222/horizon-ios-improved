@@ -1,7 +1,7 @@
 //! The launcher's account panel, over Starling's own account list (horizon_client::accounts):
 //! the same profiles the title screen's account button keeps, so either place adds, removes and
 //! picks them, and the game plays as the one picked.
-use super::pages::{Action, button};
+use super::pages::{Action, avatar_head, button};
 use horizon_client::accounts::{self, State};
 use horizon_client::android_control_keyboard::Output;
 use horizon_client::android_control_theme::{Face, Icon, Ui, color};
@@ -287,7 +287,7 @@ impl Login {
             },
         );
         let avatar = (h - 12.0).clamp(30.0, 40.0);
-        ui.avatar_head_2d(x + 10.0, y + (h - avatar) * 0.5, avatar, name);
+        avatar_head(ui, x + 10.0, y + (h - avatar) * 0.5, avatar);
         let tx = x + avatar + 22.0;
         let fitted = ui.fit_text(Face::SemiBold, 14.0, name, (w - avatar - 56.0).max(60.0));
         ui.text(Face::SemiBold, 14.0, tx, y + 7.0, login_text(), &fitted);
@@ -766,7 +766,7 @@ impl Login {
         ui.rounded(card[0], card[1], card[2], card[3], 16.0, login_surface());
         ui.border(card[0], card[1], card[2], card[3], 16.0, login_border());
         let display_name = self.profile.as_deref().unwrap_or(offline_name);
-        ui.avatar_head_2d(card[0] + 14.0, card[1] + 14.0, 56.0, display_name);
+        avatar_head(ui, card[0] + 14.0, card[1] + 14.0, 56.0);
         let name_x = card[0] + 84.0;
         let fitted = ui.fit_text(Face::SemiBold, 17.0, display_name, card[2] - 100.0);
         ui.text(

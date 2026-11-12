@@ -354,6 +354,45 @@ pub(super) enum Action {
     FmCloseModal,
 }
 
+/// The account's face in the header and the accounts panel: the default player's, flat (the
+/// game shows and changes the profile's own skin).
+pub(super) fn avatar_head(ui: &mut Ui, x: f32, y: f32, size: f32) {
+    const HAIR: u32 = 0x3B2A1B;
+    const SKIN: u32 = 0xC68E5E;
+    const EYE: u32 = 0xF4F4F4;
+    const IRIS: u32 = 0x4E6E9E;
+    const NOSE: u32 = 0xA87548;
+    const MOUTH: u32 = 0x6B4A32;
+    const BEARD: u32 = 0x2E2117;
+    const FACE: [[u32; 8]; 8] = [
+        [HAIR, HAIR, HAIR, HAIR, HAIR, HAIR, HAIR, HAIR],
+        [HAIR, HAIR, HAIR, HAIR, HAIR, HAIR, HAIR, HAIR],
+        [HAIR, HAIR, HAIR, HAIR, HAIR, HAIR, HAIR, HAIR],
+        [HAIR, SKIN, SKIN, SKIN, SKIN, SKIN, SKIN, HAIR],
+        [SKIN, EYE, IRIS, SKIN, SKIN, IRIS, EYE, SKIN],
+        [SKIN, SKIN, SKIN, NOSE, NOSE, SKIN, SKIN, SKIN],
+        [SKIN, MOUTH, MOUTH, MOUTH, MOUTH, MOUTH, MOUTH, SKIN],
+        [SKIN, BEARD, BEARD, BEARD, BEARD, BEARD, BEARD, SKIN],
+    ];
+    let theme = horizon_client::android_control_theme::active_theme();
+    let radius = size * 0.30;
+    ui.rounded(x, y, size, size, radius, theme.surface_dim);
+    let inset = (size * 0.07).max(1.0);
+    let pixel = (size - inset * 2.0).max(8.0) / 8.0;
+    for (row, pixels) in FACE.iter().enumerate() {
+        for (col, tone) in pixels.iter().enumerate() {
+            ui.fill(
+                x + inset + col as f32 * pixel,
+                y + inset + row as f32 * pixel,
+                pixel + 0.4,
+                pixel + 0.4,
+                color::hex(*tone, 255),
+            );
+        }
+    }
+    ui.border(x, y, size, size, radius, theme.border_strong);
+}
+
 pub(super) fn button(
     ui: &mut Ui,
     targets: &mut Vec<([f32; 4], Action)>,
@@ -1018,7 +1057,7 @@ impl Launcher {
         // Top-right Account Selector Pill with circular avatar head, username, and chevron.
         ui.rounded(pill_x, pill_y, pill_w, pill_h, pill_h * 0.5, my3_surface());
         ui.border(pill_x, pill_y, pill_w, pill_h, pill_h * 0.5, my3_border());
-        ui.avatar_head_2d(pill_x + 6.0, pill_y + 4.0, 28.0, &account_name);
+        avatar_head(&mut ui, pill_x + 6.0, pill_y + 4.0, 28.0);
         if self.login.signed_in {
             ui.rounded(pill_x + 26.0, pill_y + 24.0, 9.0, 9.0, 4.5, my3_bg());
             ui.rounded(
