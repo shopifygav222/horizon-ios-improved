@@ -193,9 +193,9 @@ fn read_picture(home: &std::path::Path, source: &PictureSource) -> Option<(u32, 
 /// title's own.
 fn letter_tile(ui: &mut Ui<'_>, rect: [f32; 4], title: &str) {
     const TILES: [u32; 6] = [0x5D9C3F, 0x3B7DD8, 0xC2622D, 0x8E5BC9, 0x2E9C8F, 0xB8456A];
-    let pick = title
-        .bytes()
-        .fold(0usize, |h, b| h.wrapping_mul(31).wrapping_add(usize::from(b)));
+    let pick = title.bytes().fold(0usize, |h, b| {
+        h.wrapping_mul(31).wrapping_add(usize::from(b))
+    });
     let tile = color::hex(TILES[pick % TILES.len()], 255);
     ui.rounded(rect[0], rect[1], rect[2], rect[3], 18.0, tile);
     let letter: String = title
@@ -692,7 +692,14 @@ fn draw_list(
         } else {
             project.title.clone()
         };
-        picture(ui, shared, project.icon.as_deref(), y, &project.title, pictures);
+        picture(
+            ui,
+            shared,
+            project.icon.as_deref(),
+            y,
+            &project.title,
+            pictures,
+        );
         let title = fitted(ui, Face::Semibold, TITLE_TEXT, text_w, &title);
         ui.text(
             Face::Semibold,
@@ -703,7 +710,14 @@ fn draw_list(
             &title,
         );
         let meta = fitted(ui, Face::Regular, BODY_TEXT, text_w, &meta_line(project));
-        ui.text(Face::Regular, BODY_TEXT, TEXT_X, y + 46.0, color::MUTED, &meta);
+        ui.text(
+            Face::Regular,
+            BODY_TEXT,
+            TEXT_X,
+            y + 46.0,
+            color::MUTED,
+            &meta,
+        );
         // What it is, or what to know before installing it.
         let (about, ink) = match starling_catalog::caution(project) {
             Some(caution) => (caution, color::ACCENT),
@@ -753,7 +767,14 @@ fn draw_list(
         Tail::End => ("That's all of them.".to_owned(), color::MUTED),
         Tail::Failed(why) => (why.clone(), color::TEXT),
     };
-    let lines = fitted_lines(ui, Face::Regular, BODY_TEXT, row_w - ROW_BUTTON_W - 44.0, 2, &line);
+    let lines = fitted_lines(
+        ui,
+        Face::Regular,
+        BODY_TEXT,
+        row_w - ROW_BUTTON_W - 44.0,
+        2,
+        &line,
+    );
     let mut line_y = y + (END_H - lines.len() as f32 * BODY_LINE) / 2.0;
     for line in lines {
         ui.text(Face::Regular, BODY_TEXT, MARGIN + 14.0, line_y, ink, &line);
@@ -821,7 +842,14 @@ fn draw_local_list(
         );
         let mut line_y = y + 46.0;
         for line in fitted_lines(ui, Face::Regular, BODY_TEXT, text_w, 2, &item.about) {
-            ui.text(Face::Regular, BODY_TEXT, TEXT_X, line_y, color::MUTED, &line);
+            ui.text(
+                Face::Regular,
+                BODY_TEXT,
+                TEXT_X,
+                line_y,
+                color::MUTED,
+                &line,
+            );
             line_y += BODY_LINE;
         }
         let rect = [
