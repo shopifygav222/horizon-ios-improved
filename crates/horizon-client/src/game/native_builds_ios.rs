@@ -27,7 +27,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// Where the app was built from: the repository and branch whose `ios` workflow builds it again.
 const REPO: &str = match option_env!("HORIZON_IOS_REPO") {
     Some(repo) => repo,
-    None => "shopifygav222/horizon-ios-improved",
+    None => "shopifygav222/horizon-pocket-edition-ios",
 };
 const BRANCH: &str = match option_env!("HORIZON_IOS_BRANCH") {
     Some(branch) => branch,

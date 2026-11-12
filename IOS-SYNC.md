@@ -1,6 +1,6 @@
 # Horizon Pocket Edition (iOS): the sync ledger
 
-`main` of shopifygav222/horizon-ios-improved is Starling with an iOS layer: the iOS app,
+`main` of shopifygav222/horizon-pocket-edition-ios is Starling with an iOS layer: the iOS app,
 Horizon Pocket Edition ("Horizon PE" under its icon), is an iOS port of Horizon based on Starling, Horizon's Android
 port. The older Horizon
 Android iOS port is kept under `archive/horizon-android-ios`, and `main`'s history holds it as a parent; this app was
