@@ -20,7 +20,7 @@ use starling_catalog::{
     list::{self, Ask, Feed, Scroller, Tail},
 };
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 use winit::event::{Touch, TouchPhase};
@@ -93,6 +93,13 @@ const FILE_CHECK: Duration = Duration::from_secs(2);
 /// The panel that asks before a file is deleted.
 const CONFIRM_W: f32 = 640.0;
 const CONFIRM_H: f32 = 270.0;
+/// A row's picture, a square at its left.
+const PICTURE: f32 = 100.0;
+/// A picture's pixels at most, a side: sharp at a phone's density, small in the atlas.
+const PICTURE_PX: u32 = 128;
+/// Pictures fetched at once, and kept at most (each up to 64 KB).
+const PICTURES_AT_ONCE: usize = 4;
+const PICTURES_KEPT: usize = 120;
 
 #[derive(Clone, PartialEq)]
 enum Act {
@@ -114,6 +121,112 @@ enum Act {
     RemoveLocal(usize),
     /// Turns off the Installed view's row: a native mod compiled into the app.
     TurnOff(usize),
+}
+
+/// A row's picture: on its way, its pixels, or none to be had (the lettered tile stays).
+#[derive(Clone)]
+enum Picture {
+    Loading,
+    Ready(Arc<(u32, u32, Vec<u8>)>),
+    Missing,
+}
+
+/// Where a row's picture comes from.
+enum PictureSource {
+    /// A project's icon, by its URL (the browser's image cache keeps it on disk).
+    Url(String),
+    /// A resource pack's own `pack.png`, in its zip or folder.
+    Pack(std::path::PathBuf),
+}
+
+/// `rgba` (`w` x `h`) no larger than [`PICTURE_PX`] a side, by nearest pixel (pack icons are
+/// pixel art).
+fn fit_picture(w: u32, h: u32, rgba: Vec<u8>) -> (u32, u32, Vec<u8>) {
+    let longest = w.max(h);
+    if longest <= PICTURE_PX || w == 0 || h == 0 {
+        return (w, h, rgba);
+    }
+    let (nw, nh) = (
+        (w * PICTURE_PX / longest).max(1),
+        (h * PICTURE_PX / longest).max(1),
+    );
+    let mut out = Vec::with_capacity((nw * nh * 4) as usize);
+    for y in 0..nh {
+        for x in 0..nw {
+            let at = (((y * h / nh) * w + x * w / nw) * 4) as usize;
+            out.extend_from_slice(&rgba[at..at + 4]);
+        }
+    }
+    (nw, nh, out)
+}
+
+/// A resource pack's `pack.png`: in its folder, or at the top of its zip.
+fn pack_png(path: &std::path::Path) -> Option<Vec<u8>> {
+    use std::io::Read;
+    if path.is_dir() {
+        return std::fs::read(path.join("pack.png")).ok();
+    }
+    let file = std::fs::File::open(path).ok()?;
+    let mut zip = zip::ZipArchive::new(file).ok()?;
+    let mut entry = zip.by_name("pack.png").ok()?;
+    if entry.size() > 4 << 20 {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    entry.read_to_end(&mut bytes).ok()?;
+    Some(bytes)
+}
+
+/// The picture of `source`, read on a worker thread.
+fn read_picture(home: &std::path::Path, source: &PictureSource) -> Option<(u32, u32, Vec<u8>)> {
+    let (w, h, rgba) = match source {
+        PictureSource::Url(url) => {
+            let path = starling_catalog::browser::images::fetch(home, url, PICTURE_PX).ok()?;
+            horizon_client::hud::decode(&path).ok()?
+        }
+        PictureSource::Pack(path) => horizon_client::hud::decode_bytes(&pack_png(path)?).ok()?,
+    };
+    Some(fit_picture(w, h, rgba))
+}
+
+/// A row's picture where there is none: a tile with the title's first letter, its colour the
+/// title's own.
+fn letter_tile(ui: &mut Ui<'_>, rect: [f32; 4], title: &str) {
+    const TILES: [u32; 6] = [0x5D9C3F, 0x3B7DD8, 0xC2622D, 0x8E5BC9, 0x2E9C8F, 0xB8456A];
+    let pick = title
+        .bytes()
+        .fold(0usize, |h, b| h.wrapping_mul(31).wrapping_add(usize::from(b)));
+    let tile = color::hex(TILES[pick % TILES.len()], 255);
+    ui.rounded(rect[0], rect[1], rect[2], rect[3], 18.0, tile);
+    let letter: String = title
+        .chars()
+        .find(|c| c.is_alphanumeric())
+        .map_or_else(|| "?".to_owned(), |c| c.to_uppercase().collect());
+    let width = ui.measure(Face::Semibold, 44.0, &letter);
+    ui.text(
+        Face::Semibold,
+        44.0,
+        rect[0] + (rect[2] - width) / 2.0,
+        rect[1] + (rect[3] - 62.0) / 2.0,
+        color::WHITE,
+        &letter,
+    );
+}
+
+/// Who made a project and how many use it: "by Someone · 1.2M downloads · Modrinth".
+fn meta_line(project: &Project) -> String {
+    let mut parts = Vec::new();
+    if !project.author.trim().is_empty() {
+        parts.push(format!("by {}", project.author.trim()));
+    }
+    match project.downloads {
+        0 => {}
+        n @ 1..1_000 => parts.push(format!("{n} downloads")),
+        n @ 1_000..1_000_000 => parts.push(format!("{:.0}K downloads", n as f64 / 1_000.0)),
+        n => parts.push(format!("{:.1}M downloads", n as f64 / 1_000_000.0)),
+    }
+    parts.push(project.source.label().to_owned());
+    parts.join(" \u{b7} ")
 }
 
 /// Something in a shelf's folders, as the Installed view lists it.
@@ -284,6 +397,10 @@ fn delete_local(home: &std::path::Path, file: &str) -> Result<(), String> {
 struct Shared {
     /// The list: the searches' threads add to it.
     feed: Feed,
+    /// The rows' pictures by their key (an icon's URL, `pack:<file>`), and how many are being
+    /// fetched.
+    pictures: HashMap<String, Picture>,
+    fetching: usize,
     /// The title of what is being installed, what it says, and how far it is.
     installing: Option<String>,
     line: String,
@@ -524,16 +641,45 @@ fn remove_failed(title: &str, raw: &str) -> String {
 }
 
 /// The rows that show and the list's last line, under what's above and below them.
+/// The square a row's picture takes, at `y`.
+fn picture_rect(y: f32) -> [f32; 4] {
+    let row = ROW_H - ROW_GAP;
+    [MARGIN + 12.0, y + (row - PICTURE) / 2.0, PICTURE, PICTURE]
+}
+
+/// Where a row's text starts.
+const TEXT_X: f32 = MARGIN + 12.0 + PICTURE + 16.0;
+
+/// A row's picture: its pixels, drawn after the rows (`pictures`), or the lettered tile now.
+fn picture(
+    ui: &mut Ui<'_>,
+    shared: &Shared,
+    key: Option<&str>,
+    y: f32,
+    title: &str,
+    pictures: &mut Vec<(String, [f32; 4])>,
+) {
+    let rect = picture_rect(y);
+    match key.and_then(|k| shared.pictures.get(k).map(|p| (k, p))) {
+        Some((k, Picture::Ready(_))) => {
+            ui.rounded(rect[0], rect[1], rect[2], rect[3], 18.0, color::RAISED);
+            pictures.push((k.to_owned(), rect));
+        }
+        _ => letter_tile(ui, rect, title),
+    }
+}
+
 fn draw_list(
     ui: &mut Ui<'_>,
     card: &Catalog,
     shared: &Shared,
     edge: f32,
     drawn: &mut Vec<([f32; 4], Act)>,
+    pictures: &mut Vec<(String, [f32; 4])>,
 ) {
     let (top, bottom) = (HEAD_H, ui.h - FOOT_H);
     let row_w = edge - MARGIN;
-    let text_w = row_w - ROW_BUTTON_W - 44.0;
+    let text_w = row_w - ROW_BUTTON_W - 44.0 - (TEXT_X - MARGIN - 14.0);
     let rows = shared.feed.rows();
     let scrolled = card.list.offset;
     for i in list::rows_shown(scrolled, bottom - top, ROW_H, rows.len()) {
@@ -546,28 +692,25 @@ fn draw_list(
         } else {
             project.title.clone()
         };
+        picture(ui, shared, project.icon.as_deref(), y, &project.title, pictures);
         let title = fitted(ui, Face::Semibold, TITLE_TEXT, text_w, &title);
         ui.text(
             Face::Semibold,
             TITLE_TEXT,
-            MARGIN + 14.0,
+            TEXT_X,
             y + 8.0,
             color::TEXT,
             &title,
         );
-        let about = starling_catalog::caution(project).unwrap_or_else(|| project.summary.clone());
-        let mut line_y = y + 46.0;
-        for line in fitted_lines(ui, Face::Regular, BODY_TEXT, text_w, 2, &about) {
-            ui.text(
-                Face::Regular,
-                BODY_TEXT,
-                MARGIN + 14.0,
-                line_y,
-                color::MUTED,
-                &line,
-            );
-            line_y += BODY_LINE;
-        }
+        let meta = fitted(ui, Face::Regular, BODY_TEXT, text_w, &meta_line(project));
+        ui.text(Face::Regular, BODY_TEXT, TEXT_X, y + 46.0, color::MUTED, &meta);
+        // What it is, or what to know before installing it.
+        let (about, ink) = match starling_catalog::caution(project) {
+            Some(caution) => (caution, color::ACCENT),
+            None => (project.summary.clone(), color::MUTED),
+        };
+        let about = fitted(ui, Face::Regular, BODY_TEXT, text_w, &about);
+        ui.text(Face::Regular, BODY_TEXT, TEXT_X, y + 80.0, ink, &about);
         let rect = [
             MARGIN + row_w - ROW_BUTTON_W - 16.0,
             y + (row - ROW_BUTTON_H) / 2.0,
@@ -610,7 +753,7 @@ fn draw_list(
         Tail::End => ("That's all of them.".to_owned(), color::MUTED),
         Tail::Failed(why) => (why.clone(), color::TEXT),
     };
-    let lines = fitted_lines(ui, Face::Regular, BODY_TEXT, text_w, 2, &line);
+    let lines = fitted_lines(ui, Face::Regular, BODY_TEXT, row_w - ROW_BUTTON_W - 44.0, 2, &line);
     let mut line_y = y + (END_H - lines.len() as f32 * BODY_LINE) / 2.0;
     for line in lines {
         ui.text(Face::Regular, BODY_TEXT, MARGIN + 14.0, line_y, ink, &line);
@@ -640,10 +783,24 @@ fn shown_local(card: &Catalog) -> Vec<&Local> {
 }
 
 /// The Installed view: each thing in the shelf's folders, with Remove (or Turn off).
-fn draw_local_list(ui: &mut Ui<'_>, card: &Catalog, edge: f32, drawn: &mut Vec<([f32; 4], Act)>) {
+/// A local row's picture key: a resource pack's own `pack.png`.
+fn local_picture_key(item: &Local) -> Option<String> {
+    item.file
+        .starts_with("resourcepacks/")
+        .then(|| format!("pack:{}", item.file))
+}
+
+fn draw_local_list(
+    ui: &mut Ui<'_>,
+    card: &Catalog,
+    shared: &Shared,
+    edge: f32,
+    drawn: &mut Vec<([f32; 4], Act)>,
+    pictures: &mut Vec<(String, [f32; 4])>,
+) {
     let (top, bottom) = (HEAD_H, ui.h - FOOT_H);
     let row_w = edge - MARGIN;
-    let text_w = row_w - ROW_BUTTON_W - 44.0;
+    let text_w = row_w - ROW_BUTTON_W - 44.0 - (TEXT_X - MARGIN - 14.0);
     let rows = shown_local(card);
     let scrolled = card.list.offset;
     for i in list::rows_shown(scrolled, bottom - top, ROW_H, rows.len()) {
@@ -651,25 +808,20 @@ fn draw_local_list(ui: &mut Ui<'_>, card: &Catalog, edge: f32, drawn: &mut Vec<(
         let y = top + i as f32 * ROW_H - scrolled;
         let row = ROW_H - ROW_GAP;
         ui.rounded(MARGIN, y, row_w, row, 12.0, color::RAISED);
+        let key = local_picture_key(item);
+        picture(ui, shared, key.as_deref(), y, &item.title, pictures);
         let title = fitted(ui, Face::Semibold, TITLE_TEXT, text_w, &item.title);
         ui.text(
             Face::Semibold,
             TITLE_TEXT,
-            MARGIN + 14.0,
+            TEXT_X,
             y + 8.0,
             color::TEXT,
             &title,
         );
         let mut line_y = y + 46.0;
         for line in fitted_lines(ui, Face::Regular, BODY_TEXT, text_w, 2, &item.about) {
-            ui.text(
-                Face::Regular,
-                BODY_TEXT,
-                MARGIN + 14.0,
-                line_y,
-                color::MUTED,
-                &line,
-            );
+            ui.text(Face::Regular, BODY_TEXT, TEXT_X, line_y, color::MUTED, &line);
             line_y += BODY_LINE;
         }
         let rect = [
@@ -876,6 +1028,12 @@ impl Game<'_> {
         card.shown = true;
         card.notice = None;
         card.installed = starling_catalog::installed_projects(&Self::game_dir());
+        // A picture that could not be had last time is asked for again.
+        card.shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pictures
+            .retain(|_, p| !matches!(p, Picture::Missing));
         self.catalog_search();
     }
 
@@ -1161,6 +1319,67 @@ impl Game<'_> {
         (view, content_h(rows))
     }
 
+    /// Asks for the pictures of the rows that show and the next few, a few at a time, each on its
+    /// own thread; once many are kept, the ones far from the rows that show go.
+    fn catalog_pictures(&mut self) {
+        let (view, _) = self.catalog_list_size();
+        let home = Self::game_dir();
+        let card = &self.catalog;
+        let ahead = view + 3.0 * ROW_H;
+        let wanted: Vec<(String, PictureSource)> = if card.view_installed {
+            let rows = shown_local(card);
+            list::rows_shown(card.list.offset, ahead, ROW_H, rows.len())
+                .filter_map(|i| {
+                    let item = rows[i];
+                    let key = local_picture_key(item)?;
+                    Some((key, PictureSource::Pack(home.join(&item.file))))
+                })
+                .collect()
+        } else {
+            let shared = card.shared.lock().unwrap_or_else(PoisonError::into_inner);
+            let rows = shared.feed.rows();
+            list::rows_shown(card.list.offset, ahead, ROW_H, rows.len())
+                .filter_map(|i| {
+                    let url = rows[i].icon.clone()?;
+                    Some((url.clone(), PictureSource::Url(url)))
+                })
+                .collect()
+        };
+        let mut shared = card.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        if shared.pictures.len() > PICTURES_KEPT {
+            let keep: HashSet<&str> = wanted.iter().map(|(k, _)| k.as_str()).collect();
+            shared
+                .pictures
+                .retain(|k, p| keep.contains(k.as_str()) || matches!(p, Picture::Loading));
+        }
+        for (key, source) in wanted {
+            if shared.fetching >= PICTURES_AT_ONCE {
+                break;
+            }
+            if shared.pictures.contains_key(&key) {
+                continue;
+            }
+            shared.pictures.insert(key.clone(), Picture::Loading);
+            shared.fetching += 1;
+            let worker = card.shared.clone();
+            let home = home.clone();
+            let named = key.clone();
+            let started = std::thread::Builder::new()
+                .name("catalog picture".into())
+                .spawn(move || {
+                    let got = read_picture(&home, &source);
+                    let mut s = worker.lock().unwrap_or_else(PoisonError::into_inner);
+                    s.fetching = s.fetching.saturating_sub(1);
+                    let picture = got.map_or(Picture::Missing, |p| Picture::Ready(Arc::new(p)));
+                    s.pictures.insert(named, picture);
+                });
+            if started.is_err() {
+                shared.fetching = shared.fetching.saturating_sub(1);
+                shared.pictures.insert(key, Picture::Missing);
+            }
+        }
+    }
+
     /// While the screen is open: the list inside its ends, and its next page once the end is near.
     fn catalog_keep_up(&mut self) {
         let (view, content) = self.catalog_list_size();
@@ -1197,6 +1416,7 @@ impl Game<'_> {
         }
         if self.catalog.shown {
             self.catalog_keep_up();
+            self.catalog_pictures();
         }
         self.catalog_check_files();
         let finished = self
@@ -1291,16 +1511,50 @@ impl Game<'_> {
             return;
         }
         let shared = card.shared.lock().unwrap_or_else(PoisonError::into_inner);
-        let mut ui = Ui::new(&self.gui.atlas, batch, (-1.0, -1.0));
-        let (w, h) = (ui.w, ui.h);
-        let edge = w - MARGIN - if card.typing { w * NAV_BAR_SHARE } else { 0.0 };
         let mut drawn = Vec::new();
-        ui.fill(0.0, 0.0, w, h, color::BG);
-        if card.view_installed {
-            draw_local_list(&mut ui, card, edge, &mut drawn);
-        } else {
-            draw_list(&mut ui, card, &shared, edge, &mut drawn);
+        let mut pictures = Vec::new();
+        let (w, h, edge) = {
+            let mut ui = Ui::new(&self.gui.atlas, batch, (-1.0, -1.0));
+            let (w, h) = (ui.w, ui.h);
+            let edge = w - MARGIN - if card.typing { w * NAV_BAR_SHARE } else { 0.0 };
+            ui.fill(0.0, 0.0, w, h, color::BG);
+            if card.view_installed {
+                draw_local_list(&mut ui, card, &shared, edge, &mut drawn, &mut pictures);
+            } else {
+                draw_list(&mut ui, card, &shared, edge, &mut drawn, &mut pictures);
+            }
+            ui.finish();
+            (w, h, edge)
+        };
+        // The rows' pictures, in the list's band: Horizon Android's toolkit draws images, in the
+        // same units and the same atlas space as this screen's.
+        {
+            let atlas = &self.gui.atlas;
+            let mut art =
+                horizon_client::android_control_theme::Ui::new(atlas, batch, (-1.0, -1.0));
+            art.set_clip(Some([0.0, HEAD_H, w, (h - HEAD_H - FOOT_H).max(0.0)]));
+            for (key, [x, y, pw, ph]) in &pictures {
+                let Some(Picture::Ready(pixels)) = shared.pictures.get(key) else {
+                    continue;
+                };
+                let (iw, ih, rgba) = &**pixels;
+                // Fitted in its square, its shape kept.
+                let scale = (pw / *iw as f32).min(ph / *ih as f32);
+                let (dw, dh) = (*iw as f32 * scale, *ih as f32 * scale);
+                art.image(
+                    key,
+                    *iw,
+                    *ih,
+                    rgba,
+                    x + (pw - dw) / 2.0,
+                    y + (ph - dh) / 2.0,
+                    dw,
+                    dh,
+                );
+            }
+            art.finish();
         }
+        let mut ui = Ui::new(&self.gui.atlas, batch, (-1.0, -1.0));
         // The rows go under these two.
         ui.fill(0.0, 0.0, w, HEAD_H, color::BG);
         ui.fill(0.0, h - FOOT_H, w, FOOT_H, color::BG);
