@@ -7,12 +7,45 @@ unsigned, so install it with a sideloading tool that signs it for your device.
 
 What differs from Android, because iOS does not allow it or does it another way:
 
-- **Native mods (`.hnmod`)** cannot be compiled in or loaded: iOS runs no code the app did not
-  ship with. The catalog does not offer them, and the Mods page says so.
+- **Native mods** can't be downloaded into the app and loaded later: iOS runs no code the app
+  did not ship with. Instead they are compiled into the app itself (below).
 - **Game files** are downloaded from Mojang and checked as on Android, then laid out from tables
   the app carries instead of being prepared with Java.
 - **Your game folder** is the app's Documents: "Starling" under On My iPhone in the Files app.
 - **Updates** come as a new IPA, and there is no separate recovery window before the game starts.
+
+## Native mods
+
+A native mod changes the game's own code, so on iOS it is built into the app. GitHub does the
+compiling; you only pick the mods:
+
+1. On github.com (Safari works), open this repository's **Actions** tab, pick **ios**, then
+   **Run workflow**. In **Native mods to build in**, type the mods' ids separated by spaces, for
+   example `wrench fps_overlay coords_hud`, and run it.
+2. An id is a folder of `native-mods/` in this repository (Starling's own, reviewed), or a native
+   mod of Horizon's registry for Minecraft 26.3: its file's name without the version, so
+   `fps_overlay` for `fps_overlay-2.0.0.hnmod`. `python3 tools/ios_native_mods.py list INDEX` lists
+   every one, with the registry's `index.json`
+   (https://horizon-rust.github.io/horizon-mods/index.json) as INDEX.
+3. The run checks each mod first (an unknown id stops it within a minute), downloads it from the
+   registry's own GitHub releases and checks its size and SHA-256, applies it to Starling's source
+   the way Starling's own Android mod builds do (horizon-mixins, `packaging/ios/native_stage.sh`),
+   compiles the app, and starts it once in the iOS Simulator with the mods in. It takes about as long
+   as a normal build.
+4. Download the artifact `starling-ios-<number>-native-mods` from the run's page and sideload the
+   `.ipa` over Starling: it is the same app, so your worlds, settings and accounts stay. Options >
+   Mods lists the mods that are in it; each turns off there like any other.
+
+To change the set of mods, build again with the new list and install that over it. A build without
+mods (the normal one) takes them all out again.
+
+What can go wrong: registry mods are written for Horizon, and Starling is a different branch of
+the same game. Most apply as they are (the build adapts the ones made before Horizon split its
+client into crates), but one that hooks or calls something Starling changed fails the build, and
+the run's log names the mod's file. Build again without that mod.
+
+Native mods are not sandboxed: their code runs with the app's full access. Only the registry's
+reviewed mods and this repository's `native-mods/` can be built in.
 
 ## Device checklist
 

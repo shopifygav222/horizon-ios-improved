@@ -22,14 +22,16 @@ pub const NOT_BUILT: &str = "Installed, not built into this game: build the game
 pub const NOT_BUILT: &str =
     "Installed, not in this game yet: Compile builds the game with it on Starling's build server.";
 /// [`NOT_BUILT`] in the player's language, as the Mods page's tooltip says it.
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub const NOT_BUILT_TIP: &str = "horizon.mods.not_built_tip";
+#[cfg(target_os = "ios")]
+pub const NOT_BUILT_TIP: &str = "starling.mods.native.not_built_tip_ios";
 #[cfg(target_os = "android")]
 pub const NOT_BUILT_TIP: &str = "starling.mods.native.not_built_tip";
-/// iOS runs no code it did not ship with: a native mod is compiled into the app itself.
+/// iOS runs no code it did not ship with: a native mod is compiled into the app itself, by the
+/// iOS workflow run with its id (docs/ios.md).
 #[cfg(target_os = "ios")]
-pub const NOT_BUILT: &str =
-    "Installed, not in this game: on iOS a native mod is built into the app (Mods > Native mods).";
+pub const NOT_BUILT: &str = "Installed, not in this app: on iOS a native mod is compiled into the app. Build the app with its id (GitHub Actions, ios, Run workflow, native mods) and install that build over this one.";
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ModList {

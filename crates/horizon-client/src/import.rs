@@ -218,7 +218,12 @@ pub fn install(path: &Path, name: &str, places: &Places) -> Result<Installed, St
             let dir = places.game.join("horizon-native-mods");
             fs::create_dir_all(&dir).map_err(fail)?;
             copy_file(path, &dir.join(format!("{id}.hnmod"))).map_err(fail)?;
-            format!("Native mod \"{id}\" added: compile it in Options > Mods")
+            // iOS compiles a native mod into the app itself (docs/ios.md), not on the phone.
+            if cfg!(target_os = "ios") {
+                format!("Native mod \"{id}\" added: build the app with it (see Options > Mods)")
+            } else {
+                format!("Native mod \"{id}\" added: compile it in Options > Mods")
+            }
         }
         Kind::Resources => {
             install_resources(path, &prefix, &places.resources)?;

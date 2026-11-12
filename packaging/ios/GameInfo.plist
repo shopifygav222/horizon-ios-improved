@@ -46,6 +46,8 @@
 	<string>16.0</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Starling and Horizon are MIT licensed. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>A native mod built into this app asked to use the microphone.</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<!-- With UIFileSharingEnabled, this is what lists Documents under "On My iPhone" in the Files app:
