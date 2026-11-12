@@ -16,6 +16,35 @@ use objc2_ui_kit::{
 
 use super::app_state::{self, EventWrapper};
 use super::window::WinitUIWindow;
+
+/// Horizon's addition: the shape the window's content is presented at, `width << 16 | height`,
+/// or 0 for the window's own. The view is centred in the window at that shape (black around it),
+/// so its bounds, the Metal layer and the view-local touches all follow.
+pub(crate) static CONTENT_ASPECT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// The view's frame in a window of `bounds` for [`CONTENT_ASPECT`]: the largest rectangle of that
+/// shape (turned to the window's orientation) centred in it, on whole points.
+pub(crate) fn content_frame(bounds: CGRect) -> CGRect {
+    let packed = CONTENT_ASPECT.load(std::sync::atomic::Ordering::Relaxed);
+    let (w, h) = (f64::from(packed >> 16), f64::from(packed & 0xffff));
+    let (bw, bh) = (bounds.size.width as f64, bounds.size.height as f64);
+    if w == 0.0 || h == 0.0 || bw <= 0.0 || bh <= 0.0 {
+        return bounds;
+    }
+    let (aw, ah) = if (bw >= bh) == (w >= h) { (w, h) } else { (h, w) };
+    let scale = (bw / aw).min(bh / ah);
+    let (width, height) = ((aw * scale).floor(), (ah * scale).floor());
+    CGRect {
+        origin: CGPoint {
+            x: bounds.origin.x + ((bw - width) / 2.0).floor() as CGFloat,
+            y: bounds.origin.y + ((bh - height) / 2.0).floor() as CGFloat,
+        },
+        size: objc2_foundation::CGSize {
+            width: width as CGFloat,
+            height: height as CGFloat,
+        },
+    }
+}
 use crate::dpi::PhysicalPosition;
 use crate::event::{ElementState, Event, Force, KeyEvent, Touch, TouchPhase, WindowEvent};
 use crate::keyboard::{
@@ -80,9 +109,11 @@ declare_class!(
             // If the app is started in landscape, the view frame and window bounds can be mismatched.
             // The view frame will be in portrait and the window bounds in landscape. So apply the
             // window bounds to the view frame to make it consistent.
+            // Horizon: at the content aspect the game chose, letterboxed (CONTENT_ASPECT).
             let view_frame = self.frame();
-            if view_frame != window_bounds {
-                self.setFrame(window_bounds);
+            let wanted = content_frame(window_bounds);
+            if view_frame != wanted {
+                self.setFrame(wanted);
             }
 
             // Match Window::inner_size, the Metal layer, and view-local input.
