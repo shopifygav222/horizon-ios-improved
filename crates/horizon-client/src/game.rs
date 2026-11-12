@@ -8387,6 +8387,7 @@ impl Game<'_> {
                 );
             }
             self.draw_title_player(&mut batch);
+            self.draw_build_badge(&mut batch);
             // ScreenEvent.Render.Post over the title's own screens: a mod draws
             // over them here (a pack browser over Create New World, say), and the
             // toasts still come after, as over any screen.
@@ -17949,6 +17950,11 @@ impl Game<'_> {
                     }
                     self.release_title_player();
                 }
+                WindowEvent::MouseInput {
+                    state: ElementState::Pressed,
+                    button: MouseButton::Left,
+                    ..
+                } if self.build_badge_at(self.cursor) => self.press_build_badge(),
                 WindowEvent::MouseInput {
                     state: ElementState::Pressed,
                     button: MouseButton::Left,

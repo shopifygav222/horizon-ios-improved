@@ -32,8 +32,13 @@ to GitHub, to start builds and follow them.
 2. Back on the Mods page, its top says which native mods this app has, and that the ones turned
    on aren't all in it. The first time, copy your token and press **Paste GitHub token**; then
    press **Build on GitHub**.
-3. Keep playing. The page follows the build (about 30 to 60 minutes), then downloads it with the
-   same token and says when it is ready. **See the build** opens it on GitHub.
+3. Keep playing. The game follows the build (about 30 to 60 minutes), then downloads it with the
+   same token. When it is ready (or if it failed) a toast says so wherever you are, and the title
+   screen shows a line under the account button until you install or dismiss it; tapping it
+   opens the Mods page. If the app was closed when the build finished, it catches up the next
+   time it starts. **See the build** opens it on GitHub. (GitHub can also tell you on your phone:
+   github.com > Settings > Notifications > Actions, untick "Only notify for failed workflows", and
+   the GitHub app notifies when your build finishes.)
 4. Press **Install...**: the share sheet opens with the .ipa; pick **SideStore**, **AltStore**,
    **LiveContainer** or the app you sideload with (**Save to Files** keeps a copy instead). It
    installs over Starling: the same app, so worlds, settings and accounts stay. Options > Mods
@@ -41,7 +46,18 @@ to GitHub, to start builds and follow them.
    The downloaded .ipa is deleted once the new app runs, or when you press Dismiss.
 
 A build has every native mod turned on in the folder, and keeps the mods this app already has that
-are still on. To take mods out for good, turn them off and build again.
+are still on. A mod turned off stops at once; the Mods page then offers a build without it, which
+takes it out of the app. With every native mod off, the normal Starling build has none.
+
+## Installed packs and mods
+
+Each catalog shelf (Mods, Resource packs, Shader packs) has an **Installed** button: it lists
+everything in that shelf's folders, whether it came from the catalog, the Files app or an import,
+with its size and where it came from, and the search box narrows it. **Remove** asks first, then
+deletes it (through the catalog when the catalog installed it, so its list stays right). A
+removed resource pack or shader pack leaves its page at once; a removed content mod leaves when
+the game next starts; a removed native mod also turns off. A native mod compiled into the app has
+no file to delete: its row has **Turn off** instead.
 
 **Without the game:** open this repository's **Actions** tab, pick **ios**, then **Run workflow**,
 and type the mods' ids in **Native mods to build in** (`wrench fps_overlay coords_hud`). An id is a

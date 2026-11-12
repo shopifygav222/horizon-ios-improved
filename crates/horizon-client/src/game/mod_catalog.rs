@@ -3,6 +3,10 @@
 //! shelf. Searching, checking and installing are the desktop launcher's mod browser (the
 //! `starling-catalog` crate); this is its screen. The list's pages and the finger on it are
 //! `starling_catalog::list`, where they have tests.
+//!
+//! Its Installed view lists everything in the shelf's folders, whatever put it there (the
+//! catalog, the Files app, an import), with Remove; a native mod compiled into the app (iOS) is
+//! listed too, and turns off instead.
 use super::Game;
 #[cfg(target_os = "android")]
 use super::native_builds::{density, wrapped};
@@ -104,6 +108,175 @@ enum Act {
     /// Answers the question: delete it, or leave it.
     ConfirmRemove,
     CancelRemove,
+    /// Shows what is installed on the shelf, or the catalog again.
+    Installed,
+    /// Asks to remove the Installed view's row.
+    RemoveLocal(usize),
+    /// Turns off the Installed view's row: a native mod compiled into the app.
+    TurnOff(usize),
+}
+
+/// Something in a shelf's folders, as the Installed view lists it.
+#[derive(Clone, Debug, PartialEq)]
+struct Local {
+    /// Its path from the game folder (`resourcepacks/Faithful.zip`); empty for a native mod
+    /// compiled into the app, which has no file here.
+    file: String,
+    title: String,
+    about: String,
+    /// The catalog's record of it, when the catalog installed it: removed through the catalog,
+    /// whose list stays true.
+    entry: Option<Entry>,
+    /// The mod's id, for the Mods page and its list of what is on.
+    mod_id: Option<String>,
+    /// A native mod: on until turned off, and part of the next build on iOS.
+    native: bool,
+}
+
+/// The native mods compiled into this app (iOS), by id and version.
+#[cfg(target_os = "ios")]
+fn built_in_mods() -> Vec<(String, String)> {
+    super::native_builds_ios::built_mods()
+}
+#[cfg(not(target_os = "ios"))]
+fn built_in_mods() -> Vec<(String, String)> {
+    Vec::new()
+}
+
+/// A size in words.
+fn size_words(bytes: u64) -> String {
+    match bytes {
+        0..1_000_000 => format!("{} KB", bytes.div_ceil(1000).max(1)),
+        _ => format!("{:.1} MB", bytes as f64 / 1_000_000.0),
+    }
+}
+
+/// Whether `name` is something the player put in a shelf's folder, not a file of the game's own
+/// (hidden ones, a shader pack's saved options, the catalog's bookkeeping).
+fn listed_name(name: &str) -> bool {
+    !name.starts_with('.') && !name.ends_with(".txt") && !name.ends_with(".partial")
+}
+
+/// What the shelf's folders in the game folder `home` hold, by title.
+fn local_items(home: &std::path::Path, shelf: Shelf) -> Vec<Local> {
+    use horizon_client::mod_list::{DIR, NATIVE_DIR};
+    let catalog = starling_catalog::browser::installed::Installed::load(home).entries;
+    let folders: &[&str] = match shelf {
+        Shelf::Mods => &[DIR, NATIVE_DIR],
+        Shelf::ResourcePacks => &["resourcepacks"],
+        Shelf::ShaderPacks => &["shaderpacks"],
+    };
+    let mut items = Vec::new();
+    for folder in folders {
+        let Ok(dir) = std::fs::read_dir(home.join(folder)) else {
+            continue;
+        };
+        for child in dir.flatten() {
+            let name = child.file_name().to_string_lossy().into_owned();
+            let Ok(meta) = std::fs::symlink_metadata(child.path()) else {
+                continue;
+            };
+            if !listed_name(&name) || meta.file_type().is_symlink() {
+                continue;
+            }
+            let file = format!("{folder}/{name}");
+            let entry = catalog.iter().find(|e| e.file == file).cloned();
+            let path = child.path();
+            let mut title = entry.as_ref().map_or_else(
+                || {
+                    path.file_stem()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned()
+                },
+                |e| e.title.clone(),
+            );
+            let mut mod_id = None;
+            let mut native = false;
+            if *folder == NATIVE_DIR {
+                let Some(bundle) = name
+                    .ends_with(".hnmod")
+                    .then(|| horizon_mods::index::native::Bundle::read(&path).ok())
+                    .flatten()
+                else {
+                    continue;
+                };
+                if entry.is_none() {
+                    title = format!("{} {}", bundle.manifest.id, bundle.manifest.version);
+                }
+                mod_id = Some(bundle.manifest.id);
+                native = true;
+            } else if *folder == DIR {
+                match horizon_mods::Package::read(&path) {
+                    Ok(package) => {
+                        if entry.is_none() {
+                            title = format!("{} {}", package.manifest.name, package.manifest.version);
+                        }
+                        mod_id = Some(package.manifest.id);
+                    }
+                    Err(_) => mod_id = Some(title.clone()),
+                }
+            }
+            let what = match (meta.is_dir(), native) {
+                (_, true) => "Native mod".to_owned(),
+                (true, false) => "Folder".to_owned(),
+                (false, false) => size_words(meta.len()),
+            };
+            let from = if entry.is_some() {
+                "from the catalog"
+            } else {
+                "added by you"
+            };
+            items.push(Local {
+                file,
+                title,
+                about: format!("{what}, {from}."),
+                entry,
+                mod_id,
+                native,
+            });
+        }
+    }
+    if shelf == Shelf::Mods {
+        for (id, version) in built_in_mods() {
+            let listed = items
+                .iter()
+                .any(|i| i.native && i.mod_id.as_deref() == Some(id.as_str()));
+            if !listed {
+                items.push(Local {
+                    file: String::new(),
+                    title: format!("{id} {version}"),
+                    about: "Native mod compiled into this app. Turning it off stops it now; \
+                            the next build without it takes it out."
+                        .to_owned(),
+                    entry: None,
+                    mod_id: Some(id),
+                    native: true,
+                });
+            }
+        }
+    }
+    items.sort_by_key(|i| i.title.to_lowercase());
+    items
+}
+
+/// Deletes `file` (a shelf's file or folder, from the game folder `home`): only a plain name
+/// under one of the folders the Installed view reads, never through a link.
+fn delete_local(home: &std::path::Path, file: &str) -> Result<(), String> {
+    use horizon_client::mod_list::{DIR, NATIVE_DIR};
+    let (folder, name) = file.split_once('/').ok_or("not a shelf's file")?;
+    let known = [DIR, NATIVE_DIR, "resourcepacks", "shaderpacks"];
+    if !known.contains(&folder) || name.is_empty() || name.contains(['/', '\\']) || name == ".." {
+        return Err(format!("{file} is not a shelf's file"));
+    }
+    let path = home.join(folder).join(name);
+    let meta = std::fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+    if meta.is_dir() {
+        std::fs::remove_dir_all(&path)
+    } else {
+        std::fs::remove_file(&path)
+    }
+    .map_err(|e| e.to_string())
 }
 
 #[derive(Default)]
@@ -134,6 +307,11 @@ pub(super) struct Catalog {
     checked_at: Option<Instant>,
     /// The project the player was asked about removing: nothing else takes a touch meanwhile.
     removing: Option<Project>,
+    /// The Installed view instead of the catalog, its rows (the search narrows them), and the
+    /// row the player was asked about removing.
+    view_installed: bool,
+    local: Vec<Local>,
+    removing_local: Option<Local>,
     /// What the last install said, and whether it failed.
     notice: Option<(String, bool)>,
     shared: Arc<Mutex<Shared>>,
@@ -451,6 +629,80 @@ fn draw_list(
     }
 }
 
+/// The Installed view's rows that match the search.
+fn shown_local(card: &Catalog) -> Vec<&Local> {
+    let query = card.query.trim().to_lowercase();
+    card.local
+        .iter()
+        .filter(|item| query.is_empty() || item.title.to_lowercase().contains(&query))
+        .collect()
+}
+
+/// The Installed view: each thing in the shelf's folders, with Remove (or Turn off).
+fn draw_local_list(ui: &mut Ui<'_>, card: &Catalog, edge: f32, drawn: &mut Vec<([f32; 4], Act)>) {
+    let (top, bottom) = (HEAD_H, ui.h - FOOT_H);
+    let row_w = edge - MARGIN;
+    let text_w = row_w - ROW_BUTTON_W - 44.0;
+    let rows = shown_local(card);
+    let scrolled = card.list.offset;
+    for i in list::rows_shown(scrolled, bottom - top, ROW_H, rows.len()) {
+        let item = rows[i];
+        let y = top + i as f32 * ROW_H - scrolled;
+        let row = ROW_H - ROW_GAP;
+        ui.rounded(MARGIN, y, row_w, row, 12.0, color::RAISED);
+        let title = fitted(ui, Face::Semibold, TITLE_TEXT, text_w, &item.title);
+        ui.text(
+            Face::Semibold,
+            TITLE_TEXT,
+            MARGIN + 14.0,
+            y + 8.0,
+            color::TEXT,
+            &title,
+        );
+        let mut line_y = y + 46.0;
+        for line in fitted_lines(ui, Face::Regular, BODY_TEXT, text_w, 2, &item.about) {
+            ui.text(
+                Face::Regular,
+                BODY_TEXT,
+                MARGIN + 14.0,
+                line_y,
+                color::MUTED,
+                &line,
+            );
+            line_y += BODY_LINE;
+        }
+        let rect = [
+            MARGIN + row_w - ROW_BUTTON_W - 16.0,
+            y + (row - ROW_BUTTON_H) / 2.0,
+            ROW_BUTTON_W,
+            ROW_BUTTON_H,
+        ];
+        let index = card.local.iter().position(|l| l == item).unwrap_or(i);
+        let (word, act) = if item.file.is_empty() {
+            ("Turn off", Act::TurnOff(index))
+        } else {
+            ("Remove", Act::RemoveLocal(index))
+        };
+        plate(ui, rect, word, false);
+        if let Some(part) = list::shown_part(rect, top, bottom) {
+            drawn.push((part, act));
+        }
+    }
+    let y = top + content_h(rows.len()) - END_H - scrolled;
+    if y >= bottom {
+        return;
+    }
+    let line = if !rows.is_empty() {
+        "That's everything installed here."
+    } else if card.local.is_empty() {
+        "Nothing installed here yet."
+    } else {
+        "Nothing installed matches."
+    };
+    let line_y = y + (END_H - BODY_LINE) / 2.0;
+    ui.text(Face::Regular, BODY_TEXT, MARGIN + 14.0, line_y, color::MUTED, line);
+}
+
 /// The title, Close, the three shelves and the search box.
 fn draw_head(ui: &mut Ui<'_>, card: &Catalog, edge: f32, drawn: &mut Vec<([f32; 4], Act)>) {
     ui.text_line(
@@ -468,6 +720,15 @@ fn draw_head(ui: &mut Ui<'_>, card: &Catalog, edge: f32, drawn: &mut Vec<([f32; 
         "Close",
         false,
         Act::Close,
+        drawn,
+    );
+    let installed_w = ui.measure(Face::Semibold, BUTTON_TEXT, "Installed") + 44.0;
+    button(
+        ui,
+        [edge - 138.0 - installed_w, 8.0, installed_w, 62.0],
+        "Installed",
+        card.view_installed,
+        Act::Installed,
         drawn,
     );
 
@@ -505,8 +766,13 @@ fn draw_head(ui: &mut Ui<'_>, card: &Catalog, edge: f32, drawn: &mut Vec<([f32; 
             color::ACCENT,
         );
     }
+    let hint = if card.view_installed {
+        "Search what's installed..."
+    } else {
+        "Search..."
+    };
     let (typed, ink) = if card.query.is_empty() && !card.typing {
-        ("Search...", color::MUTED)
+        (hint, color::MUTED)
     } else {
         (card.query.as_str(), color::TEXT)
     };
@@ -553,7 +819,7 @@ fn draw_foot(
 ) {
     let foot = ui.h - FOOT_H + 7.0;
     let mut right = edge;
-    if card.shelf == Shelf::ResourcePacks {
+    if card.shelf == Shelf::ResourcePacks && !card.view_installed {
         let name = if card.everything {
             "Other game versions: On"
         } else {
@@ -612,17 +878,88 @@ impl Game<'_> {
         if !card.shown {
             return false;
         }
-        if card.removing.take().is_none() {
+        if card.removing.take().is_none() && card.removing_local.take().is_none() {
             card.shown = false;
             card.typing = false;
         }
         true
     }
 
-    /// Which rows say Installed: those whose file is in the game folder right now.
+    /// Which rows say Installed: those whose file is in the game folder right now, and what the
+    /// Installed view lists.
     fn refresh_installed(&mut self) {
-        self.catalog.installed = starling_catalog::installed_projects(&Self::game_dir());
+        let home = Self::game_dir();
+        self.catalog.installed = starling_catalog::installed_projects(&home);
+        if self.catalog.view_installed {
+            self.catalog.local = local_items(&home, self.catalog.shelf);
+        }
         self.catalog.checked_at = Some(Instant::now());
+    }
+
+    /// Removes what the player agreed to remove from the Installed view: through the catalog when
+    /// it installed it, else the file itself. A native mod also turns off, so one compiled into
+    /// the app stops too and leaves with its next build.
+    fn remove_local(&mut self, item: Local) {
+        let busy = self
+            .catalog
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .installing
+            .is_some();
+        if busy {
+            self.catalog.notice = Some(("Wait for the install to finish first.".to_owned(), true));
+            return;
+        }
+        let home = Self::game_dir();
+        let removed = match &item.entry {
+            Some(entry) => starling_catalog::browser::installed::remove(&home, &entry.project)
+                .map(|_| ()),
+            None => delete_local(&home, &item.file),
+        };
+        if let Err(e) = removed {
+            self.catalog.notice = Some((remove_failed(&item.title, &e), true));
+            self.refresh_installed();
+            return;
+        }
+        let mut said = format!("{} was removed.", item.title);
+        match self.catalog.shelf {
+            Shelf::Mods => {
+                if item.native
+                    && let Some(id) = &item.mod_id
+                {
+                    self.settings.mods.disabled.insert(id.clone());
+                    self.settings.mods.save(&Self::game_dir());
+                } else {
+                    said.push_str(" It's gone the next time the game starts.");
+                }
+                self.refresh_mods_page(item.mod_id.as_deref());
+            }
+            Shelf::ResourcePacks => {
+                let infos =
+                    super::packs::pack_infos(&self.vanilla_root(), &self.server_packs.active);
+                self.ui.options.update_pack_infos(infos);
+            }
+            Shelf::ShaderPacks => self.after_shader_pack_removed(&item.file),
+        }
+        self.catalog.notice = Some((said, false));
+        self.refresh_installed();
+    }
+
+    /// The Installed view's Turn off: a native mod compiled into the app stops now, and the
+    /// Mods page offers the build without it.
+    fn turn_off_local(&mut self, item: &Local) {
+        let Some(id) = &item.mod_id else {
+            return;
+        };
+        self.settings.mods.disabled.insert(id.clone());
+        self.settings.mods.save(&Self::game_dir());
+        self.refresh_mods_page(None);
+        self.catalog.notice = Some((
+            format!("{} is off. It stays in the app until a build without it.", item.title),
+            false,
+        ));
+        self.refresh_installed();
     }
 
     /// While the screen is open, looks again now and then: a file the player deleted by hand
@@ -747,9 +1084,13 @@ impl Game<'_> {
     }
 
     /// A new list for the shelf and search as they are: back to the top, its first page asked for.
+    /// The Installed view's is read from the folders, and the search narrows it here.
     fn catalog_search(&mut self) {
         self.refresh_installed();
         self.catalog.list.reset();
+        if self.catalog.view_installed {
+            return;
+        }
         let ask = self
             .catalog
             .shared
@@ -794,14 +1135,17 @@ impl Game<'_> {
     fn catalog_list_size(&self) -> (f32, f32) {
         let [w, h] = self.touch_size();
         let view = h as f32 / density(w as f32, h as f32) - HEAD_H - FOOT_H;
-        let rows = self
-            .catalog
-            .shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .feed
-            .rows()
-            .len();
+        let rows = if self.catalog.view_installed {
+            shown_local(&self.catalog).len()
+        } else {
+            self.catalog
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .feed
+                .rows()
+                .len()
+        };
         (view, content_h(rows))
     }
 
@@ -810,7 +1154,7 @@ impl Game<'_> {
         let (view, content) = self.catalog_list_size();
         let card = &mut self.catalog;
         card.list.clamp(content - view);
-        if !list::near_end(card.list.offset, view, content, NEAR_END) {
+        if card.view_installed || !list::near_end(card.list.offset, view, content, NEAR_END) {
             return;
         }
         let ask = card
@@ -940,7 +1284,11 @@ impl Game<'_> {
         let edge = w - MARGIN - if card.typing { w * NAV_BAR_SHARE } else { 0.0 };
         let mut drawn = Vec::new();
         ui.fill(0.0, 0.0, w, h, color::BG);
-        draw_list(&mut ui, card, &shared, edge, &mut drawn);
+        if card.view_installed {
+            draw_local_list(&mut ui, card, edge, &mut drawn);
+        } else {
+            draw_list(&mut ui, card, &shared, edge, &mut drawn);
+        }
         // The rows go under these two.
         ui.fill(0.0, 0.0, w, HEAD_H, color::BG);
         ui.fill(0.0, h - FOOT_H, w, FOOT_H, color::BG);
@@ -948,6 +1296,8 @@ impl Game<'_> {
         draw_foot(&mut ui, card, &shared, edge, &mut drawn);
         if let Some(project) = &card.removing {
             draw_confirm(&mut ui, &project.title, &mut drawn);
+        } else if let Some(item) = &card.removing_local {
+            draw_confirm(&mut ui, &item.title, &mut drawn);
         }
         ui.finish();
         *card.buttons.borrow_mut() = drawn;
@@ -1034,9 +1384,25 @@ impl Game<'_> {
             Act::ConfirmRemove => {
                 if let Some(project) = card.removing.take() {
                     self.catalog_remove(project);
+                } else if let Some(item) = card.removing_local.take() {
+                    self.remove_local(item);
                 }
             }
-            Act::CancelRemove => card.removing = None,
+            Act::CancelRemove => {
+                card.removing = None;
+                card.removing_local = None;
+            }
+            Act::Installed => {
+                card.view_installed = !card.view_installed;
+                card.notice = None;
+                self.catalog_search();
+            }
+            Act::RemoveLocal(index) => card.removing_local = card.local.get(index).cloned(),
+            Act::TurnOff(index) => {
+                if let Some(item) = card.local.get(index).cloned() {
+                    self.turn_off_local(&item);
+                }
+            }
         }
         true
     }

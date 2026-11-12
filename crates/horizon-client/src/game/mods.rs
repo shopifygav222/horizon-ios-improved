@@ -499,6 +499,16 @@ impl Game<'_> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub(super) fn native_game_button(&mut self, _act: mod_list::NativeGameAct) {}
 
+    /// iOS: the title screen's line about a native mods build (game/native_builds_ios.rs).
+    #[cfg(not(target_os = "ios"))]
+    pub(super) fn draw_build_badge(&self, _batch: &mut horizon_client::hud::HudBatch) {}
+    #[cfg(not(target_os = "ios"))]
+    pub(super) fn build_badge_at(&self, _cursor: (f32, f32)) -> bool {
+        false
+    }
+    #[cfg(not(target_os = "ios"))]
+    pub(super) fn press_build_badge(&mut self) {}
+
     /// A native mod the catalog just put in the folder: its row on the Mods page, with Compile.
     #[cfg(target_os = "android")]
     pub(super) fn list_new_native_mods(&mut self) {

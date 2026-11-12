@@ -10,8 +10,14 @@
 //! repository, kept in the Keychain) starts the workflow, the build is followed while they play,
 //! and the finished .ipa is downloaded with the same token and handed to the share sheet
 //! (SideStore, AltStore, LiveContainer or any other signer), or saved to Files.
+//!
+//! A build that ends says so in a toast wherever the player is, and the title screen keeps a
+//! line about it under the account button until it is installed or dismissed, which opens the
+//! Mods page. One that ended while the app was closed is caught up with at the next start.
 use super::Game;
+use horizon_client::hud::HudBatch;
 use horizon_client::mod_list::{NOT_BUILT, NativeGame, NativeGameAct, NativePage};
+use horizon_client::{options_ui::Page, text::Text, toasts::SystemToast, ui};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -67,6 +73,8 @@ struct Shared {
     progress: String,
     /// A message for the player (and whether it is a warning), until the next action.
     message: Option<(String, bool)>,
+    /// A toast to show once: the build ended (its title and line).
+    announce: Option<(String, String)>,
     /// A thread follows the build.
     following: bool,
     /// Bumped on every change, so the page is redrawn once per change.
@@ -114,6 +122,14 @@ fn save_pending(pending: Option<&Pending>) {
 fn load_pending() -> Option<Pending> {
     let text = std::fs::read_to_string(pending_path()).ok()?;
     serde_json::from_str(&text).ok()
+}
+
+/// The toast of a build ready to install.
+fn ready_toast() -> (String, String) {
+    (
+        "Native mods build ready".to_owned(),
+        "Install it from Options > Mods".to_owned(),
+    )
 }
 
 fn builds_dir() -> std::path::PathBuf {
@@ -282,6 +298,10 @@ fn follow(shared: Arc<Mutex<Shared>>, start: bool) {
                 p.failed = Some(why.clone());
             }
             s.following = false;
+            s.announce = Some((
+                "Native mods build failed".to_owned(),
+                "See why in Options > Mods".to_owned(),
+            ));
         })
     };
     let Some(token) = token() else {
@@ -326,6 +346,7 @@ fn follow(shared: Arc<Mutex<Shared>>, start: bool) {
                                 p.ipa = Some(ipa.to_string_lossy().into_owned());
                             }
                             s.following = false;
+                            s.announce = Some(ready_toast());
                         });
                     }
                     Err(why) => set(&|s| {
@@ -622,13 +643,29 @@ impl Game<'_> {
         let building = pending
             .as_ref()
             .is_some_and(|p| p.failed.is_none() && p.ipa.is_none());
-        if missing && !building {
+        let leftover: Vec<String> = have.iter().filter(|id| !build.contains(*id)).cloned().collect();
+        if (missing || !leftover.is_empty()) && !building && build.is_empty() {
             game.lines.push((
-                format!(
-                    "The native mods turned on aren't all in this app. On iOS they are compiled \
-                     into it: GitHub builds it with {} (about 30 to 60 minutes).",
-                    mods_label(&build)
-                ),
+                "Every native mod is off, so none of them runs. Installing the normal Starling \
+                 build takes them out of the app."
+                    .to_owned(),
+                false,
+            ));
+        } else if (missing || !leftover.is_empty()) && !building {
+            game.lines.push((
+                if missing {
+                    format!(
+                        "The native mods turned on aren't all in this app. On iOS they are \
+                         compiled into it: GitHub builds it with {} (about 30 to 60 minutes).",
+                        mods_label(&build)
+                    )
+                } else {
+                    format!(
+                        "{} is off but still in this app: a build with {} takes it out.",
+                        mods_label(&leftover),
+                        mods_label(&build)
+                    )
+                },
                 false,
             ));
             if token().is_some() {
@@ -792,6 +829,49 @@ impl Game<'_> {
         not_built
     }
 
+    /// The title screen's line about a build, and where it is: under the account button, on the
+    /// title's main page. None without a build to tell about.
+    fn build_badge(&self) -> Option<(Text, [f32; 4])> {
+        let on_title = self
+            .title
+            .as_ref()
+            .is_some_and(|t| matches!(t.mode, horizon_client::title::Mode::Main))
+            && !matches!(self.screen, super::Screen::Options | super::Screen::Win);
+        if !on_title {
+            return None;
+        }
+        let state = shared(&self.native_builds);
+        let p = state.pending.as_ref()?;
+        let text = if p.failed.is_some() {
+            "Native mods build failed: see why"
+        } else if p.ipa.is_some() {
+            "Native mods build ready: install"
+        } else {
+            "Native mods: building..."
+        };
+        let width = (HudBatch::text_width(&self.gui.atlas, text) + 16.0).ceil();
+        Some((Text::literal(text.to_owned()), [4.0, 28.0, width, 20.0]))
+    }
+
+    pub(super) fn draw_build_badge(&self, batch: &mut HudBatch) {
+        let Some((label, [x, y, w, h])) = self.build_badge() else {
+            return;
+        };
+        let hover = ui::hovered(self.cursor, x, y, w, h);
+        ui::button(batch, &self.gui.atlas, x, y, w, h, &label, true, hover);
+    }
+
+    pub(super) fn build_badge_at(&self, cursor: (f32, f32)) -> bool {
+        self.build_badge()
+            .is_some_and(|(_, [x, y, w, h])| ui::hovered(cursor, x, y, w, h))
+    }
+
+    /// The badge opens the Mods page, whose top has the build.
+    pub(super) fn press_build_badge(&mut self) {
+        self.audio.play_button_click();
+        self.open_options_at(true, Page::Mods);
+    }
+
     /// Every frame: the build asked for before the app last closed is followed again, and the
     /// page's top is redrawn when the build moved on.
     pub(super) fn poll_native_builds(&mut self) {
@@ -817,10 +897,13 @@ impl Game<'_> {
             let follow_it = pending
                 .as_ref()
                 .is_some_and(|p| p.failed.is_none() && p.ipa.is_none());
+            // A build that waits to be installed says so again at each start.
+            let waiting = pending.as_ref().is_some_and(|p| p.ipa.is_some());
             {
                 let mut state = shared(&self.native_builds);
                 state.pending = pending;
                 state.following = follow_it;
+                state.announce = waiting.then(ready_toast);
                 state.changes += 1;
             }
             if follow_it {
@@ -829,6 +912,11 @@ impl Game<'_> {
                     .name("native build".into())
                     .spawn(move || follow(shared_state, false));
             }
+        }
+        let announce = shared(&self.native_builds).announce.take();
+        if let Some((title, line)) = announce {
+            self.server_packs.notice =
+                Some(SystemToast::new(title, Some(line)).with_display_time(10_000.0));
         }
         let changes = shared(&self.native_builds).changes;
         if changes != self.native_builds.shown {
