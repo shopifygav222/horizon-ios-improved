@@ -74,6 +74,8 @@ CHANGED = (
         r"d\.custom_name = Some\(bc::ITEM_NAME\.to_owned\(\)\);",
         "d.custom_name = Some(horizon_world::nbt::Tag::String(bc::ITEM_NAME.into()));",
     ),
+    # Newer Horizon keeps the block textures' pixels behind `get()`; here they are the Vec itself.
+    (r"\brender\.pixels\.get\(\)", "&render.pixels[..]"),
 )
 
 
