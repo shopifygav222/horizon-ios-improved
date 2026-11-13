@@ -60,7 +60,9 @@ pub fn sweep(remote: Remote<'_>, current: GenId) -> Result<Swept> {
         return Ok(Swept::default());
     }
     if !all.contains(&current) {
-        return Err(Error::Store("the storage doesn't list the world's newest copy: nothing is removed".into()));
+        return Err(Error::Store(
+            "the storage doesn't list the world's newest copy: nothing is removed".into(),
+        ));
     }
     let keep = kept(&all, current);
     // Every pack a kept generation points into. A manifest that can't be read ends the sweep
@@ -124,7 +126,10 @@ mod tests {
     #[test]
     fn a_sweep_removes_what_nothing_kept_points_into() {
         let store = MemoryStore::new();
-        let remote = Remote { store: &store, prefix: PREFIX };
+        let remote = Remote {
+            store: &store,
+            prefix: PREFIX,
+        };
         let world = Scratch::new("sweep");
         let mut index = LocalIndex::default();
         let mut previous = None;
@@ -136,17 +141,45 @@ mod tests {
             index.scanned = 0;
             let day = 20261001 + (seq - 1) / 30;
             let gen_id = GenId { epoch: 1, seq, day };
-            previous = Some(publish_world(&store, &world, &mut index, previous.as_ref(), gen_id));
+            previous = Some(publish_world(
+                &store,
+                &world,
+                &mut index,
+                previous.as_ref(),
+                gen_id,
+            ));
         }
         let newest = previous.unwrap();
         // An upload under way: a pack newer than the current copy, in no manifest yet.
-        let in_flight = remote.key(&GenId { epoch: 1, seq: total + 1, day: 0 }.pack_name(0));
-        store.put(&in_flight, b"being uploaded", &crate::store::Condition::Always).unwrap();
+        let in_flight = remote.key(
+            &GenId {
+                epoch: 1,
+                seq: total + 1,
+                day: 0,
+            }
+            .pack_name(0),
+        );
+        store
+            .put(
+                &in_flight,
+                b"being uploaded",
+                &crate::store::Condition::Always,
+            )
+            .unwrap();
         let before = generations(remote).unwrap().len();
         assert_eq!(before, total as usize);
         let swept = sweep(remote, newest.id).unwrap();
         let after = generations(remote).unwrap();
-        let keep = kept(&(1..=total).map(|s| GenId { epoch: 1, seq: s, day: 20261001 + (s - 1) / 30 }).collect::<Vec<_>>(), newest.id);
+        let keep = kept(
+            &(1..=total)
+                .map(|s| GenId {
+                    epoch: 1,
+                    seq: s,
+                    day: 20261001 + (s - 1) / 30,
+                })
+                .collect::<Vec<_>>(),
+            newest.id,
+        );
         assert_eq!(after.iter().copied().collect::<BTreeSet<_>>(), keep);
         assert_eq!(swept.manifests, before - keep.len());
         assert!(swept.packs > 0 && swept.bytes > 0);
@@ -159,7 +192,10 @@ mod tests {
                 }
             }
         }
-        assert!(store.get(&in_flight).unwrap().is_some(), "an upload under way is left alone");
+        assert!(
+            store.get(&in_flight).unwrap().is_some(),
+            "an upload under way is left alone"
+        );
         // Nothing more to remove.
         assert_eq!(sweep(remote, newest.id).unwrap(), Swept::default());
     }
@@ -167,7 +203,10 @@ mod tests {
     #[test]
     fn a_manifest_that_cant_be_read_stops_the_sweep_before_it_removes_anything() {
         let store = MemoryStore::new();
-        let remote = Remote { store: &store, prefix: PREFIX };
+        let remote = Remote {
+            store: &store,
+            prefix: PREFIX,
+        };
         let world = Scratch::new("sweepstop");
         let mut index = LocalIndex::default();
         let mut previous = None;
@@ -175,17 +214,40 @@ mod tests {
         for seq in 1..=total {
             world.write("level.dat", format!("copy {seq}").as_bytes());
             index.scanned = 0;
-            let gen_id = GenId { epoch: 1, seq, day: 20261001 };
-            previous = Some(publish_world(&store, &world, &mut index, previous.as_ref(), gen_id));
+            let gen_id = GenId {
+                epoch: 1,
+                seq,
+                day: 20261001,
+            };
+            previous = Some(publish_world(
+                &store,
+                &world,
+                &mut index,
+                previous.as_ref(),
+                gen_id,
+            ));
         }
         let newest = previous.unwrap();
         let keys = store.keys();
-        let damaged = remote.key(&GenId { epoch: 1, seq: total - 1, day: 20261001 }.manifest_key());
-        store.put(&damaged, b"{", &crate::store::Condition::Always).unwrap();
+        let damaged = remote.key(
+            &GenId {
+                epoch: 1,
+                seq: total - 1,
+                day: 20261001,
+            }
+            .manifest_key(),
+        );
+        store
+            .put(&damaged, b"{", &crate::store::Condition::Always)
+            .unwrap();
         assert!(sweep(remote, newest.id).is_err());
         assert_eq!(store.keys(), keys);
         // And a current copy the storage doesn't list.
-        let missing = GenId { epoch: 9, seq: 1, day: 20261001 };
+        let missing = GenId {
+            epoch: 9,
+            seq: 1,
+            day: 20261001,
+        };
         assert!(sweep(remote, missing).is_err());
         assert_eq!(store.keys(), keys);
     }

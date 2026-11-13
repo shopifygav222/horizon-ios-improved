@@ -35,7 +35,9 @@ pub struct Layout {
 
 impl Layout {
     pub fn new(world: impl Into<PathBuf>) -> Self {
-        Self { world: world.into() }
+        Self {
+            world: world.into(),
+        }
     }
     fn work(&self) -> PathBuf {
         self.world.join(WORK)
@@ -119,7 +121,10 @@ pub fn download_size(target: &Manifest, index: &LocalIndex) -> (u64, usize) {
         let local = index.files.get(&file.path);
         if !same(file, local) {
             files += 1;
-            bytes += missing(file, local).iter().map(|i| block_len(file.size, *i)).sum::<u64>();
+            bytes += missing(file, local)
+                .iter()
+                .map(|i| block_len(file.size, *i))
+                .sum::<u64>();
         }
     }
     (bytes, files)
@@ -147,7 +152,11 @@ fn rebuild(
     if let Some(live) = live {
         fs::copy(live, temp)?;
     }
-    let mut out = OpenOptions::new().write(true).create(true).truncate(false).open(temp)?;
+    let mut out = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(temp)?;
     out.set_len(file.size)?;
     let mut at = 0;
     while at < blocks.len() {
@@ -220,7 +229,15 @@ pub fn fetch(
         let temp = fresh.join(&name);
         let live = under(&layout.world, &file.path);
         let live = local.is_some().then_some(live.as_path());
-        rebuild(remote, target, file, live, &missing(file, local), &temp, &mut count)?;
+        rebuild(
+            remote,
+            target,
+            file,
+            live,
+            &missing(file, local),
+            &temp,
+            &mut count,
+        )?;
         if !whole(file, &temp)? {
             // The blocks this device seemed to share were not the same after all: take all of
             // them from the storage.
@@ -354,7 +371,9 @@ pub fn recover(layout: &Layout) -> Result<bool> {
         && safe_path(&journal.generation)
         && !journal.generation.contains('/');
     if !named_well {
-        return Err(Error::Corrupt("the journal of an unfinished update names files outside the world".into()));
+        return Err(Error::Corrupt(
+            "the journal of an unfinished update names files outside the world".into(),
+        ));
     }
     finish(layout, &journal, &mut None)?;
     Ok(true)
@@ -365,7 +384,11 @@ fn prune_previous(layout: &Layout) {
     let Ok(entries) = fs::read_dir(layout.previous()) else {
         return;
     };
-    let mut sets: Vec<PathBuf> = entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+    let mut sets: Vec<PathBuf> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
     sets.sort();
     let extra = sets.len().saturating_sub(KEEP_PREVIOUS);
     for set in &sets[..extra] {
@@ -401,7 +424,16 @@ mod tests {
     fn fetch_into(store: &MemoryStore, target: &Manifest, world: &Scratch) -> Result<Fetched> {
         let layout = Layout::new(&world.0);
         let mut index = LocalIndex::load(&layout.index());
-        fetch(Remote { store, prefix: PREFIX }, target, &layout, &mut index, &mut go)
+        fetch(
+            Remote {
+                store,
+                prefix: PREFIX,
+            },
+            target,
+            &layout,
+            &mut index,
+            &mut go,
+        )
     }
 
     /// A host's world with two generations published: (store, host world, first, second).
@@ -411,7 +443,10 @@ mod tests {
         let mut region = bytes(11, BLOCK as usize * 6 + 300);
         host.write("level.dat", b"first");
         host.write("dimensions/minecraft/overworld/region/r.0.0.mca", &region);
-        host.write("dimensions/minecraft/overworld/region/r.0.1.mca", &bytes(12, 9000));
+        host.write(
+            "dimensions/minecraft/overworld/region/r.0.1.mca",
+            &bytes(12, 9000),
+        );
         host.write("players/data/aa.dat", b"alex");
         let mut index = LocalIndex::default();
         let first = publish_world(&store, &host, &mut index, None, id(1, 1));
@@ -435,18 +470,29 @@ mod tests {
         assert_eq!(fetched.downloaded, first.size());
         assert_eq!(Layout::new(&guest.0).load_base(), Some(first.clone()));
         // The same generation again: nothing to do.
-        assert_eq!(fetch_into(&store, &first, &guest).unwrap(), Fetched::default());
+        assert_eq!(
+            fetch_into(&store, &first, &guest).unwrap(),
+            Fetched::default()
+        );
         let calls = store.calls.load(std::sync::atomic::Ordering::SeqCst);
         let fetched = fetch_into(&store, &second, &guest).unwrap();
         assert_eq!(tree(&guest.0), tree(&host.0));
         assert_eq!((fetched.replaced, fetched.removed), (3, 1));
         // The region changed in one block and lost its tail; the level and a new player file.
         assert_eq!(fetched.downloaded, BLOCK + 50 + 14 + 5);
-        assert!(store.calls.load(std::sync::atomic::Ordering::SeqCst) - calls <= 4, "one request a run");
+        assert!(
+            store.calls.load(std::sync::atomic::Ordering::SeqCst) - calls <= 4,
+            "one request a run"
+        );
         // What was replaced is kept.
-        let kept = Layout::new(&guest.0).previous().join("0000000001-000002-20261113");
+        let kept = Layout::new(&guest.0)
+            .previous()
+            .join("0000000001-000002-20261113");
         assert_eq!(fs::read(kept.join("level.dat")).unwrap(), b"first");
-        assert!(kept.join("dimensions/minecraft/overworld/region/r.0.1.mca").is_file());
+        assert!(
+            kept.join("dimensions/minecraft/overworld/region/r.0.1.mca")
+                .is_file()
+        );
         assert_eq!(Layout::new(&guest.0).load_base(), Some(second));
     }
 
@@ -487,14 +533,22 @@ mod tests {
         let mut data = store.get(&pack).unwrap().unwrap().data;
         data[0] ^= 0x55;
         store.put(&pack, &data, &Condition::Always).unwrap();
-        assert!(matches!(fetch_into(&store, &second, &guest), Err(Error::Corrupt(_))));
+        assert!(matches!(
+            fetch_into(&store, &second, &guest),
+            Err(Error::Corrupt(_))
+        ));
         assert_eq!(tree(&guest.0), before);
         // And an unreachable storage, or a cancel: the same.
-        store.fail_before.store(1, std::sync::atomic::Ordering::SeqCst);
+        store
+            .fail_before
+            .store(1, std::sync::atomic::Ordering::SeqCst);
         assert!(fetch_into(&store, &second, &guest).is_err());
         let layout = Layout::new(&guest.0);
         let mut index = LocalIndex::load(&layout.index());
-        let remote = Remote { store: &store, prefix: PREFIX };
+        let remote = Remote {
+            store: &store,
+            prefix: PREFIX,
+        };
         let cancelled = fetch(remote, &second, &layout, &mut index, &mut |_, _| false);
         assert!(cancelled.is_err());
         assert_eq!(tree(&guest.0), before);
@@ -516,11 +570,19 @@ mod tests {
             rescan(&layout.world, &mut index).unwrap();
             let fresh = layout.fresh();
             fs::create_dir_all(&fresh).unwrap();
-            let remote = Remote { store: &store, prefix: PREFIX };
+            let remote = Remote {
+                store: &store,
+                prefix: PREFIX,
+            };
             let mut journal = Journal {
                 generation: "cut".into(),
                 replace: Vec::new(),
-                remove: index.files.keys().filter(|p| second.file(p).is_none()).cloned().collect(),
+                remove: index
+                    .files
+                    .keys()
+                    .filter(|p| second.file(p).is_none())
+                    .cloned()
+                    .collect(),
             };
             for file in &second.files {
                 let local = index.files.get(&file.path);
@@ -530,9 +592,20 @@ mod tests {
                 let name = format!("{:06}", journal.replace.len());
                 let live = under(&layout.world, &file.path);
                 let live = local.is_some().then_some(live.as_path());
-                rebuild(remote, &second, file, live, &missing(file, local), &fresh.join(&name), &mut |_| true)
-                    .unwrap();
-                journal.replace.push(Replace { path: file.path.clone(), temp: name });
+                rebuild(
+                    remote,
+                    &second,
+                    file,
+                    live,
+                    &missing(file, local),
+                    &fresh.join(&name),
+                    &mut |_| true,
+                )
+                .unwrap();
+                journal.replace.push(Replace {
+                    path: file.path.clone(),
+                    temp: name,
+                });
             }
             write_atomic(&layout.journal(), &serde_json::to_vec(&journal).unwrap()).unwrap();
             let cut = finish(&layout, &journal, &mut Some(budget));
@@ -540,16 +613,25 @@ mod tests {
                 finished_whole = true;
             } else {
                 assert!(matches!(cut, Err(Error::Cancelled)));
-                assert!(recover(&layout).unwrap(), "budget {budget}: the journal is found");
+                assert!(
+                    recover(&layout).unwrap(),
+                    "budget {budget}: the journal is found"
+                );
             }
             assert_eq!(tree(&guest.0), wanted, "budget {budget}");
-            assert!(!recover(&layout).unwrap(), "budget {budget}: nothing left to finish");
+            assert!(
+                !recover(&layout).unwrap(),
+                "budget {budget}: nothing left to finish"
+            );
             assert!(!layout.fresh().exists());
             if finished_whole {
                 break;
             }
         }
-        assert!(finished_whole, "the budget grew until the update ran through");
+        assert!(
+            finished_whole,
+            "the budget grew until the update ran through"
+        );
     }
 
     #[test]
@@ -592,6 +674,9 @@ mod tests {
             .map(|e| e.unwrap().file_name().into_string().unwrap())
             .collect();
         sets.sort();
-        assert_eq!(sets, ["0000000001-000004-20261113", "0000000001-000005-20261113"]);
+        assert_eq!(
+            sets,
+            ["0000000001-000004-20261113", "0000000001-000005-20261113"]
+        );
     }
 }

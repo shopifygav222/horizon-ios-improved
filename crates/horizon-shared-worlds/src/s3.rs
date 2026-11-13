@@ -64,7 +64,9 @@ fn encode(text: &str, path: bool) -> String {
     let mut out = String::with_capacity(text.len());
     for byte in text.bytes() {
         match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(byte as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char)
+            }
             b'/' if path => out.push('/'),
             _ => out.push_str(&format!("%{byte:02X}")),
         }
@@ -160,7 +162,11 @@ fn parse_listing(xml: &str) -> Result<(Vec<Listed>, Option<String>)> {
         let size = element(contents, "Size", 0).and_then(|(size, _)| size.trim().parse().ok());
         match (key, size) {
             (Some(key), Some(size)) => listed.push(Listed { key, size }),
-            _ => return Err(Error::Format("a listing entry without a key or size".into())),
+            _ => {
+                return Err(Error::Format(
+                    "a listing entry without a key or size".into(),
+                ));
+            }
         }
         at = next;
     }
@@ -188,11 +194,21 @@ impl S3Store {
             Some(("https", host)) => host,
             // A bucket on this machine (tests against a local server); anything else in clear
             // text would send the key over the network.
-            Some(("http", host)) if host.starts_with("127.0.0.1") || host.starts_with("localhost") => host,
-            _ => return Err(Error::Format("the storage address must start with https://".into())),
+            Some(("http", host))
+                if host.starts_with("127.0.0.1") || host.starts_with("localhost") =>
+            {
+                host
+            }
+            _ => {
+                return Err(Error::Format(
+                    "the storage address must start with https://".into(),
+                ));
+            }
         };
         if host.is_empty() || host.contains(['/', '?', '#', '@', ' ']) {
-            return Err(Error::Format("the storage address is a host name only".into()));
+            return Err(Error::Format(
+                "the storage address is a host name only".into(),
+            ));
         }
         for (what, value) in [
             ("bucket name", &config.bucket),
@@ -294,7 +310,9 @@ impl S3Store {
             return;
         };
         let skew = theirs.timestamp() - chrono::Utc::now().timestamp();
-        log::warn!("Shared worlds: this device's clock is {skew} s off the storage's; following the storage");
+        log::warn!(
+            "Shared worlds: this device's clock is {skew} s off the storage's; following the storage"
+        );
         self.skew.store(skew, Ordering::Relaxed);
     }
 
@@ -316,7 +334,9 @@ impl S3Store {
             }
             match self.send_once(method, key, query, extra, body) {
                 Ok(response) => return Ok(Ok(response)),
-                Err(Failure::Status(status, _)) if expected.contains(&status) => return Ok(Err(status)),
+                Err(Failure::Status(status, _)) if expected.contains(&status) => {
+                    return Ok(Err(status));
+                }
                 Err(Failure::Status(status, body)) => {
                     let skewed = status == 403 && body.contains("RequestTimeTooSkewed");
                     last = format!("{method} answered {status}: {}", summary(&body));
@@ -350,7 +370,9 @@ fn read_body(response: ureq::Response) -> Result<Vec<u8>> {
         .read_to_end(&mut data)
         .map_err(|e| Error::Store(format!("the answer was cut off: {e}")))?;
     if data.len() as u64 > MAX_BODY {
-        return Err(Error::Corrupt("an answer larger than any object of ours".into()));
+        return Err(Error::Corrupt(
+            "an answer larger than any object of ours".into(),
+        ));
     }
     Ok(data)
 }
@@ -388,9 +410,13 @@ impl Store for S3Store {
         let whole = response.status() == 200;
         let mut data = read_body(response)?;
         if whole {
-            let end = start.checked_add(length).filter(|end| *end <= data.len() as u64);
+            let end = start
+                .checked_add(length)
+                .filter(|end| *end <= data.len() as u64);
             let Some(end) = end else {
-                return Err(Error::Corrupt(format!("{key} is shorter than {start}+{length}")));
+                return Err(Error::Corrupt(format!(
+                    "{key} is shorter than {start}+{length}"
+                )));
             };
             data = data[start as usize..end as usize].to_vec();
         }
@@ -429,7 +455,8 @@ impl Store for S3Store {
                 .send("GET", None, &query, &[], &[], &[])?
                 .map_err(|status| Error::Store(format!("the listing answered {status}")))?;
             let body = read_body(response)?;
-            let xml = std::str::from_utf8(&body).map_err(|_| Error::Format("a listing that isn't text".into()))?;
+            let xml = std::str::from_utf8(&body)
+                .map_err(|_| Error::Format("a listing that isn't text".into()))?;
             let (page, next) = parse_listing(xml)?;
             listed.extend(page);
             match next {
@@ -442,7 +469,8 @@ impl Store for S3Store {
     }
 
     fn delete(&self, key: &str) -> Result<()> {
-        self.send("DELETE", Some(key), &[], &[], &[], &[404]).map(|_| ())
+        self.send("DELETE", Some(key), &[], &[], &[], &[404])
+            .map(|_| ())
     }
 }
 
@@ -457,7 +485,8 @@ pub fn self_test(store: &dyn Store, prefix: &str) -> Result<()> {
 }
 
 fn self_test_on(store: &dyn Store, key: &str) -> Result<()> {
-    let wrong = |what: &str| Error::Store(format!("this storage can't hold a shared world: {what}"));
+    let wrong =
+        |what: &str| Error::Store(format!("this storage can't hold a shared world: {what}"));
     {
         let first = store.put(key, b"0123456789", &Condition::Absent)?;
         match store.put(key, b"second", &Condition::Absent) {
@@ -468,17 +497,27 @@ fn self_test_on(store: &dyn Store, key: &str) -> Result<()> {
         let second = store.put(key, b"abcdefghij", &Condition::Unchanged(first.clone()))?;
         match store.put(key, b"stale", &Condition::Unchanged(first)) {
             Err(Error::Refused) => {}
-            Ok(_) => return Err(wrong("it let a writer with an old copy replace a newer record")),
+            Ok(_) => {
+                return Err(wrong(
+                    "it let a writer with an old copy replace a newer record",
+                ));
+            }
             Err(e) => return Err(e),
         }
-        let object = store.get(key)?.ok_or_else(|| wrong("a record it accepted is gone"))?;
+        let object = store
+            .get(key)?
+            .ok_or_else(|| wrong("a record it accepted is gone"))?;
         if object.data != b"abcdefghij" || object.etag != second {
             return Err(wrong("it returned a different record than it accepted"));
         }
         if store.get_range(key, 3, 4)? != b"defg" {
             return Err(wrong("it returned the wrong part of a file"));
         }
-        if !store.list(key)?.iter().any(|o| o.key == key && o.size == 10) {
+        if !store
+            .list(key)?
+            .iter()
+            .any(|o| o.key == key && o.size == 10)
+        {
             return Err(wrong("its listing misses a record it holds"));
         }
         Ok(())
@@ -524,10 +563,14 @@ mod tests {
             ],
         ));
         assert!(
-            get.ends_with("Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41"),
+            get.ends_with(
+                "Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41"
+            ),
             "{get}"
         );
-        assert!(get.contains("Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,"));
+        assert!(
+            get.contains("Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,")
+        );
         assert!(get.contains("SignedHeaders=host;range;x-amz-content-sha256;x-amz-date,"));
         let list = authorization(&example(
             "/",
@@ -539,18 +582,27 @@ mod tests {
             ],
         ));
         assert!(
-            list.ends_with("Signature=34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7"),
+            list.ends_with(
+                "Signature=34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7"
+            ),
             "{list}"
         );
     }
 
     #[test]
     fn keys_and_queries_are_encoded_as_s3_signs_them() {
-        assert_eq!(encode("w/ab12/gen/0001-02.json", true), "w/ab12/gen/0001-02.json");
+        assert_eq!(
+            encode("w/ab12/gen/0001-02.json", true),
+            "w/ab12/gen/0001-02.json"
+        );
         assert_eq!(encode("a b/c+d~e", true), "a%20b/c%2Bd~e");
         assert_eq!(encode("w/ab/", false), "w%2Fab%2F");
         assert_eq!(
-            canonical_query(&[("prefix", "w/a b/"), ("list-type", "2"), ("continuation-token", "x=/+")]),
+            canonical_query(&[
+                ("prefix", "w/a b/"),
+                ("list-type", "2"),
+                ("continuation-token", "x=/+")
+            ]),
             "continuation-token=x%3D%2F%2B&list-type=2&prefix=w%2Fa%20b%2F"
         );
     }
@@ -565,14 +617,23 @@ mod tests {
         assert_eq!(
             listed,
             [
-                Listed { key: "w/a/gen/1.json".into(), size: 120 },
-                Listed { key: "w/a/p&q".into(), size: 7 }
+                Listed {
+                    key: "w/a/gen/1.json".into(),
+                    size: 120
+                },
+                Listed {
+                    key: "w/a/p&q".into(),
+                    size: 7
+                }
             ]
         );
         assert_eq!(next.as_deref(), Some("tok<1"));
         let last = "<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>";
         assert_eq!(parse_listing(last).unwrap(), (vec![], None));
-        assert!(parse_listing("<ListBucketResult><IsTruncated>true</IsTruncated></ListBucketResult>").is_err());
+        assert!(
+            parse_listing("<ListBucketResult><IsTruncated>true</IsTruncated></ListBucketResult>")
+                .is_err()
+        );
         assert!(parse_listing("<Contents><Key>k</Key></Contents>").is_err());
     }
 

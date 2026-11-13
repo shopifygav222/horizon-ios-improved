@@ -66,10 +66,16 @@ pub struct MemoryStore {
     pub calls: AtomicU64,
 }
 
+/// Takes one from `counter` if it holds any.
 fn take(counter: &AtomicU32) -> bool {
-    counter
-        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
-        .is_ok()
+    let mut held = counter.load(Ordering::SeqCst);
+    while held > 0 {
+        match counter.compare_exchange(held, held - 1, Ordering::SeqCst, Ordering::SeqCst) {
+            Ok(_) => return true,
+            Err(now) => held = now,
+        }
+    }
+    false
 }
 
 impl MemoryStore {
@@ -201,14 +207,23 @@ mod tests {
         store.put("a/2", b"xy", &Condition::Always).unwrap();
         store.put("b/1", b"z", &Condition::Always).unwrap();
         assert_eq!(store.get_range("a/1", 3, 4).unwrap(), b"3456");
-        assert!(matches!(store.get_range("a/1", 8, 3), Err(Error::Corrupt(_))));
+        assert!(matches!(
+            store.get_range("a/1", 8, 3),
+            Err(Error::Corrupt(_))
+        ));
         assert!(store.get_range("nope", 0, 1).is_err());
         let listed = store.list("a/").unwrap();
         assert_eq!(
             listed,
             [
-                Listed { key: "a/1".into(), size: 10 },
-                Listed { key: "a/2".into(), size: 2 }
+                Listed {
+                    key: "a/1".into(),
+                    size: 10
+                },
+                Listed {
+                    key: "a/2".into(),
+                    size: 2
+                }
             ]
         );
         store.delete("a/1").unwrap();

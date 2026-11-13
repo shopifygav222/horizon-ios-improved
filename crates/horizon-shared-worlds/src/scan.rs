@@ -71,7 +71,8 @@ fn nanos(time: SystemTime) -> u64 {
 
 /// `path` (as a manifest writes it) under `root`.
 pub fn under(root: &Path, path: &str) -> PathBuf {
-    path.split('/').fold(root.to_path_buf(), |at, part| at.join(part))
+    path.split('/')
+        .fold(root.to_path_buf(), |at, part| at.join(part))
 }
 
 /// Writes `data` beside `path` and renames it into place, so `path` is always whole.
@@ -112,7 +113,10 @@ pub fn walk(root: &Path) -> io::Result<Vec<Found>> {
             let entry = entry?;
             let kind = entry.file_type()?;
             let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-                log::warn!("Shared worlds: {:?} has a name that can't be shared", entry.path());
+                log::warn!(
+                    "Shared worlds: {:?} has a name that can't be shared",
+                    entry.path()
+                );
                 continue;
             };
             let path = if prefix.is_empty() {
@@ -182,7 +186,11 @@ pub fn changes(root: &Path, index: &LocalIndex) -> io::Result<Changes> {
     let mut removed: Vec<String> = index
         .files
         .keys()
-        .filter(|path| found.binary_search_by(|f| f.path.as_str().cmp(path.as_str())).is_err())
+        .filter(|path| {
+            found
+                .binary_search_by(|f| f.path.as_str().cmp(path.as_str()))
+                .is_err()
+        })
         .cloned()
         .collect();
     removed.sort();
@@ -197,7 +205,11 @@ pub fn changes(root: &Path, index: &LocalIndex) -> io::Result<Changes> {
             None => true,
         })
         .collect();
-    Ok(Changes { changed, removed, at })
+    Ok(Changes {
+        changed,
+        removed,
+        at,
+    })
 }
 
 /// Copies the changed files from `root` into `staging`, and forgets staged copies of files that
@@ -228,7 +240,11 @@ pub fn stage(root: &Path, staging: &Path, changes: &Changes) -> io::Result<()> {
 /// (the staged copy, or the world folder itself when the world is closed). A file whose length
 /// isn't what the scan saw was written to after it: [`Error::Corrupt`], and the index is left
 /// as it was.
-pub fn absorb(index: &mut LocalIndex, changes: &Changes, source: &dyn Fn(&str) -> PathBuf) -> Result<()> {
+pub fn absorb(
+    index: &mut LocalIndex,
+    changes: &Changes,
+    source: &dyn Fn(&str) -> PathBuf,
+) -> Result<()> {
     let mut hashed = Vec::with_capacity(changes.changed.len());
     for file in &changes.changed {
         let (size, sha256, blocks) = hash_file(&source(&file.path))?;
@@ -272,7 +288,8 @@ pub(crate) mod tests {
     pub(crate) struct Scratch(pub PathBuf);
     impl Scratch {
         pub(crate) fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!("hsw-{name}-{}", hex(&random::<8>().unwrap())));
+            let dir =
+                std::env::temp_dir().join(format!("hsw-{name}-{}", hex(&random::<8>().unwrap())));
             fs::create_dir_all(&dir).unwrap();
             Self(dir)
         }
@@ -327,7 +344,10 @@ pub(crate) mod tests {
             ]
         );
         scratch.write("empty", b"");
-        assert_eq!(hash_file(&scratch.path("empty")).unwrap().2, Vec::<BlockHash>::new());
+        assert_eq!(
+            hash_file(&scratch.path("empty")).unwrap().2,
+            Vec::<BlockHash>::new()
+        );
         scratch.write("exact", &data[..BLOCK as usize]);
         assert_eq!(hash_file(&scratch.path("exact")).unwrap().2.len(), 1);
     }
@@ -340,8 +360,18 @@ pub(crate) mod tests {
         scratch.write("dimensions/minecraft/overworld/region/r.0.0.mca", b"region");
         scratch.write(".shared-world/index.json", b"{}");
         scratch.write(".shared-world/staging/level.dat", b"old");
-        let paths: Vec<String> = walk(&scratch.0).unwrap().into_iter().map(|f| f.path).collect();
-        assert_eq!(paths, ["dimensions/minecraft/overworld/region/r.0.0.mca", "level.dat"]);
+        let paths: Vec<String> = walk(&scratch.0)
+            .unwrap()
+            .into_iter()
+            .map(|f| f.path)
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                "dimensions/minecraft/overworld/region/r.0.0.mca",
+                "level.dat"
+            ]
+        );
     }
 
     #[test]
@@ -384,13 +414,19 @@ pub(crate) mod tests {
         // The world runs on and writes again; the copy still holds the checkpoint.
         world.write("level.dat", b"after the checkpoint, and longer");
         absorb(&mut index, &found, &|path| staging.path(path)).unwrap();
-        assert_eq!(index.files["level.dat"].sha256, hex(&sha256(b"at the checkpoint")));
+        assert_eq!(
+            index.files["level.dat"].sha256,
+            hex(&sha256(b"at the checkpoint"))
+        );
         // Staging again replaces the copy, and a removed file's copy goes.
         let mut index = settled(index);
         fs::remove_file(world.path("region/r.0.0.mca")).unwrap();
         let found = changes(&world.0, &index).unwrap();
         stage(&world.0, &staging.0, &found).unwrap();
-        assert_eq!(fs::read(staging.path("level.dat")).unwrap(), b"after the checkpoint, and longer");
+        assert_eq!(
+            fs::read(staging.path("level.dat")).unwrap(),
+            b"after the checkpoint, and longer"
+        );
         assert!(!staging.path("region/r.0.0.mca").exists());
         // A file that grew between the scan and its hashing is caught, and the index kept.
         let before = index.clone();
@@ -414,6 +450,9 @@ pub(crate) mod tests {
         assert_eq!(LocalIndex::load(&saved), index);
         fs::write(&saved, b"{ not json").unwrap();
         assert_eq!(LocalIndex::load(&saved), LocalIndex::default());
-        assert_eq!(LocalIndex::load(&scratch.path("state/none.json")), LocalIndex::default());
+        assert_eq!(
+            LocalIndex::load(&scratch.path("state/none.json")),
+            LocalIndex::default()
+        );
     }
 }

@@ -6,7 +6,9 @@
 //! that changed underneath is caught here instead of being published half old, half new.
 use crate::{
     Error, Result,
-    manifest::{BLOCK, FileEntry, GenId, Manifest, PACK_LIMIT, Run, VERSION, block_hash, block_len},
+    manifest::{
+        BLOCK, FileEntry, GenId, Manifest, PACK_LIMIT, Run, VERSION, block_hash, block_len,
+    },
     scan::LocalIndex,
     store::{Condition, Store},
 };
@@ -54,7 +56,9 @@ impl Remote<'_> {
             .ok_or_else(|| Error::Store(format!("the copy {key} is no longer in the storage")))?;
         let manifest = Manifest::from_bytes(&object.data)?;
         if manifest.id != id {
-            return Err(Error::Corrupt(format!("{key} holds another copy's file list")));
+            return Err(Error::Corrupt(format!(
+                "{key} holds another copy's file list"
+            )));
         }
         Ok(manifest)
     }
@@ -66,7 +70,9 @@ impl Remote<'_> {
             Ok(_) => Ok(()),
             Err(Error::Refused) => match self.store.get(key)? {
                 Some(object) if object.data == data => Ok(()),
-                _ => Err(Error::Corrupt(format!("{key} is already there with other contents"))),
+                _ => Err(Error::Corrupt(format!(
+                    "{key} is already there with other contents"
+                ))),
             },
             Err(e) => Err(e),
         }
@@ -194,7 +200,10 @@ pub fn publish(
                     Place::New(number, offset) => (first_new + number, offset),
                 };
                 match runs.last_mut() {
-                    Some(run) if run.pack == pack_index && run.offset + u64::from(run.blocks) * BLOCK == offset => {
+                    Some(run)
+                        if run.pack == pack_index
+                            && run.offset + u64::from(run.blocks) * BLOCK == offset =>
+                    {
                         run.blocks += 1;
                     }
                     _ => runs.push(Run {
@@ -237,14 +246,19 @@ pub fn read_run(
     let (pack_index, offset) = file
         .locate(first)
         .ok_or_else(|| Error::Format(format!("{} has no block {first}", file.path)))?;
-    let length: u64 = (first..first + blocks).map(|i| block_len(file.size, i)).sum();
+    let length: u64 = (first..first + blocks)
+        .map(|i| block_len(file.size, i))
+        .sum();
     let name = &manifest.packs[pack_index as usize];
     let data = remote.store.get_range(&remote.key(name), offset, length)?;
     let mut at = 0usize;
     for i in first..first + blocks {
         let end = at + block_len(file.size, i) as usize;
         if block_hash(&data[at..end]) != file.blocks[i as usize] {
-            return Err(Error::Corrupt(format!("{name} holds other bytes for {}", file.path)));
+            return Err(Error::Corrupt(format!(
+                "{name} holds other bytes for {}",
+                file.path
+            )));
         }
         at = end;
     }
@@ -266,7 +280,11 @@ pub(crate) mod tests {
     pub(crate) const PREFIX: &str = "w/0123456789abcdef/";
 
     pub(crate) fn id(epoch: u64, seq: u32) -> GenId {
-        GenId { epoch, seq, day: 20261113 }
+        GenId {
+            epoch,
+            seq,
+            day: 20261113,
+        }
     }
 
     pub(crate) fn go(_: u64, _: u64) -> bool {
@@ -282,13 +300,28 @@ pub(crate) mod tests {
         id: GenId,
     ) -> Manifest {
         rescan(&world.0, index).unwrap();
-        let remote = Remote { store, prefix: PREFIX };
-        publish(remote, previous, index, &|path| under(&world.0, path), id, "Alex", &mut go).unwrap()
+        let remote = Remote {
+            store,
+            prefix: PREFIX,
+        };
+        publish(
+            remote,
+            previous,
+            index,
+            &|path| under(&world.0, path),
+            id,
+            "Alex",
+            &mut go,
+        )
+        .unwrap()
     }
 
     /// The whole of `file` as the storage holds it.
     fn stored(store: &MemoryStore, manifest: &Manifest, path: &str) -> Vec<u8> {
-        let remote = Remote { store, prefix: PREFIX };
+        let remote = Remote {
+            store,
+            prefix: PREFIX,
+        };
         let file = manifest.file(path).unwrap();
         let mut data = Vec::new();
         for i in 0..file.blocks.len() as u64 {
@@ -315,7 +348,10 @@ pub(crate) mod tests {
         assert!(manifest.file("data/empty.dat").unwrap().runs.is_empty());
         // The blocks of one file lie one after another: one run.
         assert_eq!(manifest.file("region/r.0.0.mca").unwrap().runs.len(), 1);
-        let remote = Remote { store: &store, prefix: PREFIX };
+        let remote = Remote {
+            store: &store,
+            prefix: PREFIX,
+        };
         assert_eq!(remote.manifest(id(1, 1)).unwrap(), manifest);
         assert!(remote.manifest(id(1, 2)).is_err());
     }
@@ -359,7 +395,10 @@ pub(crate) mod tests {
         // Nothing changed: nothing but a manifest goes up, and it points at the same packs.
         let before = store.bytes();
         let third = publish_world(&store, &world, &mut index, Some(&second), id(1, 3));
-        assert_eq!(store.bytes() - before, third.to_bytes().unwrap().len() as u64);
+        assert_eq!(
+            store.bytes() - before,
+            third.to_bytes().unwrap().len() as u64
+        );
         assert_eq!(third.packs, second.packs);
         assert_eq!(third.files, second.files);
     }
@@ -402,10 +441,24 @@ pub(crate) mod tests {
         let mut index = LocalIndex::default();
         rescan(&world.0, &mut index).unwrap();
         world.write("level.dat", b"written");
-        let remote = Remote { store: &store, prefix: PREFIX };
-        let result = publish(remote, None, &index, &|path| under(&world.0, path), id(1, 1), "Alex", &mut go);
+        let remote = Remote {
+            store: &store,
+            prefix: PREFIX,
+        };
+        let result = publish(
+            remote,
+            None,
+            &index,
+            &|path| under(&world.0, path),
+            id(1, 1),
+            "Alex",
+            &mut go,
+        );
         assert!(matches!(result, Err(Error::Corrupt(_))));
-        assert!(store.keys().iter().all(|k| !k.contains("gen/")), "no manifest for a copy given up");
+        assert!(
+            store.keys().iter().all(|k| !k.contains("gen/")),
+            "no manifest for a copy given up"
+        );
     }
 
     #[test]
@@ -415,16 +468,49 @@ pub(crate) mod tests {
         world.write("a", &bytes(7, BLOCK as usize * 4));
         let mut index = LocalIndex::default();
         rescan(&world.0, &mut index).unwrap();
-        let remote = Remote { store: &store, prefix: PREFIX };
+        let remote = Remote {
+            store: &store,
+            prefix: PREFIX,
+        };
         let mut stop = |done: u64, _: u64| done < BLOCK * 2;
-        let result = publish(remote, None, &index, &|path| under(&world.0, path), id(1, 1), "Alex", &mut stop);
+        let result = publish(
+            remote,
+            None,
+            &index,
+            &|path| under(&world.0, path),
+            id(1, 1),
+            "Alex",
+            &mut stop,
+        );
         assert!(matches!(result, Err(Error::Cancelled)));
         // The pack lands and its answer is lost; the manifest's too. Each is found to be there.
-        store.fail_after_write.store(1, std::sync::atomic::Ordering::SeqCst);
-        let made = publish(remote, None, &index, &|path| under(&world.0, path), id(1, 2), "Alex", &mut go);
-        assert!(matches!(made, Err(Error::Store(_))), "the pack's write reports the failure");
+        store
+            .fail_after_write
+            .store(1, std::sync::atomic::Ordering::SeqCst);
+        let made = publish(
+            remote,
+            None,
+            &index,
+            &|path| under(&world.0, path),
+            id(1, 2),
+            "Alex",
+            &mut go,
+        );
+        assert!(
+            matches!(made, Err(Error::Store(_))),
+            "the pack's write reports the failure"
+        );
         // Made again under the same id, the pack that did land is accepted as written.
-        let made = publish(remote, None, &index, &|path| under(&world.0, path), id(1, 2), "Alex", &mut go).unwrap();
+        let made = publish(
+            remote,
+            None,
+            &index,
+            &|path| under(&world.0, path),
+            id(1, 2),
+            "Alex",
+            &mut go,
+        )
+        .unwrap();
         assert_eq!(stored(&store, &made, "a"), bytes(7, BLOCK as usize * 4));
     }
 }

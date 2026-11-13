@@ -129,7 +129,8 @@ impl<'a> Leases<'a> {
         let lease: Lease = serde_json::from_slice(&object.data)?;
         if lease.version > VERSION {
             return Err(Error::Format(
-                "this world was last hosted by a newer version of the game: update to play it".into(),
+                "this world was last hosted by a newer version of the game: update to play it"
+                    .into(),
             ));
         }
         Ok(Some(Seen {
@@ -140,7 +141,13 @@ impl<'a> Leases<'a> {
 
     /// Takes the world for `me`. `seen` is the lease as last read (None: there is none yet).
     /// [`Error::Refused`] when the lease doesn't allow it or changed since: read it again.
-    pub fn claim(self, seen: Option<&Seen>, me: &Member, device: &str, why: Claim) -> Result<Held<'a>> {
+    pub fn claim(
+        self,
+        seen: Option<&Seen>,
+        me: &Member,
+        device: &str,
+        why: Claim,
+    ) -> Result<Held<'a>> {
         let (epoch, generation, condition) = match seen {
             None => (1, None, Condition::Absent),
             Some(seen) => {
@@ -278,7 +285,9 @@ impl<'a> Held<'a> {
                 _ => return Err(Error::Fenced),
             }
         }
-        Err(Error::Store("the lease kept changing under its own writes".into()))
+        Err(Error::Store(
+            "the lease kept changing under its own writes".into(),
+        ))
     }
 
     /// The host is alive, with these players (the host first).
@@ -361,7 +370,10 @@ pub fn turn(lease: &Lease, me: &str) -> usize {
         .map(|p| p.uuid.as_str())
         .filter(|uuid| Some(*uuid) != host)
         .collect();
-    waiting.iter().position(|uuid| *uuid == me).unwrap_or(waiting.len())
+    waiting
+        .iter()
+        .position(|uuid| *uuid == me)
+        .unwrap_or(waiting.len())
 }
 
 /// The host's own timer: when did a write of the lease last succeed. Give it the time the
@@ -407,7 +419,11 @@ mod tests {
     }
 
     fn generation(epoch: u64, seq: u32) -> GenId {
-        GenId { epoch, seq, day: 20261113 }
+        GenId {
+            epoch,
+            seq,
+            day: 20261113,
+        }
     }
 
     #[test]
@@ -415,8 +431,13 @@ mod tests {
         let store = MemoryStore::new();
         let leases = Leases::new(&store, KEY);
         assert!(leases.read().unwrap().is_none());
-        let mut held = leases.claim(None, &member(1), "phone", Claim::Free).unwrap();
-        assert_eq!((held.lease().epoch, held.lease().state), (1, State::Starting));
+        let mut held = leases
+            .claim(None, &member(1), "phone", Claim::Free)
+            .unwrap();
+        assert_eq!(
+            (held.lease().epoch, held.lease().state),
+            (1, State::Starting)
+        );
         // A second game that also saw no lease is refused.
         assert!(matches!(
             leases.claim(None, &member(2), "pc", Claim::Free),
@@ -446,13 +467,19 @@ mod tests {
         let seen = leases.read().unwrap().unwrap();
         assert_eq!((seen.lease.state, seen.lease.playing()), (State::Closed, 0));
         // Both read the same closed lease.
-        let second = leases.claim(Some(&seen), &member(2), "b", Claim::Free).unwrap();
+        let second = leases
+            .claim(Some(&seen), &member(2), "b", Claim::Free)
+            .unwrap();
         assert!(matches!(
             leases.claim(Some(&seen), &member(3), "c", Claim::Free),
             Err(Error::Refused)
         ));
         assert_eq!(second.lease().epoch, 2);
-        assert_eq!(second.lease().generation, Some(generation(1, 2)), "the newest copy carries over");
+        assert_eq!(
+            second.lease().generation,
+            Some(generation(1, 2)),
+            "the newest copy carries over"
+        );
     }
 
     #[test]
@@ -461,14 +488,17 @@ mod tests {
         let leases = Leases::new(&store, KEY);
         let mut host = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         host.open("C", false).unwrap();
-        host.hand_off(generation(1, 1), Some(&member(2).uuid)).unwrap();
+        host.hand_off(generation(1, 1), Some(&member(2).uuid))
+            .unwrap();
         let seen = leases.read().unwrap().unwrap();
         assert_eq!(seen.lease.state, State::Handoff);
         assert!(matches!(
             leases.claim(Some(&seen), &member(3), "c", Claim::Free),
             Err(Error::Refused)
         ));
-        let next = leases.claim(Some(&seen), &member(2), "b", Claim::Free).unwrap();
+        let next = leases
+            .claim(Some(&seen), &member(2), "b", Claim::Free)
+            .unwrap();
         assert_eq!(next.lease().epoch, 2);
         // The old host can't write any more.
         assert!(matches!(host.heartbeat(&[member(1)]), Err(Error::Fenced)));
@@ -481,12 +511,18 @@ mod tests {
         let mut old = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         old.open("C", false).unwrap();
         let seen = leases.read().unwrap().unwrap();
-        let mut new = leases.claim(Some(&seen), &member(2), "b", Claim::Takeover).unwrap();
+        let mut new = leases
+            .claim(Some(&seen), &member(2), "b", Claim::Takeover)
+            .unwrap();
         assert!(matches!(old.commit(generation(1, 9)), Err(Error::Fenced)));
         assert!(matches!(old.heartbeat(&[member(1)]), Err(Error::Fenced)));
         new.commit(generation(2, 1)).unwrap();
         let lease = leases.read().unwrap().unwrap().lease;
-        assert_eq!(lease.generation, Some(generation(2, 1)), "the old host's copy never counts");
+        assert_eq!(
+            lease.generation,
+            Some(generation(2, 1)),
+            "the old host's copy never counts"
+        );
         assert_eq!(lease.host, Some(member(2)));
     }
 
@@ -524,17 +560,31 @@ mod tests {
     fn a_game_picks_its_own_lease_up_after_a_restart() {
         let store = MemoryStore::new();
         let leases = Leases::new(&store, KEY);
-        let mut held = leases.claim(None, &member(1), "phone", Claim::Free).unwrap();
+        let mut held = leases
+            .claim(None, &member(1), "phone", Claim::Free)
+            .unwrap();
         held.open("C", true).unwrap();
         drop(held);
         let seen = leases.read().unwrap().unwrap();
-        assert!(matches!(leases.resume(&seen, &member(1), "pc"), Err(Error::Refused)));
-        assert!(matches!(leases.resume(&seen, &member(2), "phone"), Err(Error::Refused)));
+        assert!(matches!(
+            leases.resume(&seen, &member(1), "pc"),
+            Err(Error::Refused)
+        ));
+        assert!(matches!(
+            leases.resume(&seen, &member(2), "phone"),
+            Err(Error::Refused)
+        ));
         let again = leases.resume(&seen, &member(1), "phone").unwrap();
-        assert_eq!((again.lease().epoch, again.lease().state), (1, State::Starting));
+        assert_eq!(
+            (again.lease().epoch, again.lease().state),
+            (1, State::Starting)
+        );
         assert_eq!(again.lease().code, None);
         // The lease read before the restart is stale now.
-        assert!(matches!(leases.resume(&seen, &member(1), "phone"), Err(Error::Fenced)));
+        assert!(matches!(
+            leases.resume(&seen, &member(1), "phone"),
+            Err(Error::Fenced)
+        ));
     }
 
     #[test]
@@ -544,7 +594,13 @@ mod tests {
         let held = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         let mut lease = held.lease().clone();
         lease.version = VERSION + 1;
-        store.put(KEY, &serde_json::to_vec(&lease).unwrap(), &Condition::Always).unwrap();
+        store
+            .put(
+                KEY,
+                &serde_json::to_vec(&lease).unwrap(),
+                &Condition::Always,
+            )
+            .unwrap();
         assert!(matches!(leases.read(), Err(Error::Format(_))));
         store.put(KEY, b"not json", &Condition::Always).unwrap();
         assert!(matches!(leases.read(), Err(Error::Format(_))));
@@ -560,11 +616,17 @@ mod tests {
         let mut watch = Watch::new(start);
         let lease = leases.read().unwrap().unwrap().lease;
         assert_eq!(watch.observe(&lease, start), Duration::ZERO);
-        assert_eq!(watch.observe(&lease, start + Duration::from_secs(60)), Duration::from_secs(60));
+        assert_eq!(
+            watch.observe(&lease, start + Duration::from_secs(60)),
+            Duration::from_secs(60)
+        );
         // The host writes again: the count starts over.
         held.heartbeat(&[member(1), member(2), member(3)]).unwrap();
         let lease = leases.read().unwrap().unwrap().lease;
-        assert_eq!(watch.observe(&lease, start + Duration::from_secs(70)), Duration::ZERO);
+        assert_eq!(
+            watch.observe(&lease, start + Duration::from_secs(70)),
+            Duration::ZERO
+        );
         let quiet = watch.observe(&lease, start + Duration::from_secs(70) + DEAD);
         assert_eq!(quiet, DEAD);
         // The players take their turns, the host aside.
@@ -681,8 +743,14 @@ mod tests {
         let Some(seen) = leases.read().unwrap() else {
             return;
         };
-        assert!(seen.lease.epoch >= *last_epoch, "seed {seed}: the epoch went back");
-        assert!(seen.lease.generation >= *last_generation, "seed {seed}: the newest copy went back");
+        assert!(
+            seen.lease.epoch >= *last_epoch,
+            "seed {seed}: the epoch went back"
+        );
+        assert!(
+            seen.lease.generation >= *last_generation,
+            "seed {seed}: the newest copy went back"
+        );
         *last_epoch = seen.lease.epoch;
         *last_generation = seen.lease.generation;
     }

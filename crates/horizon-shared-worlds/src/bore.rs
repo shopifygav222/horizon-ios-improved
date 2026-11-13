@@ -56,7 +56,10 @@ fn receive(reader: &mut BufReader<TcpStream>) -> io::Result<Option<serde_json::V
         return Ok(None);
     }
     if frame.pop() != Some(0) {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "a message without its end"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "a message without its end",
+        ));
     }
     serde_json::from_slice(&frame)
         .map(Some)
@@ -121,7 +124,11 @@ impl Tunnel {
         send(&mut control, &serde_json::json!({ "Hello": 0 })).map_err(failed)?;
         let mut reader = BufReader::new(control.try_clone().map_err(failed)?);
         let hello = receive(&mut reader).map_err(failed)?;
-        let port = match hello.as_ref().and_then(|m| m.as_object()).and_then(|m| m.iter().next()) {
+        let port = match hello
+            .as_ref()
+            .and_then(|m| m.as_object())
+            .and_then(|m| m.iter().next())
+        {
             Some((kind, port)) if kind == "Hello" => port
                 .as_u64()
                 .and_then(|p| u16::try_from(p).ok())
@@ -188,11 +195,7 @@ impl Drop for Tunnel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        io::Read,
-        net::TcpListener,
-        time::Instant,
-    };
+    use std::{io::Read, net::TcpListener, time::Instant};
 
     /// A tunnel server as bore's: one control port; a public port per client; each visitor is
     /// announced on the control connection and joined to the connection that accepts it.
@@ -202,18 +205,28 @@ mod tests {
         std::thread::spawn(move || {
             let (mut client, _) = control.accept().unwrap();
             let mut reader = BufReader::new(client.try_clone().unwrap());
-            assert_eq!(receive(&mut reader).unwrap().unwrap(), serde_json::json!({ "Hello": 0 }));
+            assert_eq!(
+                receive(&mut reader).unwrap().unwrap(),
+                serde_json::json!({ "Hello": 0 })
+            );
             let public = TcpListener::bind("127.0.0.1:0").unwrap();
             let port = public.local_addr().unwrap().port();
             match answer {
                 "hello" => send(&mut client, &serde_json::json!({ "Hello": port })).unwrap(),
-                "error" => return send(&mut client, &serde_json::json!({ "Error": "port in use" })).unwrap(),
+                "error" => {
+                    return send(&mut client, &serde_json::json!({ "Error": "port in use" }))
+                        .unwrap();
+                }
                 _ => return send(&mut client, &serde_json::json!({ "Challenge": "abc" })).unwrap(),
             }
             send(&mut client, &serde_json::json!("Heartbeat")).unwrap();
             for (n, visitor) in public.incoming().take(2).enumerate() {
                 let visitor = visitor.unwrap();
-                send(&mut client, &serde_json::json!({ "Connection": format!("id-{n}") })).unwrap();
+                send(
+                    &mut client,
+                    &serde_json::json!({ "Connection": format!("id-{n}") }),
+                )
+                .unwrap();
                 let (accepting, _) = control.accept().unwrap();
                 let mut reader = BufReader::new(accepting.try_clone().unwrap());
                 assert_eq!(
@@ -254,7 +267,9 @@ mod tests {
         assert!(tunnel.address().ip().is_loopback());
         for word in [&b"first visitor"[..], b"second"] {
             let mut visitor = TcpStream::connect(tunnel.address()).unwrap();
-            visitor.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+            visitor
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
             visitor.write_all(word).unwrap();
             let mut answer = vec![0u8; word.len()];
             visitor.read_exact(&mut answer).unwrap();
@@ -270,12 +285,21 @@ mod tests {
 
     #[test]
     fn a_server_that_refuses_says_why() {
-        let error = Tunnel::open_at(server("error"), game()).err().unwrap().to_string();
+        let error = Tunnel::open_at(server("error"), game())
+            .err()
+            .unwrap()
+            .to_string();
         assert!(error.contains("port in use"), "{error}");
-        let error = Tunnel::open_at(server("challenge"), game()).err().unwrap().to_string();
+        let error = Tunnel::open_at(server("challenge"), game())
+            .err()
+            .unwrap()
+            .to_string();
         assert!(error.contains("password"), "{error}");
         // Nothing listens there.
-        let closed = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let closed = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
         assert!(Tunnel::open_at(closed, game()).is_err());
     }
 

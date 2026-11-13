@@ -60,9 +60,8 @@ pub fn unhex(text: &str) -> Option<Vec<u8>> {
         return None;
     }
     let value = |d: u8| (d as char).to_digit(16).map(|v| v as u8);
-    digits
-        .chunks_exact(2)
-        .map(|pair| Some(value(pair[0])? << 4 | value(pair[1])?))
+    (0..digits.len() / 2)
+        .map(|i| Some(value(digits[2 * i])? << 4 | value(digits[2 * i + 1])?))
         .collect()
 }
 
@@ -71,10 +70,7 @@ const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwx
 pub fn base64(bytes: &[u8]) -> String {
     let mut text = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for group in bytes.chunks(3) {
-        let n = group
-            .iter()
-            .fold(0u32, |n, b| n << 8 | u32::from(*b))
-            << (8 * (3 - group.len()));
+        let n = group.iter().fold(0u32, |n, b| n << 8 | u32::from(*b)) << (8 * (3 - group.len()));
         for i in 0..=group.len() {
             text.push(ALPHABET[(n >> (18 - 6 * i) & 63) as usize] as char);
         }
@@ -176,7 +172,10 @@ mod tests {
         let path = dir.join("f");
         let data: Vec<u8> = (0..200_000u32).map(|i| (i * 31 % 251) as u8).collect();
         std::fs::write(&path, &data).unwrap();
-        assert_eq!(sha256_file(&path).unwrap(), (sha256(&data), data.len() as u64));
+        assert_eq!(
+            sha256_file(&path).unwrap(),
+            (sha256(&data), data.len() as u64)
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

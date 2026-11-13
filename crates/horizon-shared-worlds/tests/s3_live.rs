@@ -37,7 +37,8 @@ fn prefix() -> String {
 struct Scratch(PathBuf);
 impl Scratch {
     fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("hsw-live-{name}-{}", hex(&random::<8>().unwrap())));
+        let dir =
+            std::env::temp_dir().join(format!("hsw-live-{name}-{}", hex(&random::<8>().unwrap())));
         fs::create_dir_all(&dir).unwrap();
         Self(dir)
     }
@@ -96,12 +97,20 @@ fn objects_ranges_and_listings() {
     let object = store.get(&key).unwrap().unwrap();
     assert_eq!(object.etag, etag);
     assert_eq!(object.data, data);
-    assert_eq!(store.get_range(&key, 100_000, 70_000).unwrap(), data[100_000..170_000]);
+    assert_eq!(
+        store.get_range(&key, 100_000, 70_000).unwrap(),
+        data[100_000..170_000]
+    );
     assert_eq!(store.get_range(&key, 299_999, 1).unwrap(), data[299_999..]);
     assert!(store.get_range(&key, 299_999, 2).is_err());
-    assert!(matches!(store.put(&key, b"x", &Condition::Absent), Err(Error::Refused)));
+    assert!(matches!(
+        store.put(&key, b"x", &Condition::Absent),
+        Err(Error::Refused)
+    ));
     for i in 0..5 {
-        store.put(&format!("{prefix}gen/{i}"), b"g", &Condition::Always).unwrap();
+        store
+            .put(&format!("{prefix}gen/{i}"), b"g", &Condition::Always)
+            .unwrap();
     }
     let listed = store.list(&format!("{prefix}gen/")).unwrap();
     assert_eq!(listed.len(), 5);
@@ -120,28 +129,56 @@ fn one_of_two_games_gets_the_world() {
     let prefix = prefix();
     let key = format!("{prefix}lease");
     let leases = Leases::new(&store, &key);
-    let alex = Member { uuid: "0".repeat(32), name: "Alex".into() };
-    let steve = Member { uuid: "1".repeat(32), name: "Steve".into() };
+    let alex = Member {
+        uuid: "0".repeat(32),
+        name: "Alex".into(),
+    };
+    let steve = Member {
+        uuid: "1".repeat(32),
+        name: "Steve".into(),
+    };
     let mut held = leases.claim(None, &alex, "phone", Claim::Free).unwrap();
-    assert!(matches!(leases.claim(None, &steve, "pc", Claim::Free), Err(Error::Refused)));
+    assert!(matches!(
+        leases.claim(None, &steve, "pc", Claim::Free),
+        Err(Error::Refused)
+    ));
     held.open("CODE", false).unwrap();
     held.heartbeat(&[alex.clone(), steve.clone()]).unwrap();
     let seen = leases.read().unwrap().unwrap();
-    assert_eq!((seen.lease.state, seen.lease.playing()), (State::Hosting, 2));
+    assert_eq!(
+        (seen.lease.state, seen.lease.playing()),
+        (State::Hosting, 2)
+    );
     // Steve takes over; Alex's next write is refused and Alex is told.
-    let mut taken = leases.claim(Some(&seen), &steve, "pc", Claim::Takeover).unwrap();
-    assert!(matches!(held.heartbeat(&[alex.clone()]), Err(Error::Fenced)));
-    let generation = GenId { epoch: 2, seq: 1, day: 20261113 };
+    let mut taken = leases
+        .claim(Some(&seen), &steve, "pc", Claim::Takeover)
+        .unwrap();
+    assert!(matches!(
+        held.heartbeat(&[alex.clone()]),
+        Err(Error::Fenced)
+    ));
+    let generation = GenId {
+        epoch: 2,
+        seq: 1,
+        day: 20261113,
+    };
     taken.hand_off(generation, None).unwrap();
     let closed = leases.read().unwrap().unwrap();
-    assert_eq!((closed.lease.state, closed.lease.generation), (State::Closed, Some(generation)));
+    assert_eq!(
+        (closed.lease.state, closed.lease.generation),
+        (State::Closed, Some(generation))
+    );
     // Two games open the closed world at once, in threads: exactly one gets it.
     let won: Vec<bool> = std::thread::scope(|scope| {
         let games: Vec<_> = [&alex, &steve]
             .into_iter()
             .map(|me| {
                 let closed = &closed;
-                scope.spawn(move || leases.claim(Some(closed), me, "device", Claim::Free).is_ok())
+                scope.spawn(move || {
+                    leases
+                        .claim(Some(closed), me, "device", Claim::Free)
+                        .is_ok()
+                })
             })
             .collect();
         games.into_iter().map(|g| g.join().unwrap()).collect()
@@ -154,20 +191,46 @@ fn one_of_two_games_gets_the_world() {
 fn a_world_goes_up_and_comes_down_the_same() {
     let Some(store) = store() else { return };
     let prefix = prefix();
-    let remote = Remote { store: &store, prefix: &prefix };
+    let remote = Remote {
+        store: &store,
+        prefix: &prefix,
+    };
     let host = Scratch::new("host");
     let mut region = bytes(2, BLOCK as usize * 20 + 77);
     host.write("level.dat", b"first");
     host.write("dimensions/minecraft/overworld/region/r.0.0.mca", &region);
-    host.write("dimensions/minecraft/overworld/region/r.-1.0.mca", &bytes(3, 40_000));
+    host.write(
+        "dimensions/minecraft/overworld/region/r.-1.0.mca",
+        &bytes(3, 40_000),
+    );
     let mut index = LocalIndex::default();
     rescan(&host.0, &mut index).unwrap();
-    let first_id = GenId { epoch: 1, seq: 1, day: 20261113 };
-    let first = publish(remote, None, &index, &|p| under(&host.0, p), first_id, "Alex", &mut go).unwrap();
+    let first_id = GenId {
+        epoch: 1,
+        seq: 1,
+        day: 20261113,
+    };
+    let first = publish(
+        remote,
+        None,
+        &index,
+        &|p| under(&host.0, p),
+        first_id,
+        "Alex",
+        &mut go,
+    )
+    .unwrap();
     let guest = Scratch::new("guest");
     let layout = Layout::new(&guest.0);
     let mut guest_index = LocalIndex::default();
-    let fetched = fetch(remote, &remote.manifest(first_id).unwrap(), &layout, &mut guest_index, &mut go).unwrap();
+    let fetched = fetch(
+        remote,
+        &remote.manifest(first_id).unwrap(),
+        &layout,
+        &mut guest_index,
+        &mut go,
+    )
+    .unwrap();
     assert_eq!(fetched.downloaded, first.size());
     assert_eq!(guest.tree(), host.tree());
     // The host plays on: three blocks of the region, the level file, one file gone.
@@ -176,11 +239,28 @@ fn a_world_goes_up_and_comes_down_the_same() {
     }
     host.write("dimensions/minecraft/overworld/region/r.0.0.mca", &region);
     host.write("level.dat", b"second");
-    fs::remove_file(under(&host.0, "dimensions/minecraft/overworld/region/r.-1.0.mca")).unwrap();
+    fs::remove_file(under(
+        &host.0,
+        "dimensions/minecraft/overworld/region/r.-1.0.mca",
+    ))
+    .unwrap();
     index.scanned = 0;
     rescan(&host.0, &mut index).unwrap();
-    let second_id = GenId { epoch: 1, seq: 2, day: 20261113 };
-    publish(remote, Some(&first), &index, &|p| under(&host.0, p), second_id, "Alex", &mut go).unwrap();
+    let second_id = GenId {
+        epoch: 1,
+        seq: 2,
+        day: 20261113,
+    };
+    publish(
+        remote,
+        Some(&first),
+        &index,
+        &|p| under(&host.0, p),
+        second_id,
+        "Alex",
+        &mut go,
+    )
+    .unwrap();
     let second = remote.manifest(second_id).unwrap();
     let fetched = fetch(remote, &second, &layout, &mut guest_index, &mut go).unwrap();
     assert_eq!(fetched.downloaded, BLOCK * 3 + 6);

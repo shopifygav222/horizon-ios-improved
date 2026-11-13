@@ -34,7 +34,10 @@ pub struct GenId {
 impl GenId {
     /// The manifest's key under the world's prefix.
     pub fn manifest_key(&self) -> String {
-        format!("gen/{:010}-{:06}-{:08}.json", self.epoch, self.seq, self.day)
+        format!(
+            "gen/{:010}-{:06}-{:08}.json",
+            self.epoch, self.seq, self.day
+        )
     }
 
     /// The key of this generation's `n`th pack.
@@ -55,7 +58,10 @@ impl GenId {
 
     /// The (epoch, seq) a pack name (as [`Self::pack_name`] writes it) belongs to.
     pub fn of_pack(name: &str) -> Option<(u64, u32)> {
-        let mut parts = name.strip_prefix("pack/")?.strip_suffix(".pack")?.split('-');
+        let mut parts = name
+            .strip_prefix("pack/")?
+            .strip_suffix(".pack")?
+            .split('-');
         let id = (parts.next()?.parse().ok()?, parts.next()?.parse().ok()?);
         parts.next()?.parse::<u32>().ok()?;
         parts.next().is_none().then_some(id)
@@ -120,21 +126,26 @@ pub(crate) mod short_hashes {
     use super::{BlockHash, SHORT, base64, unbase64};
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
 
-    pub fn serialize<S: Serializer>(blocks: &[BlockHash], serializer: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<S: Serializer>(
+        blocks: &[BlockHash],
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&base64(blocks.as_flattened()))
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<BlockHash>, D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Vec<BlockHash>, D::Error> {
         let text = String::deserialize(deserializer)?;
         let bytes = unbase64(&text).map_err(D::Error::custom)?;
-        let pieces = bytes.chunks_exact(SHORT);
-        if !pieces.remainder().is_empty() {
+        let count = bytes.len() / SHORT;
+        if bytes.len() != count * SHORT {
             return Err(D::Error::custom("block hashes cut short"));
         }
-        Ok(pieces
-            .map(|piece| {
+        Ok((0..count)
+            .map(|i| {
                 let mut hash = [0u8; SHORT];
-                hash.copy_from_slice(piece);
+                hash.copy_from_slice(&bytes[i * SHORT..(i + 1) * SHORT]);
                 hash
             })
             .collect())
@@ -233,14 +244,21 @@ impl Manifest {
             }
             let blocks = block_count(file.size);
             if file.blocks.len() as u64 != blocks {
-                return bad(format!("{path}: {} block hashes for {blocks} blocks", file.blocks.len()));
+                return bad(format!(
+                    "{path}: {} block hashes for {blocks} blocks",
+                    file.blocks.len()
+                ));
             }
             let mut covered = 0u64;
             for run in &file.runs {
                 if run.blocks == 0 || run.pack as usize >= self.packs.len() {
                     return bad(format!("{path}: a run points nowhere"));
                 }
-                if run.offset.checked_add(u64::from(run.blocks) * BLOCK).is_none() {
+                if run
+                    .offset
+                    .checked_add(u64::from(run.blocks) * BLOCK)
+                    .is_none()
+                {
                     return bad(format!("{path}: a run past the end of any pack"));
                 }
                 covered += u64::from(run.blocks);
@@ -270,25 +288,49 @@ mod tests {
     fn manifest(files: Vec<FileEntry>) -> Manifest {
         Manifest {
             version: VERSION,
-            id: GenId { epoch: 3, seq: 7, day: 20261113 },
-            parent: Some(GenId { epoch: 3, seq: 6, day: 20261113 }),
+            id: GenId {
+                epoch: 3,
+                seq: 7,
+                day: 20261113,
+            },
+            parent: Some(GenId {
+                epoch: 3,
+                seq: 6,
+                day: 20261113,
+            }),
             by: "Alex".into(),
-            packs: vec!["pack/0000000003-000006-000.pack".into(), "pack/0000000003-000007-000.pack".into()],
+            packs: vec![
+                "pack/0000000003-000006-000.pack".into(),
+                "pack/0000000003-000007-000.pack".into(),
+            ],
             files,
         }
     }
 
     #[test]
     fn keys_sort_as_generations_do_and_read_back() {
-        let old = GenId { epoch: 9, seq: 120, day: 20261113 };
-        let new = GenId { epoch: 10, seq: 1, day: 20261114 };
+        let old = GenId {
+            epoch: 9,
+            seq: 120,
+            day: 20261113,
+        };
+        let new = GenId {
+            epoch: 10,
+            seq: 1,
+            day: 20261114,
+        };
         assert!(old < new);
         assert!(old.manifest_key() < new.manifest_key());
         assert_eq!(old.manifest_key(), "gen/0000000009-000120-20261113.json");
         assert_eq!(GenId::from_manifest_key(&old.manifest_key()), Some(old));
         assert_eq!(GenId::of_pack(&new.pack_name(4)), Some((10, 1)));
         assert_eq!(new.pack_name(4), "pack/0000000010-000001-004.pack");
-        for key in ["gen/9-120-20261113.json", "gen/x.json", "pack/0000000009-000120-000.pack", "gen/0000000009-000120-20261113.json.bak"] {
+        for key in [
+            "gen/9-120-20261113.json",
+            "gen/x.json",
+            "pack/0000000009-000120-000.pack",
+            "gen/0000000009-000120-20261113.json.bak",
+        ] {
             assert_eq!(GenId::from_manifest_key(key), None, "{key}");
         }
         assert_eq!(GenId::of_pack("pack/../lease"), None);
@@ -308,14 +350,34 @@ mod tests {
     #[test]
     fn a_manifest_round_trips_and_finds_its_blocks() {
         let files = vec![
-            entry("level.dat", 100, vec![Run { pack: 1, offset: 0, blocks: 1 }]),
+            entry(
+                "level.dat",
+                100,
+                vec![Run {
+                    pack: 1,
+                    offset: 0,
+                    blocks: 1,
+                }],
+            ),
             entry(
                 "region/r.0.0.mca",
                 BLOCK * 5 + 9,
                 vec![
-                    Run { pack: 0, offset: BLOCK * 10, blocks: 2 },
-                    Run { pack: 1, offset: 100, blocks: 3 },
-                    Run { pack: 0, offset: 0, blocks: 1 },
+                    Run {
+                        pack: 0,
+                        offset: BLOCK * 10,
+                        blocks: 2,
+                    },
+                    Run {
+                        pack: 1,
+                        offset: 100,
+                        blocks: 3,
+                    },
+                    Run {
+                        pack: 0,
+                        offset: 0,
+                        blocks: 1,
+                    },
                 ],
             ),
             entry("region/r.0.1.mca", 0, vec![]),
@@ -345,8 +407,21 @@ mod tests {
             assert!(safe_path(path), "{path}");
         }
         for path in [
-            "", "/etc/passwd", "../outside", "a/../../b", "a//b", "a/./b", "C:/x", "a\\b", "a/b.", "a/b ",
-            "nul\0", "session.lock", ".shared-world", ".shared-world/journal.json", "a/b?c",
+            "",
+            "/etc/passwd",
+            "../outside",
+            "a/../../b",
+            "a//b",
+            "a/./b",
+            "C:/x",
+            "a\\b",
+            "a/b.",
+            "a/b ",
+            "nul\0",
+            "session.lock",
+            ".shared-world",
+            ".shared-world/journal.json",
+            "a/b?c",
         ] {
             assert!(!safe_path(path), "{path:?}");
         }
@@ -357,8 +432,24 @@ mod tests {
     fn a_wrong_manifest_is_refused_before_anything_uses_it() {
         let good = || {
             vec![
-                entry("a", BLOCK * 2, vec![Run { pack: 0, offset: 0, blocks: 2 }]),
-                entry("b", 5, vec![Run { pack: 1, offset: 0, blocks: 1 }]),
+                entry(
+                    "a",
+                    BLOCK * 2,
+                    vec![Run {
+                        pack: 0,
+                        offset: 0,
+                        blocks: 2,
+                    }],
+                ),
+                entry(
+                    "b",
+                    5,
+                    vec![Run {
+                        pack: 1,
+                        offset: 0,
+                        blocks: 1,
+                    }],
+                ),
             ]
         };
         assert!(manifest(good()).check().is_ok());
@@ -377,7 +468,10 @@ mod tests {
             let mut m = manifest(good());
             damage(&mut m);
             assert!(m.check().is_err(), "damage {i}");
-            assert!(Manifest::from_bytes(&m.to_bytes().unwrap()).is_err(), "damage {i}");
+            assert!(
+                Manifest::from_bytes(&m.to_bytes().unwrap()).is_err(),
+                "damage {i}"
+            );
         }
         let mut newer = manifest(good());
         newer.version = VERSION + 1;

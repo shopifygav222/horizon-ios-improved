@@ -41,7 +41,9 @@ impl WorldInvite {
         }
         let name = self.name.trim();
         if name.is_empty() || name.chars().count() > 64 || name.chars().any(char::is_control) {
-            return Err(Error::Format("the invite's world has no usable name".into()));
+            return Err(Error::Format(
+                "the invite's world has no usable name".into(),
+            ));
         }
         Ok(())
     }
@@ -82,11 +84,13 @@ mod tests {
     fn invite() -> WorldInvite {
         WorldInvite {
             bucket: Bucket {
-                endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com".into(),
+                endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com"
+                    .into(),
                 bucket: "our-worlds".into(),
                 region: "auto".into(),
                 access_key: "0123456789abcdef0123456789abcdef".into(),
-                secret_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".into(),
+                secret_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                    .into(),
             },
             world: WorldInvite::new_id().unwrap(),
             name: "The Island".into(),
@@ -131,7 +135,8 @@ mod tests {
         let mut bad = invite();
         bad.name = "  ".into();
         assert!(bad.encode().is_err());
-        let ids: std::collections::HashSet<String> = (0..50).map(|_| WorldInvite::new_id().unwrap()).collect();
+        let ids: std::collections::HashSet<String> =
+            (0..50).map(|_| WorldInvite::new_id().unwrap()).collect();
         assert_eq!(ids.len(), 50);
         assert!(ids.iter().all(|id| valid_id(id)));
     }

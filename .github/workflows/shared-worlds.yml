@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/shared-worlds.yml
       - crates/horizon-shared-worlds/**
+      - tools/ci/s3_server.sh
       - Cargo.toml
       - Cargo.lock
   workflow_dispatch:
@@ -55,23 +56,13 @@ jobs:
         run: cargo test -p horizon-shared-worlds
       - name: Start an S3 server
         if: ${{ !cancelled() }}
-        run: |
-          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=sharedworlds -e MINIO_ROOT_PASSWORD=sharedworlds-secret \
-            minio/minio server /data
-          for _ in $(seq 60); do
-            curl -fsS http://127.0.0.1:9000/minio/health/ready && break
-            sleep 1
-          done
-          AWS_ACCESS_KEY_ID=sharedworlds AWS_SECRET_ACCESS_KEY=sharedworlds-secret AWS_DEFAULT_REGION=us-east-1 \
-            aws --endpoint-url http://127.0.0.1:9000 s3 mb s3://shared-worlds-test
+        run: bash tools/ci/s3_server.sh
+      # The live tests pass without doing anything when no server is given: make sure one is.
       - name: Test against the S3 server
         if: ${{ !cancelled() }}
-        env:
-          SHARED_WORLDS_S3_ENDPOINT: http://127.0.0.1:9000
-          SHARED_WORLDS_S3_BUCKET: shared-worlds-test
-          SHARED_WORLDS_S3_KEY: sharedworlds
-          SHARED_WORLDS_S3_SECRET: sharedworlds-secret
-        run: cargo test -p horizon-shared-worlds --test s3_live -- --nocapture
+        run: |
+          test -n "$SHARED_WORLDS_S3_ENDPOINT"
+          cargo test -p horizon-shared-worlds --test s3_live -- --nocapture
       - name: The layout must be right too
         if: steps.format.outcome == 'failure'
         run: exit 1
