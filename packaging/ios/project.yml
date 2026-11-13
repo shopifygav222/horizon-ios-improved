@@ -1,10 +1,9 @@
 # Horizon Pocket Edition, an iOS port of Horizon based on Starling's Android port, as an XcodeGen spec
-# (IOS-SYNC.md). Its targets and its executable keep Starling's names (and its bundle identifier,
-# dev.horizon.starling): the player sees "Horizon PE" (GameInfo.plist), and an app renamed inside
-# would install as another.
+# (IOS-SYNC.md): the app HorizonPE.app, bundle identifier dev.horizon.pocketedition, "Horizon PE" under its icon
+# (GameInfo.plist).
 #
 # Xcode does not like being edited in source control, so the repository keeps this file and
-# `xcodegen` writes StarlingIOS.xcodeproj from it:
+# `xcodegen` writes HorizonPE.xcodeproj from it:
 #   brew install xcodegen && cd packaging/ios && xcodegen generate
 # Generating from this directory matters: $(SRCROOT) below is this directory.
 #
@@ -13,7 +12,7 @@
 # beside it what Starling's APK carries in assets/ (tools/ios_prepare.py makes them in
 # .local/ios/assets: the game tables horizon-prepare made, the setup's skin, Starling Visuals).
 # .github/workflows/ios.yml runs the same steps for the unsigned .ipa.
-name: StarlingIOS
+name: HorizonPE
 options:
   pathBase: project
   createIntermediateGroups: true
@@ -42,10 +41,10 @@ targets:
   #   2. Xcode links GameShell/main.m, which only gives the target an executable.
   #   3. The post-compile phase replaces that executable with the Rust one and adds the assets;
   #      Xcode signs the bundle afterwards, so what reaches the phone carries a valid signature.
-  StarlingGame:
+  HorizonPE:
     type: application
     platform: iOS
-    productName: Starling
+    productName: HorizonPE
     sources:
       - path: GameShell
       - path: Assets.xcassets
@@ -69,7 +68,7 @@ targets:
           cd "$SRCROOT/../.."
           # CI builds the game in its own step first and sets this, so the bundle step does not compile it twice.
           if [ -n "${HORIZON_GAME_PREBUILT:-}" ] && [ -x "target/$IOS_TARGET/release/horizon-ios-game" ]; then
-            echo "Starling: using the game Cargo already built (HORIZON_GAME_PREBUILT)."
+            echo "Horizon PE: using the game Cargo already built (HORIZON_GAME_PREBUILT)."
             exit 0
           fi
           cargo build --release --target "$IOS_TARGET" -p horizon-ios-game
@@ -88,14 +87,14 @@ targets:
           bundle="$BUILT_PRODUCTS_DIR/$WRAPPER_NAME"
           cp "$game" "$bundle/$EXECUTABLE_NAME"
           chmod +x "$bundle/$EXECUTABLE_NAME"
-          echo "Starling: $bundle/$EXECUTABLE_NAME is now the Rust game, $(stat -f %z "$bundle/$EXECUTABLE_NAME") bytes."
+          echo "Horizon PE: $bundle/$EXECUTABLE_NAME is now the Rust game, $(stat -f %z "$bundle/$EXECUTABLE_NAME") bytes."
           # What Starling's APK carries in assets/, read by the game's platform::asset (ios.rs) and
           # its preparer (engine-data.zip, preparer.rs).
           assets="$root/.local/ios/assets"
           if [ -d "$assets" ]; then
             mkdir -p "$bundle/assets"
             cp "$assets"/* "$bundle/assets/"
-            echo "Starling: bundled $(ls "$assets" | tr '\n' ' ')"
+            echo "Horizon PE: bundled $(ls "$assets" | tr '\n' ' ')"
           else
             echo "warning: no $assets; run tools/ios_prepare.py first, or the setup can't prepare the game."
           fi
@@ -104,16 +103,16 @@ targets:
         INFOPLIST_FILE: GameInfo.plist
         GENERATE_INFOPLIST_FILE: NO
         # A separate app from Horizon's iOS app (dev.horizon.game): both install side by side.
-        PRODUCT_BUNDLE_IDENTIFIER: dev.horizon.starling
-        PRODUCT_NAME: Starling
+        PRODUCT_BUNDLE_IDENTIFIER: dev.horizon.pocketedition
+        PRODUCT_NAME: HorizonPE
         TARGETED_DEVICE_FAMILY: "1,2"
         # The name inside the bundle, so GameInfo.plist's CFBundleExecutable is true of this build.
-        EXECUTABLE_NAME: Starling
+        EXECUTABLE_NAME: HorizonPE
 
 schemes:
-  Starling:
+  HorizonPE:
     build:
       targets:
-        StarlingGame: All
+        HorizonPE: All
     run:
       config: Release

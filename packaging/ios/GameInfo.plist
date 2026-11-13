@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Horizon Pocket Edition, "Horizon PE" under its icon (packaging/ios/project.yml's StarlingGame target,
+  Horizon Pocket Edition, "Horizon PE" under its icon (packaging/ios/project.yml's HorizonPE target,
   IOS-SYNC.md): an iOS port of Horizon (Minecraft: Java Edition in Rust) based on Starling, Horizon's Android
-  port, drawn with Metal. Its executable is the cross-compiled
-  `horizon-ios-game` binary. The bundle identifier and the executable's name are still Starling's
-  (dev.horizon.starling, Starling): changed, the app would install as another one, without the player's
-  worlds. A separate app from Horizon's iOS app (dev.horizon.game): both install side by side, and the
-  setup brings Horizon's worlds over.
+  port, drawn with Metal. Its executable, HorizonPE, is the cross-compiled `horizon-ios-game` binary; its
+  bundle identifier is dev.horizon.pocketedition. A separate app from Horizon's iOS app (dev.horizon.game): both
+  install side by side, and the setup brings Horizon's worlds over.
 
   There is no principal class, no nib and no storyboard, on purpose: winit's iOS backend passes its own
   application delegate to UIApplicationMain and registers WinitSceneDelegate (third_party/winit,
@@ -26,7 +24,7 @@
 	<key>CFBundleDisplayName</key>
 	<string>Horizon PE</string>
 	<key>CFBundleExecutable</key>
-	<string>Starling</string>
+	<string>HorizonPE</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>

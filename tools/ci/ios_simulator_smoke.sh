@@ -5,10 +5,10 @@
 # panic in stderr and no crash report. GitHub's macOS machines may give the Simulator no Metal device:
 # then the renderer's "No Metal graphics device" is what the start reaches, which still proves every
 # step before it.
-#   tools/ci/ios_simulator_smoke.sh path/to/Starling.app
+#   tools/ci/ios_simulator_smoke.sh path/to/HorizonPE.app
 set -euo pipefail
 app=$1
-bundle=dev.horizon.starling
+bundle=dev.horizon.pocketedition
 device=$(xcrun simctl list devices available -j | python3 -c '
 import json, sys
 devices = json.load(sys.stdin)["devices"]

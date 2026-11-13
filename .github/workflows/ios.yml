@@ -154,18 +154,18 @@ jobs:
           version=$(python3 -c 'import sys; sys.path.insert(0, "packaging/android"); import build_apk; print(build_apk.VERSION_NAME)')
           command -v xcodegen >/dev/null || brew install xcodegen
           ( cd packaging/ios && xcodegen generate )
-          HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/StarlingIOS.xcodeproj \
-            -target StarlingGame -configuration Release -sdk iphoneos -arch arm64 \
+          HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/HorizonPE.xcodeproj \
+            -target HorizonPE -configuration Release -sdk iphoneos -arch arm64 \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO \
             DEBUG_INFORMATION_FORMAT=dwarf MARKETING_VERSION="$version" \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             CONFIGURATION_BUILD_DIR="$PWD/build-ios" \
             build > xcode-build.log 2>&1 || { tail -80 xcode-build.log; exit 1; }
-          app=build-ios/Starling.app
+          app=build-ios/HorizonPE.app
           for asset in engine-data.zip lowbudget.zip StarlingVisuals.zip; do
             test -f "$app/assets/$asset" || { echo "::error::the app has no assets/$asset"; exit 1; }
           done
-          cmp -s "$app/Starling" "target/$IOS_TARGET/release/horizon-ios-game" \
+          cmp -s "$app/HorizonPE" "target/$IOS_TARGET/release/horizon-ios-game" \
             || { echo '::error::the app does not contain the Rust game'; exit 1; }
           # What the game says it was built with (game/mods.rs BUILD_INFO, beside its program):
           # the Mods page and crash reports name these mods.
@@ -259,10 +259,10 @@ jobs:
           python3 tools/ios_prepare.py --art-only
           command -v xcodegen >/dev/null || brew install xcodegen
           ( cd packaging/ios && xcodegen generate )
-          HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/StarlingIOS.xcodeproj \
-            -target StarlingGame -configuration Release -sdk iphonesimulator -arch arm64 \
+          HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/HorizonPE.xcodeproj \
+            -target HorizonPE -configuration Release -sdk iphonesimulator -arch arm64 \
             IOS_TARGET="$IOS_TARGET" CODE_SIGN_IDENTITY=- \
             CONFIGURATION_BUILD_DIR="$PWD/build-sim" \
             build > xcode-sim.log 2>&1 || { tail -80 xcode-sim.log; exit 1; }
       - name: Start it in the Simulator
-        run: bash tools/ci/ios_simulator_smoke.sh build-sim/Starling.app
+        run: bash tools/ci/ios_simulator_smoke.sh build-sim/HorizonPE.app

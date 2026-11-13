@@ -1,39 +1,22 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Minecraft-Java%2026.3-5D9C3F" alt="Minecraft Java 26.3">
   <img src="https://img.shields.io/badge/platform-iOS%20%26%20iPadOS%2016%2B-1C1C1E?logo=apple&logoColor=white" alt="iOS and iPadOS 16 or newer">
-  <img src="https://img.shields.io/badge/graphics-Metal-8E8E93" alt="Metal">
   <a href="https://github.com/ludovic111/horizon"><img src="https://img.shields.io/badge/port%20of-Horizon-F0795A" alt="Port of Horizon"></a>
   <a href="https://github.com/starling-client/starling"><img src="https://img.shields.io/badge/based%20on-Starling-2A2470" alt="Based on Starling"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3B2F7E" alt="MIT license"></a>
 </p>
 
-<p align="center">
-  <a href="#install"><b>Install</b></a> ·
-  <a href="#controls"><b>Controls</b></a> ·
-  <a href="#shader-packs"><b>Shader packs</b></a> ·
-  <a href="#native-mods"><b>Native mods</b></a> ·
-  <a href="#tips-and-troubleshooting"><b>Help</b></a> ·
-  <a href="#build-it-yourself"><b>Build it yourself</b></a> ·
-  <a href="docs/ios.md"><b>iOS guide</b></a>
-</p>
-
 # Horizon Pocket Edition (iOS)
 
 **Minecraft: Java Edition 26.3 on iPhone and iPad, running natively.** Horizon Pocket Edition
-("Horizon PE" under its icon) is an iOS port of [Horizon](https://github.com/ludovic111/horizon),
-Minecraft's Java game rewritten in Rust, which reads the same worlds, follows the same rules and
-generates the same terrain as Java Edition. It is based on [Starling](https://github.com/starling-client/starling),
-Horizon's Android port. There is no Java virtual machine and no OpenGL translation in between: the game
-draws with Metal, so it starts fast and plays smoothly on a phone.
+("Horizon PE" on your home screen) is an iOS port of [Horizon](https://github.com/ludovic111/horizon),
+Minecraft's Java game rewritten in Rust, based on [Starling](https://github.com/starling-client/starling),
+Horizon's Android port. It plays the same worlds, rules and terrain as Java Edition, and draws with
+Metal: no Java, no emulation.
 
-From Starling it keeps everything made for phones (the touch controls, accounts, skins, catalog and
-shader packs), and adds what iOS needs on top: the game files laid out without Java, the Files app,
-Photos, the iOS keyboard, Keychain sign-ins, and native mods compiled into the app itself.
-
-> **Not an official Minecraft product.** Not approved by or associated with Mojang or Microsoft.
-> Minecraft and "Pocket Edition" are Mojang's trademarks. This app contains no Minecraft code, assets
-> or data: it downloads the game's files from Mojang on your phone, and you need your own copy of
-> Minecraft: Java Edition 26.3 to play online.
+> **Not an official Minecraft product.** Not approved by or associated with Mojang or Microsoft. The
+> app contains no Minecraft code or assets: it downloads the game's files from Mojang on your phone.
+> To play online you need your own copy of Minecraft: Java Edition.
 
 <table>
   <tr>
@@ -48,278 +31,180 @@ Photos, the iOS keyboard, Keychain sign-ins, and native mods compiled into the a
   </tr>
 </table>
 
-<sub>Screenshots of Horizon's game, from the Starling project.</sub>
+**Contents:** [Install](#install) · [Controls](#controls) · [Shader packs](#shader-packs) ·
+[Native mods](#native-mods) · [Help](#help) · [For developers](#for-developers) · [Credits](#credits)
 
 ## Install
 
-**You need** an iPhone or iPad on iOS 16 or newer (iPhone 8 and later), about 2 GB free, and a way
-to sideload apps: [SideStore](https://sidestore.io), [AltStore](https://altstore.io),
-[Sideloadly](https://sideloadly.io) from a computer, or [LiveContainer](https://github.com/LiveContainer/LiveContainer).
+**You need** an iPhone or iPad on iOS 16 or newer (iPhone 8 and later), about 2 GB free, and a
+sideloading app: [SideStore](https://sidestore.io), [AltStore](https://altstore.io),
+[Sideloadly](https://sideloadly.io) (from a computer) or [LiveContainer](https://github.com/LiveContainer/LiveContainer).
 
-1. **Get the app**, one of two ways:
-   - **Just to play: a ready build.** Open this repository's [Actions](../../actions/workflows/ios.yml),
-     pick the latest run with a `horizon-pe-ios-<number>` artifact, and download it (any GitHub account
-     can; GitHub asks you to sign in). Unzip it to get `HorizonPE-iOS-unsigned.ipa`. Everything works in
-     it, except building native mods: that needs the second way.
-   - **Your own copy, for native mods.** Fork this repository and build the app in your fork: the
-     steps are under [Native mods](#native-mods), step 1. It takes one tap on GitHub and about an hour
-     of waiting, and costs nothing.
-2. **Sideload it.** Open the `.ipa` with your sideloading app, or drop it on Sideloadly. The `.ipa` is
-   unsigned: the sideloading app signs it with your Apple ID. With a free Apple ID the signature lasts
-   7 days; refresh it (SideStore and AltStore do that for you) and nothing is lost.
-3. **Set it up.** On the first start, sign in with Microsoft (the account that owns Java Edition),
-   Ely.by, or pick an offline profile. The game downloads its files from Mojang, checks each one, and
-   lays them out on the phone, once (keep the app open and on Wi-Fi). Then the title screen.
+1. **Download the app.** Open [Actions > ios](../../actions/workflows/ios.yml), pick the newest run
+   that has a `horizon-pe-ios-<number>` artifact, and download it (GitHub asks you to sign in). Unzip it
+   to get `HorizonPE-iOS-unsigned.ipa`.
+   *Want native mods? Build the app in your own fork instead: [Native mods](#native-mods), step 1.*
+2. **Install it** with your sideloading app. It signs the app with your Apple ID; with a free Apple ID,
+   refresh it every 7 days (SideStore and AltStore do it for you). Nothing is lost.
+3. **Start it.** Sign in with Microsoft (the account that owns Java Edition) or Ely.by, or play
+   offline. The first start downloads the game's files from Mojang, so stay on Wi-Fi.
 
-**Updating:** install a newer `.ipa` the same way, over the one you have. It is the same app, so your
-worlds, settings, accounts and mods stay. Coming from Horizon's own iOS app? The setup offers to copy
-its worlds and resource packs over.
+**Updating:** install the newer `.ipa` over the old one. Worlds, settings, accounts and mods stay.
 
-Your game folder is **On My iPhone > Horizon PE** in the Files app: worlds (`saves`), resource packs,
-shader packs, mods, screenshots and logs. Open a pack, a world, a skin or a mod (`.zip`, `.starling`,
-`.mrpack`, `.hmod`, `.hnmod`, `.png`) with Horizon PE from Files or Safari to add it.
+**Had a build from before the rename?** Older builds used the app ID `dev.horizon.starling`; now it is
+`dev.horizon.pocketedition`, so iOS installs the new one as a separate app. Start the new app once,
+then in the Files app copy `saves` (and `resourcepacks`, `shaderpacks` if you like) from the old app's
+**Horizon PE** folder into the new one's (the nearly empty one), and delete the old app. Sign in again
+in the new app.
+
+**Your files** are in the Files app under **On My iPhone > Horizon PE**: `saves` (worlds),
+`resourcepacks`, `shaderpacks`, `mods`, `screenshots` and `logs`. Open a world, pack, skin or mod
+(`.zip`, `.mrpack`, `.hmod`, `.hnmod`, `.png`) with Horizon PE from Files or Safari to add it.
 
 ## Controls
 
-The touch controls come in two styles: **MCPE** (the default, laid out like Minecraft Pocket Edition)
-and **GoyControl** (labelled buttons you place and bind yourself). A hardware keyboard, mouse or game
-controller takes over the moment you use it, and the touch controls come back when you touch the
-screen.
+Two touch styles: **MCPE** (the default, like Minecraft Pocket Edition) and **GoyControl** (labelled
+buttons you place and bind yourself). A keyboard, mouse or game controller works too; the touch
+controls step aside while you use one.
 
-<p align="center"><img src="docs/media/controls-mcpe.jpg" alt="Horizon PE in a world with the MCPE touch controls: the movement pad on the left; Use, Attack, Jump, Sprint, Sneak and the inventory button on the right; the debug, chat, pause, options and camera buttons along the top; the H button and the ... button in the top left corner; the hotbar along the bottom"></p>
-<p align="center"><sub>The MCPE style.</sub></p>
+<p align="center"><img src="docs/media/controls-mcpe.jpg" alt="Horizon PE in a world with the MCPE touch controls"></p>
 
-| Control | What it does |
+| Button (MCPE) | What it does |
 | --- | --- |
-| **Movement pad** (bottom left) | Put a finger down anywhere on the left side and drag. With **Auto Sprint** on (Options > Controls), pushing it to the edge sprints |
-| **Look around** | Drag anywhere that isn't a button |
-| **Sword** / **crosshair** (right) | Attack: break and hit (hold to keep breaking). Use: place, eat, open |
-| **Up arrow** / **down arrow** | Jump and sneak; while swimming or flying they go up and down, and sneak gets off a mount |
-| **Double arrow** | Sprint: tap to start, tap again to stop (**Toggle Sprint**, on by default). Turn it off to hold instead |
-| **...** (beside the hotbar) | The inventory: tap to open, tap again to close |
-| **Top row** | The debug screen (F3), chat, pause, the game's Options, and the camera view (F5) |
-| **H** (top left) | The Horizon menu: touch settings and the layout (below) |
-| **...** (top left, beside H) | A row of F3, F5, Chat and Keys, plus Hold F3 and the F3 combinations (F3 + B, G, H...) |
-| **Hotbar** | Tap a slot to select it |
+| **Pad** (bottom left) | Move. Put a finger down anywhere on the left side and drag |
+| **Sword** / **crosshair** | Attack (break, hit; hold to keep breaking) / Use (place, eat, open) |
+| **Up arrow** / **down arrow** | Jump / sneak. Up and down while swimming or flying; sneak gets off a mount |
+| **Double arrow** | Sprint: tap on, tap off. Turn **Toggle Sprint** off in the Horizon menu to hold it instead |
+| **...** (by the hotbar) | Inventory |
+| **Top row** | Debug screen (F3), chat, pause, Options, camera view (F5) |
+| **H** (top left) | The Horizon menu: touch settings and the layout editor |
+| **...** (top left) | F3, F5, Chat and Keys, plus the F3 combinations |
 
-<p align="center"><img src="docs/media/controls-goycontrol.jpg" alt="Horizon PE in a world with the GoyControl touch controls: labelled buttons ESC, DEBUG, 3RD, CHAT, TAB and MOUSE along the top with the Horizon menu's sliders button among them; PRI and SEC on the left; DROP, SPRINT, SWAP, JUMP, INV and SNEAK on the right; a round movement stick in the bottom left"></p>
-<p align="center"><sub>The GoyControl style.</sub></p>
+Drag anywhere else to look around; tap a hotbar slot to select it.
 
-**GoyControl** names every button: **PRI** and **SEC** (attack and use), **JUMP**, **SNEAK**,
-**SPRINT**, **INV**, **DROP**, **SWAP** (hands), **CHAT**, **TAB** (the player list), **DEBUG** (F3),
-**3RD** (camera view), **ESC** and **MOUSE**. The sliders button opens the Horizon menu; drag it
-anywhere. Each button can send up to three keys, so you can add your own.
+**In an inventory or chest:** tap an item to pick it up, tap a slot to put it down. The sneak button
+becomes **Shift** (its arrow fills in when on): with Shift on, tapping an item **quick moves** it.
+You can keep walking with the inventory open (**Inventory Walk Controls**). With the virtual mouse
+(turn on **Virtual Mouse Button** in the Horizon menu), **Mouse** shows a pointer for menus, and
+**LMB** / **RMB** click with it; they quick move too while Shift is on. **Back** (top right) closes
+any screen.
 
-**In an inventory or chest:** tap an item to pick it up, tap a slot to put it down. The MCPE layout
-keeps two buttons there:
+<p align="center"><img src="docs/media/controls-goycontrol.jpg" alt="Horizon PE in a world with the GoyControl touch controls"></p>
 
-- **Shift** (the sneak button, showing the Shift arrow instead): tap it to turn Shift on (the arrow
-  fills in), then tap items to **quick move** them between the chest and your inventory. Tap it again
-  to turn Shift off; closing the inventory turns it off too.
-- **...** (the inventory button) closes it, like **Back** in the top right corner.
+**GoyControl** labels every button: **PRI** / **SEC** (attack / use), **JUMP**, **SNEAK**, **SPRINT**,
+**INV**, **DROP**, **SWAP** (hands), **CHAT**, **TAB** (player list), **DEBUG** (F3), **3RD** (camera
+view), **ESC** and **MOUSE**. The sliders button is the Horizon menu; drag it where you like.
 
-With **Inventory Walk Controls** on (the default), the movement pad stays, so you can walk with the
-inventory open. **Mouse** (turn on **Virtual Mouse Button** in the Horizon menu) shows a pointer for
-menus, moved by dragging, with **LMB** and **RMB** for left and right clicks; Shift stays on while
-you click with them, so they quick move too.
+**The Horizon menu** (**H**, or the sliders button) is where the touch settings are:
 
-**The Horizon menu** (**H** in MCPE, the sliders button in GoyControl) holds the touch settings, in
-five tabs:
+- **Controls:** switch MCPE / GoyControl, presets, the layout editor (move, resize, recolour, hide or
+  rebind any button), look sensitivity, invert Y.
+- **Aiming:** aim mode, where the movement pad can start, virtual mouse speed, gyroscope aiming.
+- **Buttons:** button size, the Swap and Shield buttons, left-handed layout, **Toggle Sprint**,
+  **Inventory Walk Controls**.
+- **Recommended** has the most used of these in one place; **Advanced** has vibration and auto-jump.
 
-- **Recommended:** the most used settings in one place: resolution, look sensitivity, the virtual
-  mouse, the style and animations.
-- **Controls:** the style (MCPE or GoyControl), presets, and the layout editor (move, resize, recolour,
-  hide or rebind every button, with snap to grid); look sensitivity, invert Y, and split touch (a
-  crosshair instead of tapping where you aim).
-- **Aiming:** the movement and aim mode, where the movement stick can start, the virtual mouse's speed
-  and pointer size, and gyroscope aiming.
-- **Buttons:** button size, the offhand (Swap) button, a separate Shield button, left-handed layout,
-  **Toggle Sprint** and **Inventory Walk Controls**.
-- **Advanced:** vibration, auto-jump, and keys for a desktop shortcut or your own input.
-
-These are Horizon's own settings, kept in `horizon-touch.json` and in your presets. The game's
-**Options > Controls** has Minecraft's settings (key binds, mouse sensitivity, Sneak and Sprint as
-Hold or Toggle for a keyboard), which are separate.
+Minecraft's own **Options > Controls** (key binds, and Sneak / Sprint toggles for a keyboard) is
+separate.
 
 ## Shader packs
 
-Shader packs for Iris and OptiFine work: Complementary, MakeUp, BSL, Photon and many more. Get them
-from the catalog on the **Shader Packs** screen, or put a pack's `.zip` in the `shaderpacks` folder in
-Files. **Starling Visuals**, a shader pack made for phones, comes with the app.
+Iris and OptiFine shader packs work (Complementary, BSL, MakeUp, Photon and more). Install them from
+the catalog on the **Shader Packs** screen, or put the `.zip` in `shaderpacks` in Files. **Starling
+Visuals**, made for phones, comes with the app.
 
-**Turning one on takes a moment, and that's normal.** A shader pack is a set of programs written for
-desktop OpenGL; when it loads, the game translates every one of them for Metal and the GPU driver
-compiles them. A light pack takes a few seconds, a large one (Complementary, Photon) can take longer.
-After that it plays at full speed. Heavier packs cost frame rate, battery and heat; Starling Visuals
-and the **Auto** profile are tuned for phones.
+**Turning a pack on takes a few seconds, and that's normal:** every program in it is translated for
+Metal and compiled, once, as it loads. Big packs take longer and cost more frame rate and battery;
+Starling Visuals and the **Auto** profile are the light options.
 
 ## Native mods
 
-Native mods change the game's own code. iOS runs no code its app didn't ship with, so on iOS a
-native mod is **compiled into the app**: GitHub builds you a new `.ipa` with the mods you picked, and
-you install it over the old one. Your worlds and settings stay. You pick the mods in the game, and
-GitHub does the work while you play.
+Native mods change the game's code, and iOS only runs code an app shipped with. So a native mod is
+**built into the app**: GitHub compiles a new `.ipa` with the mods you pick, you install it over your
+app, and your worlds stay. Builds run in the GitHub repository the app came from, and only its owner
+can start them, so you need **your own fork** and the app built from it.
 
-Builds run in the GitHub repository the app was built from, and only that repository's owner can start
-them. So you need **your own fork**, and the app built from it. Steps 1 and 2 are once only.
+**1. Your own copy (once)**
 
-**1. Your own copy (once).**
+1. On [GitHub](https://github.com) (signed in), open this repository and tap **Fork** > **Create
+   fork**. Keep it public: then GitHub's build machines are free.
+2. In your fork, open **Actions** and enable workflows (GitHub asks once).
+3. **Actions > ios > Run workflow**, tick **Make and keep the unsigned .ipa**, run it. In about an hour
+   the run has a `horizon-pe-ios-<number>` artifact: install that `.ipa` ([Install](#install)).
 
-1. Sign in to [GitHub](https://github.com) (Safari is fine), open this repository and tap **Fork**,
-   then **Create fork**. Keep it public: GitHub's macOS machines are free for public repositories.
-2. In your fork, open the **Actions** tab and tap **I understand my workflows, go ahead and enable
-   them** (GitHub asks once for a new fork).
-3. **Actions > ios > Run workflow**, tick **Make and keep the unsigned .ipa**, and tap **Run workflow**.
-   About 40 to 60 minutes later the run has a `horizon-pe-ios-<number>` artifact. Download it, unzip it,
-   and install `HorizonPE-iOS-unsigned.ipa` (see [Install](#install)). This app builds mods in your
-   fork.
+**2. A token (once a year)**
 
-**2. A GitHub token (once a year).** The game needs your permission to start builds in your fork:
+1. In the game, **Options > Mods > Make a token**. GitHub's token form opens, filled in (name, one
+   year, **Actions: Read and write**).
+2. Under **Repository access** pick **Only select repositories** and choose your fork.
+3. **Generate token**, copy it (GitHub shows it once), and in the game tap **Paste GitHub token**.
+   It stays in your phone's Keychain and only goes to GitHub.
 
-1. In the game, Options > Mods, tap **Make a token**. GitHub's token form opens, filled in: its name,
-   one year, and the permission **Actions: Read and write**. (The same form:
-   [this link](https://github.com/settings/personal-access-tokens/new?name=Horizon+PE&description=Builds+native+mods+from+the+game&expires_in=365&actions=write).)
-2. Under **Repository access** choose **Only select repositories** and pick your fork.
-3. Tap **Generate token**, and copy it: GitHub shows it once.
-4. Back in the game, tap **Paste GitHub token**. It stays in your phone's Keychain and only ever goes
-   to GitHub.
+**3. Build**
 
-**3. Build.**
+1. **Options > Mods > Catalog**: install the native mods you want.
+2. On the Mods page, tap **Build on GitHub**, and keep playing.
+3. In 30 to 60 minutes the title screen says **Mods ready: install**. Tap it, then **Install...**,
+   and pick your sideloading app in the share sheet.
 
-1. Options > Mods > **Catalog**: install the native mods you want.
-2. The Mods page says which native mods this app has, and that the ones you turned on aren't all in
-   it. Tap **Build on GitHub**.
-3. Keep playing. About 30 to 60 minutes later a toast and a line at the top of the title screen say
-   **Mods ready: install** (or **Mods build failed**, with why).
-4. Tap it: **Install...** opens the share sheet. Pick SideStore, AltStore, LiveContainer or your
-   signer, and install it over the app you have.
-
-**Removing a native mod** turns it off at once, and it leaves the app with your next build. Rather
-not build again? Leave it installed and turn it off in Options > Mods instead.
-
-**Getting updates in your fork.** A fork doesn't follow this repository by itself. On your fork's
-page on GitHub, tap **Sync fork > Update branch**, then build again: **Build on GitHub** in the game
-(it builds your mods into the newest version), or **Actions > ios > Run workflow** for the app alone.
-
-**Without the game:** in your fork, **Actions > ios > Run workflow**, and type the mod ids in **Native
-mods to build in** (for example `wrench fps_overlay`). The run's artifact,
-`horizon-pe-ios-<number>-native-mods`, is the app with them.
+To **remove** a native mod, remove it and build again, or just turn it off in **Options > Mods**.
+To **update**, tap **Sync fork > Update branch** on your fork's GitHub page, then build again.
 
 <details>
-<summary><b>If a build doesn't work</b></summary>
+<summary><b>If a build fails</b></summary>
 
-- **"GitHub refused (403)" or "(404)":** the token can't start builds in the repository this app was
-  built from. Make it for your fork, with **Actions: Read and write**, and use the app built from your
-  fork (step 1), not a ready build from someone else's repository.
-- **"Mods build failed":** open the run in your fork's **Actions** tab to see which step failed. A mod
-  that doesn't fit this version of the game fails there, before anything reaches your phone.
-- **The token expired** (after a year): **Make a token** again, then **Paste new token**.
-- **Nothing starts in your fork:** workflows aren't enabled yet (step 1.2).
+- **"GitHub refused (403)" or "(404)":** the token isn't for the repository this app was built from.
+  Make it for your fork with **Actions: Read and write**, and use the app built from your fork.
+- **"Mods build failed":** open the run in your fork's **Actions** tab to see why. Usually a mod made
+  for another game version; build again without it.
+- **Token expired** (after a year): **Make a token**, then **Paste new token**.
+- **Nothing starts:** workflows aren't enabled in your fork (step 1.2).
+- **Without the game:** **Actions > ios > Run workflow** with mod ids in **Native mods to build in**
+  (for example `wrench fps_overlay`).
 
 </details>
 
-Every build is checked before it reaches you: each mod is downloaded from the registry's own releases
-and checked against its size and SHA-256, applied to the source the way Starling's own mod builds do,
-compiled, and started once in the iOS Simulator. Builds stay in your fork's Actions for 30 days and are
-never published as releases, but anyone signed in to GitHub can download a public repository's run
-artifacts: they hold the game and the mods you picked, nothing of yours. All of it in detail:
-[docs/ios.md](docs/ios.md#native-mods).
+Every mod is checked against the registry's size and SHA-256 before it is built, and every build is
+started once in the iOS Simulator before you get it. Builds are kept in your fork's Actions for 30
+days. More detail: [docs/ios.md](docs/ios.md#native-mods).
 
-## What works
+## Help
 
-- **The game:** singleplayer with Java's world generation, mobs, villagers, raids, redstone, every
-  command, the HUD and the recipe book, on saves in Java's format. Worlds from older versions are
-  upgraded as Java does.
-- **Touch controls:** every action on screen in MCPE or GoyControl style, with presets, a layout
-  editor, the Horizon menu, a virtual mouse for menus, a keypad, Shift for quick moves in
-  inventories, walking with an inventory open, and optional gyroscope aiming ([Controls](#controls)).
-- **Keyboard, mouse and controllers:** a hardware keyboard or mouse takes over the moment you use it;
-  game controllers work through iOS's GameController. The on-screen keyboard opens on any text field
-  and closes with a tap beside it.
-- **Accounts:** Microsoft, Ely.by and offline profiles, several of each, switched from the title
-  screen's corner. Sign-ins are kept in the iOS Keychain.
-- **Skins:** your profile's skin and cape, and Skin Customization to change them.
-- **Catalog:** mods, resource packs and shader packs from Horizon's registry and Modrinth, installed
-  with one tap from Options > Mods, Resource Packs or Shader Packs, with their pictures. Each shelf's
-  **Installed** view lists everything you have there (from the catalog or the Files app) and removes
-  it.
-- **Shader packs:** Iris and OptiFine packs, translated for Metal when they load, and Starling Visuals
-  ([Shader packs](#shader-packs)).
-- **Servers:** online and offline-mode servers, proxies, server resource packs, plugin servers'
-  dialogs, custom items and models, LAN worlds and invites.
-- **Made for the phone:** settings picked for your device, a memory governor that keeps the game
-  inside what iOS allows, ProMotion up to 120 Hz, screenshots (F2) saved to Photos, and a diagnostic
-  ZIP (Options > Diagnostics) to send with a bug report.
+- **The app won't open after a week:** a free Apple ID signs apps for 7 days. Refresh it in SideStore
+  or AltStore, or install the `.ipa` again. Nothing is lost.
+- **Low frame rate or a hot phone:** lower the render distance (Options > Video Settings), use Starling
+  Visuals or no shader pack, and close other apps.
+- **Reset the touch layout:** Horizon menu > Controls > presets > **Default**.
+- **Something crashed or looks wrong:** Options > Diagnostics > **Export diagnostic ZIP**, then
+  [open an issue](../../issues/new/choose) with it and what you were doing.
 
-### Different from Starling on Android
+## For developers
 
-| Starling (Android) | Horizon PE (iOS) |
-| --- | --- |
-| A Java runtime prepares the game files on the phone | iOS runs no Java: the app carries the tables Java makes (built by GitHub), and lays the downloaded files out with them, file for file the same |
-| Native mods: a library from Starling's build server, swapped in | Native mods are compiled into the app by GitHub Actions ([above](#native-mods)) |
-| The `Starling` folder in shared storage | **Horizon PE** in the Files app |
-| In-app APK updates | A new `.ipa`, installed over the old one |
+No Mac needed: GitHub builds the app. Every push to `main` compiles the game for iOS, lints it, prepares
+the game files and checks the phone lays them out the same, bundles the app (checking it carries none
+of Mojang's files) and starts it in the iOS Simulator ([`ios.yml`](.github/workflows/ios.yml));
+[`ios-guard.yml`](.github/workflows/ios-guard.yml) checks Starling's desktop and Android builds still
+compile. A run dispatched with **Make and keep the unsigned .ipa** keeps the app.
 
-## Tips and troubleshooting
+On a Mac with Xcode: `rustup target add aarch64-apple-ios`, `python3 tools/ios_prepare.py` (needs Java
+25), then `brew install xcodegen && cd packaging/ios && xcodegen generate` and open
+`HorizonPE.xcodeproj`.
 
-- **The app stopped opening after a week.** A free Apple ID signs apps for 7 days. Refresh it in
-  SideStore or AltStore (they can do it in the background), or sideload the `.ipa` again. Nothing is
-  lost.
-- **Moving worlds in or out.** Worlds are folders in `saves` (Files > On My iPhone > Horizon PE). Copy
-  a Java Edition world's folder in, or a `.zip` of it opened with Horizon PE.
-- **Low frame rate or a hot phone.** Lower the render distance in Options > Video Settings, try
-  Starling Visuals or no shader pack, and close other apps. The game already picks settings for your
-  device.
-- **Reset the touch layout.** Horizon menu > Controls: pick the **Default** preset.
-- **The game crashed or something looks wrong.** Options > Diagnostics > **Export diagnostic ZIP**,
-  then [open an issue](../../issues/new/choose) with it and what you were doing. The ZIP stays on your
-  phone until you share it; look through it first.
-
-## Build it yourself
-
-You don't need a Mac: GitHub's Macs build it, in your fork ([Native mods](#native-mods), step 1).
-
-Every push to `main` runs the same build without keeping the `.ipa`: the game compiled for iOS and
-linted, the game files prepared and proved to come out the same on the phone, the app bundled and
-checked to carry none of Mojang's files, and the app started in the iOS Simulator
-([`ios.yml`](.github/workflows/ios.yml)). [`ios-guard.yml`](.github/workflows/ios-guard.yml) checks that
-the iOS work leaves Starling's desktop and Android builds compiling and formatted.
-
-**On a Mac with Xcode:** `rustup target add aarch64-apple-ios`, then `python3 tools/ios_prepare.py`
-(with Java 25: it fetches the pinned official 26.3 files, checks them, and makes the game tables the app
-carries), then `brew install xcodegen && cd packaging/ios && xcodegen generate` and open
-`StarlingIOS.xcodeproj`. Its build phase compiles the Rust game with Cargo and puts it in the app.
-
-## How the repository is laid out
-
-The repository is Starling's source (Horizon with Starling's Android port) with an iOS layer on top;
-[IOS-SYNC.md](IOS-SYNC.md) records the Starling version it is based on, every change to Starling's own
-files, and how to take in a new Starling release.
-
-| Path | What it is |
-| --- | --- |
-| `crates/horizon-ios-game` | The app's program: its folders, the 16 MB stack the game runs on, the event loop |
-| `crates/horizon-gamecontroller` | Every UIKit, GameController, Keychain, CoreMotion and Photos call (the game crates forbid unsafe code) |
-| `crates/horizon-client/src/ios.rs` | The game's iOS hooks: files, Keychain sealing, the keyboard, haptics, gyroscope, imports |
-| `crates/horizon-client/src/game/native_builds_ios.rs` | Native mods built on GitHub from the Mods page |
-| `crates/horizon-ios-prepare` | Lays the game files out on the phone without Java |
-| `packaging/ios` | The Xcode project (XcodeGen), `Info.plist`, icon, and the native-mod staging script |
-| `tools/ios_prepare.py`, `tools/ios_native_mods.py` | The game tables made in CI; native mods fetched and checked |
-| `third_party/winit` | Starling's winit with the iOS patches (scenes, keyboard and mouse, opened files) |
-| Everything else | Starling and Horizon, as they are ([Starling's README](https://github.com/starling-client/starling#readme)) |
+[docs/ios.md](docs/ios.md) covers the iOS app in depth; [IOS-SYNC.md](IOS-SYNC.md) lists the Starling
+version this is based on, the repository layout, every change to Starling's files, and how to take in
+a new Starling release.
 
 ## Credits
 
-- **[Horizon](https://github.com/ludovic111/horizon)** by Ludovic and its contributors: the game this
-  app ports, Minecraft: Java Edition rewritten in Rust.
-- **[Starling](https://github.com/starling-client/starling)**, formerly Horizon Android, by
-  [JuanLuci](https://github.com/JuanLuci) and [Vasysik](https://github.com/Vasysik): Horizon's Android
-  port, which this app is based on, with its touch controls, accounts, catalog, skins and Starling
-  Visuals.
-- **[horizon-iOS](https://github.com/meehandaniel4/horizon-iOS)**: the first native mod builds for
-  iOS on GitHub Actions, which this app's follow.
+- **[Horizon](https://github.com/ludovic111/horizon)** by Ludovic and contributors: Minecraft: Java
+  Edition rewritten in Rust, the game this app ports.
+- **[Starling](https://github.com/starling-client/starling)** by [JuanLuci](https://github.com/JuanLuci)
+  and [Vasysik](https://github.com/Vasysik): Horizon's Android port, which this app is based on,
+  with its touch controls, accounts, catalog, skins and Starling Visuals. The world screenshots above
+  are Starling's.
+- **[horizon-iOS](https://github.com/meehandaniel4/horizon-iOS)**: the first native mod builds for iOS
+  on GitHub Actions.
 
 ## License
 
-MIT, as Horizon and Starling: see [LICENSE](LICENSE). Third-party code and its licences are listed in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MIT, as Horizon and Starling: see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

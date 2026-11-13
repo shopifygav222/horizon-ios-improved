@@ -17,9 +17,25 @@ developed on `starling-ios` until it moved to `main`.
 - **Name:** the app is Horizon Pocket Edition. `APP_NAME` (render crate, "Horizon PE" on iOS, "Starling" elsewhere)
   is the name the game says; the setup's titles (`game/setup.rs`), the Files-app folder hints (`options_ui.rs`,
   `pack_screen.rs`) and the iOS-only text follow it, and on iOS the language files' "Starling" reads "Horizon PE"
-  (`Language::load`), the credits excepted. The bundle identifier (`dev.horizon.starling`), the executable and the
-  Xcode targets keep Starling's names: the player never sees them, and a new identifier would make another app,
-  without the player's worlds.
+  (`Language::load`), the credits excepted. The app is `HorizonPE.app`, bundle identifier `dev.horizon.pocketedition`, with the
+  executable, Xcode project, target and scheme all `HorizonPE` (`packaging/ios/project.yml`). Builds before the
+  rename were `Starling.app`, `dev.horizon.starling`: another app to iOS, whose worlds move over in Files.
+
+## Repository layout
+
+Starling's source (Horizon with Starling's Android port) with the iOS layer on top:
+
+| Path | What it is |
+| --- | --- |
+| `crates/horizon-ios-game` | The app's program: its folders, the 16 MB stack the game runs on, the event loop |
+| `crates/horizon-gamecontroller` | Every UIKit, GameController, Keychain, CoreMotion and Photos call (the game crates forbid unsafe code) |
+| `crates/horizon-client/src/ios.rs` | The game's iOS hooks: files, Keychain sealing, the keyboard, haptics, gyroscope, imports |
+| `crates/horizon-client/src/game/native_builds_ios.rs` | Native mods built on GitHub from the Mods page |
+| `crates/horizon-ios-prepare` | Lays the game files out on the phone without Java |
+| `packaging/ios` | The Xcode project (XcodeGen), `Info.plist`, icon, and the native-mod staging script |
+| `tools/ios_prepare.py`, `tools/ios_native_mods.py` | The game tables made in CI; native mods fetched and checked |
+| `third_party/winit` | Starling's winit with the iOS patches (scenes, keyboard and mouse, opened files) |
+| Everything else | Starling and Horizon, as they are |
 
 ## Rules
 

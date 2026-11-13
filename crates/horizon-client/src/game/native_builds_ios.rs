@@ -41,7 +41,7 @@ const TOKEN_FORM: &str = "https://github.com/settings/personal-access-tokens/new
     &description=Builds+native+mods+from+the+game&expires_in=365&actions=write";
 const API: &str = "https://api.github.com";
 /// The token, in the Keychain: this app's, on this device.
-const KEYCHAIN_SERVICE: &str = "dev.horizon.starling.github";
+const KEYCHAIN_SERVICE: &str = "dev.horizon.pocketedition.github";
 const KEYCHAIN_ACCOUNT: &str = "actions-token";
 /// The build being followed, in the private folder: it survives a restart of the app.
 const PENDING_FILE: &str = "native-build.json";

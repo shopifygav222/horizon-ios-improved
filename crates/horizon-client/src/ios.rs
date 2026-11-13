@@ -21,7 +21,7 @@ static RESTART: AtomicBool = AtomicBool::new(false);
 static FAILURE: Mutex<Option<String>> = Mutex::new(None);
 
 /// The Keychain service of the key [`seal`] seals with.
-const SECRETS: &str = "dev.horizon.starling.secrets";
+const SECRETS: &str = "dev.horizon.pocketedition.secrets";
 const SEAL_KEY: &str = "seal-key";
 /// ChaCha20-Poly1305's nonce, before each sealed text.
 const NONCE: usize = 12;
