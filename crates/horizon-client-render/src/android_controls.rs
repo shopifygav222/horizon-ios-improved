@@ -800,6 +800,18 @@ impl TouchControls {
                         };
                         text_button(b, a, bounds, label, pressed, color, false);
                     }
+                    // Over an inventory, Sneak is Shift (quick move): the Shift key's arrow,
+                    // filled while Shift is down.
+                    Control::Sneak if self.in_inventory => {
+                        menu_frame(b, a, bounds, color);
+                        shift_glyph(
+                            b,
+                            a,
+                            [x + size * 0.22, y + size * 0.22, size * 0.56, size * 0.56],
+                            held,
+                            color,
+                        );
+                    }
                     Control::Inventory => {
                         sprite(b, a, "ui/joystick_knob", bounds, color);
                         fitted_sprite(
@@ -1446,6 +1458,59 @@ fn draw_mcpe_bevel_button(b: &mut HudBatch, a: &HudAtlas, [x, y, w, h]: [f32; 4]
         uv,
         color,
     );
+}
+
+/// The keyboard's Shift key arrow in pixel cells: outlined, or filled while Shift is down.
+fn shift_glyph(b: &mut HudBatch, a: &HudAtlas, [x, y, w, h]: [f32; 4], down: bool, color: u32) {
+    const OUTLINE: [&str; 10] = [
+        "....##....",
+        "...#..#...",
+        "..#....#..",
+        ".#......#.",
+        "###....###",
+        "..#....#..",
+        "..#....#..",
+        "..#....#..",
+        "..#....#..",
+        "..######..",
+    ];
+    const FILLED: [&str; 10] = [
+        "....##....",
+        "...####...",
+        "..######..",
+        ".########.",
+        "##########",
+        "..######..",
+        "..######..",
+        "..######..",
+        "..######..",
+        "..######..",
+    ];
+    let cell = w.min(h) / 10.0;
+    let (left, top) = (x + (w - cell * 10.0) / 2.0, y + (h - cell * 10.0) / 2.0);
+    for (row, line) in (if down { FILLED } else { OUTLINE }).iter().enumerate() {
+        // Each run of cells in a row as one quad.
+        let cells = line.as_bytes();
+        let mut col = 0;
+        while col < cells.len() {
+            if cells[col] != b'#' {
+                col += 1;
+                continue;
+            }
+            let start = col;
+            while col < cells.len() && cells[col] == b'#' {
+                col += 1;
+            }
+            b.fill(
+                a,
+                left + start as f32 * cell,
+                top + row as f32 * cell,
+                (col - start) as f32 * cell,
+                cell,
+                color,
+            );
+        }
+    }
 }
 
 /// Reuse Chat's complete 18x18 border, including its bottommost pixel row.
@@ -2952,6 +3017,10 @@ mod tests {
         assert_eq!(settings.circle_size, 32.0);
         assert!(!settings.analog_movement);
         assert!(settings.sprint_button);
+        assert!(settings.sprint_toggle && settings.toggle_sprint && settings.inventory_controls);
+        // The rest is about holding sprint.
+        settings.sprint_toggle = false;
+        settings.toggle_sprint = false;
         settings.circle_size = f32::NAN;
         settings.sanitize();
         assert_eq!(settings.circle_size, 32.0);

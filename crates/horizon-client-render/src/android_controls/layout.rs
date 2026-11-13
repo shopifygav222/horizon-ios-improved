@@ -544,6 +544,10 @@ pub struct Settings {
     pub button_visibility: [u8; 14],
     pub horizontal_margin: f32,
     pub vertical_margin: f32,
+    /// Which factory defaults this file has had (`DEFAULTS_REV`): older files get the newer
+    /// ones once, on load.
+    #[serde(default)]
+    pub defaults_rev: u32,
     #[serde(default = "default_profile_name")]
     pub active_profile: String,
     #[serde(default = "default_profile_name")]
@@ -569,6 +573,8 @@ pub struct Settings {
     #[serde(deserialize_with = "deserialize_layouts")]
     pub layouts: [[Placement; 14]; 3],
 }
+/// The factory defaults' revision. 1: toggle sprint and inventory walk controls on.
+pub const DEFAULTS_REV: u32 = 1;
 fn default_profile_name() -> String {
     "default".into()
 }
@@ -667,9 +673,9 @@ impl Default for Settings {
             custom_buttons: Vec::new(),
             analog_movement: false,
             sprint_button: true,
-            sprint_toggle: false,
-            toggle_sprint: false,
-            inventory_controls: false,
+            sprint_toggle: true,
+            toggle_sprint: true,
+            inventory_controls: true,
             virtual_mouse_enabled: false,
             keyboard_button: false,
             virtual_mouse_hidden: true,
@@ -692,6 +698,7 @@ impl Default for Settings {
             button_visibility: [0; 14],
             horizontal_margin: 0.0,
             vertical_margin: 0.0,
+            defaults_rev: DEFAULTS_REV,
             active_profile: default_profile_name(),
             default_profile: default_profile_name(),
             preset_id: default_profile_name(),
@@ -769,6 +776,14 @@ impl Settings {
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
+        // Settings saved before toggle sprint and inventory walk controls were on by default get
+        // them on once; turned off afterwards, they stay off.
+        if s.defaults_rev < 1 {
+            s.sprint_toggle = true;
+            s.toggle_sprint = true;
+            s.inventory_controls = true;
+        }
+        s.defaults_rev = s.defaults_rev.max(DEFAULTS_REV);
         s.sanitize();
         if s.control_style == ControlStyle::GoyControl && s.custom_buttons.is_empty() {
             s.custom_buttons = Self::default_goy_buttons();
@@ -2322,5 +2337,30 @@ mod tests {
         assert_eq!(settings.mode, Mode::Crosshair);
 
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn older_files_get_toggle_sprint_and_inventory_walk_once() {
+        let dir = std::env::temp_dir().join(format!("horizon-defaults-rev-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("horizon-touch.json");
+        let mut old = serde_json::to_value(Settings::default()).unwrap();
+        let fields = old.as_object_mut().unwrap();
+        fields.remove("defaults_rev");
+        for name in ["sprint_toggle", "toggle_sprint", "inventory_controls"] {
+            fields.insert(name.into(), false.into());
+        }
+        std::fs::write(&path, serde_json::to_vec(&old).unwrap()).unwrap();
+        let mut loaded = Settings::load_from(&path);
+        assert!(loaded.sprint_toggle && loaded.toggle_sprint && loaded.inventory_controls);
+        assert_eq!(loaded.defaults_rev, DEFAULTS_REV);
+        // Turned off afterwards, they stay off.
+        loaded.sprint_toggle = false;
+        loaded.toggle_sprint = false;
+        loaded.inventory_controls = false;
+        loaded.save_to(&path).unwrap();
+        let again = Settings::load_from(&path);
+        assert!(!again.sprint_toggle && !again.toggle_sprint && !again.inventory_controls);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

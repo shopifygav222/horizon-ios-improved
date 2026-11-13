@@ -56,7 +56,7 @@ developed on `starling-ios` until it moved to `main`.
 | Setup: sign-in, download, prepare | shared; preparing lays out the tables CI made (`horizon-ios-prepare`), since iOS runs no Java |
 | Bring worlds over from Horizon Android | shared; the folder is picked in Files |
 | Game folder in the Files app | the app's Documents (UIFileSharingEnabled) |
-| Native mods (`.hnmod`) compiled on the build server, the library swapped in at the next start | compiled into the app itself: `ios.yml` dispatched with `mods` fetches them (`tools/ios_native_mods.py`), applies them as `native_build.sh` does (`packaging/ios/native_stage.sh`, same horizon-mixins pin and adapt step), builds the .ipa (the run's artifact, never a release); `native-mods.json` beside the program names them. In the game, the catalog lists native mods and the Mods page's top (`game/native_builds_ios.rs`, drawn as Android's card) starts that build with the player's GitHub token, follows it, downloads the artifact with the same token and opens the share sheet (`horizon_gamecontroller::share`) for SideStore, AltStore, LiveContainer or any signer. A build that ends shows a toast (`ServerPackState::notice`) and a title-screen line under the account button (`draw_build_badge`, `build_badge_at` in game.rs's title paths; no-ops elsewhere), which opens the Mods page. The catalog's Installed view (`mod_catalog.rs`) lists and removes everything in a shelf's folders, on Android too. iOS runs no code it did not ship with, so there is no swap |
+| Native mods (`.hnmod`) compiled on the build server, the library swapped in at the next start | compiled into the app itself: `ios.yml` dispatched with `mods` fetches them (`tools/ios_native_mods.py`), applies them as `native_build.sh` does (`packaging/ios/native_stage.sh`, same horizon-mixins pin and adapt step), builds the .ipa (the run's artifact, never a release); `native-mods.json` beside the program names them. In the game, the catalog lists native mods and the Mods page's top (`game/native_builds_ios.rs`, drawn as Android's card) starts that build with the player's GitHub token, follows it, downloads the artifact with the same token and opens the share sheet (`horizon_gamecontroller::share`) for SideStore, AltStore, LiveContainer or any signer. A build that ends shows a toast (`ServerPackState::notice`) and a title-screen line along the top, clear of the touch pad's buttons (`draw_build_badge`, `build_badge_at` in game.rs's title paths; no-ops elsewhere), which opens the Mods page. The catalog's Installed view (`mod_catalog.rs`) lists and removes everything in a shelf's folders, on Android too. iOS runs no code it did not ship with, so there is no swap |
 | Folder offer, in-app APK update, architecture APKs, Adreno/Mali/PowerVR paths | Android's own |
 
 ## Engine-edit ledger
@@ -65,6 +65,9 @@ Every change to a file Starling has, in the order they were made.
 
 | File | Change | Why |
 |---|---|---|
+| `horizon-client-render/src/android_controls/layout.rs` | Toggle Sprint and Inventory Walk Controls on by default; `defaults_rev` turns them on once in files saved before | Asked for on iOS; shared with Android |
+| `horizon-client-render/src/android_controls.rs` | Over an inventory, the MCPE Sneak button draws a Shift arrow (`shift_glyph`), filled while Shift is down | It is Shift there (quick move) |
+| `horizon-client/src/game/mobile_controls.rs` | Sneak latches Shift and Inventory closes over an inventory without the walk controls too; LMB and RMB no longer clear the touch state (Shift, walking); Shift ends with the inventory | Shift stayed on for taps but LMB and RMB dropped it |
 
 ## Gate ledger
 

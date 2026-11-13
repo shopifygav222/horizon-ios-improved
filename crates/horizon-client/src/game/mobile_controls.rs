@@ -274,6 +274,10 @@ impl Game<'_> {
         tc.break_progress = breaking;
         tc.in_menu = in_menu;
         tc.in_inventory = matches!(self.screen, Screen::Inventory | Screen::Creative);
+        // Shift latched over an inventory ends with it: the next one opens without it.
+        if !tc.in_inventory {
+            tc.inventory_shift = false;
+        }
         tc.viewport(
             self.window.as_ref().map_or(1, |w| w.inner_size().width),
             self.window.as_ref().map_or(1, |w| w.inner_size().height),
@@ -446,13 +450,17 @@ impl Game<'_> {
         let in_menu = self.pad_in_menu();
         self.mobile.controls.in_menu =
             in_menu && !(self.screen == Screen::Options && self.options_waiting_for_key());
+        let in_inventory = matches!(self.screen, Screen::Inventory | Screen::Creative);
         let inventory_control = self.mobile.controls.settings.inventory_controls
-            && matches!(self.screen, Screen::Inventory | Screen::Creative)
+            && in_inventory
             && (self.mobile.controls.owns_pointer(t.id)
                 || (t.phase == TouchPhase::Started && self.mobile.controls.control_at_point(n)));
-        if inventory_control
+        // Over an inventory, Sneak latches Shift and Inventory closes it, with or without the
+        // walk controls (the MCPE layout shows both there either way).
+        let inventory_pair = in_inventory
             && t.phase == TouchPhase::Started
-            && self.mobile.controls.custom_at(n).is_none()
+            && self.mobile.controls.custom_at(n).is_none();
+        if inventory_pair
             && self.mobile.controls.control_at(n)
                 == Some(horizon_client::android_controls::Control::Sneak)
         {
@@ -460,6 +468,15 @@ impl Game<'_> {
             self.mobile.controls.ignore(t.id);
             self.audio.play_button_click();
             self.android_touch_haptic(10);
+            return;
+        }
+        if inventory_pair
+            && !inventory_control
+            && self.mobile.controls.control_at(n)
+                == Some(horizon_client::android_controls::Control::Inventory)
+        {
+            self.mobile.controls.ignore(t.id);
+            let _ = self.pad_back();
             return;
         }
         let menu_custom = in_menu
@@ -1591,7 +1608,11 @@ impl Game<'_> {
                 .action(b.width, b.height, p, self.pad_in_menu())
         {
             {
-                self.mobile.controls.clear();
+                // LMB and RMB press like a mouse's buttons: Shift latched over an inventory (a
+                // quick move) and walking stay as they are.
+                if !matches!(action, Action::MouseButton(_)) {
+                    self.mobile.controls.clear();
+                }
                 self.mobile.controls.ignore(t.id);
                 match action {
                     Action::LatchF3 => {
