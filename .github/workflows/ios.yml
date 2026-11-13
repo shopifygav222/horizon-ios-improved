@@ -120,7 +120,7 @@ jobs:
             mkdir -p lock && cp Cargo.lock lock/
           fi
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ !cancelled() }}
         with:
           name: cargo-lock
           path: lock/Cargo.lock
@@ -128,18 +128,18 @@ jobs:
           if-no-files-found: ignore
       # The game files don't depend on the game's build: checked even when it failed.
       - uses: actions/setup-java@v4
-        if: always()
+        if: ${{ !cancelled() }}
         with:
           distribution: temurin
           java-version: '25'
       # Mojang's files, checked again each run, kept between runs so they are fetched once.
       - uses: actions/cache@v4
-        if: always()
+        if: ${{ !cancelled() }}
         with:
           path: .local/ios-cache/minecraft
           key: ios-minecraft-${{ hashFiles('research-lock.json') }}
       - name: Prepare the game files and prove the phone lays them out the same
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           # A phone's file system is case-sensitive; this Mac's is not.
