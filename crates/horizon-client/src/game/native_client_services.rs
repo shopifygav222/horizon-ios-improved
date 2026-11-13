@@ -4,6 +4,7 @@
 //! against it compiles here unchanged (IOS-SYNC.md, engine-edit ledger).
 use super::Game;
 use horizon_client::hud::{HudBatch, rgba};
+use horizon_client::text::Text;
 
 /// A listed player as a native mod sees them: their UUID, name and the skin the client draws.
 #[allow(dead_code)]
@@ -76,5 +77,59 @@ impl Game<'_> {
         }
         self.send_chat(message);
         Ok(())
+    }
+
+    /// Save a mod binding, or restore its default with None. No write when unchanged.
+    pub(super) fn native_set_mod_key(
+        &mut self,
+        mod_id: &str,
+        name: &str,
+        key: Option<&str>,
+    ) -> bool {
+        if !self.native_window()
+            || mod_id.is_empty()
+            || name.is_empty()
+            || mod_id.len() > 256
+            || name.len() > 256
+            || key.is_some_and(|k| k.len() > 512)
+        {
+            return false;
+        }
+        let old = self
+            .settings
+            .mods
+            .keys
+            .get(mod_id)
+            .and_then(|keys| keys.get(name))
+            .map(String::as_str);
+        if old == key {
+            return false;
+        }
+        if let Some(key) = key {
+            self.settings
+                .mods
+                .keys
+                .entry(mod_id.into())
+                .or_default()
+                .insert(name.into(), key.into());
+        } else if let Some(keys) = self.settings.mods.keys.get_mut(mod_id) {
+            keys.remove(name);
+        }
+        self.settings.mods.save(&Self::game_dir());
+        true
+    }
+
+    /// Set this client's action bar, with the normal timer; no server command or packet.
+    pub(super) fn native_client_action_bar(&mut self, text: Text, animate: bool) {
+        if self.native_window() {
+            self.titles.set_overlay(text, animate);
+        }
+    }
+
+    /// A mod screen's ask for the blurred background behind it. Here the screens a mod draws
+    /// over (Options, the pause menu) already blur what is behind them as vanilla's do
+    /// (`Game::menu_blur`), so there is nothing more to apply: false.
+    pub(super) fn native_apply_screen_blur(&self) -> bool {
+        false
     }
 }

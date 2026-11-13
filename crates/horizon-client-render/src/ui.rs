@@ -594,6 +594,23 @@ pub fn menu_tab_label(
     );
 }
 
+/// A [`button`] with a job on its screen (`action`), as newer Horizon draws a screen's Done or
+/// Back for native mods; here it is the plain button.
+#[allow(clippy::too_many_arguments)]
+pub fn action_button(
+    batch: &mut HudBatch,
+    atlas: &HudAtlas,
+    _action: crate::widgets::Action,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    label: &Text,
+    active: bool,
+    hover: bool,
+) {
+    button(batch, atlas, x, y, w, h, label, active, hover);
+}
 /// Button (AbstractButton): nine-slice sprite plus the centred label.
 pub fn button(
     batch: &mut HudBatch,

@@ -88,6 +88,12 @@ Every change to a file Starling has, in the order they were made.
 | `horizon-client/src/game/native_hooks.rs`, `game.rs` | `native_camera_pose_now` (the frame's camera as native mods see it; handed back unchanged, as this base has no camera-posing hook) and its call where the frame's view is made | The registry's Atlas mod reads the camera at its return; upstream Horizon f319701e8c has it |
 | `horizon-client/src/game/native_client_services.rs` (new), `game.rs` | `native_client_profiles`, `native_gui_nine_slice`, `native_send_chat`, as upstream Horizon f319701e8c has them | Host functions Atlas calls; upstream's own file name, so a sync meets them |
 | `packaging/android/native_mod_adapt.py` | `render.pixels.get()` becomes `&render.pixels[..]` (CHANGED) | Atlas reads the block textures as newer Horizon keeps them |
+| `horizon-client-render/src/dynamic_light.rs` | `select_iter` (`select` over any iterator, appended) | dynamiclights hands its sources from a drain, as newer Horizon has it |
+| `horizon-client-core/src/text.rs` | `Text::option_name_value` ("Caption: value" via `options.generic_value`) | dynamiclights' settings screen |
+| `horizon-client-render/src/widgets.rs`, `ui.rs` | `widgets::Action` and `ui::action_button` (the plain button here; newer Horizon adds a controller glyph) | dynamiclights' Done button |
+| `horizon-client/src/game/native_client_services.rs` | `native_set_mod_key`, `native_client_action_bar`, `native_apply_screen_blur` (false: Options and pause already blur) | dynamiclights' key binding, toggle message and screen |
+| `horizon-client/src/mobs/armor.rs` (new), `mobs.rs` | `mobs::armor::values`: armour and toughness as `hurt_after_armor` sums them | Jade's health-and-armour line |
+| `packaging/android/native_mod_adapt.py` | Rewrites: burning projectiles from `arrow.on_fire()` (no fire time here), `mob_hit()` as a pair, `key_pressed` with one key, a pet's body armour from `extra.head` | dynamiclights and Jade, pinned to newer Horizon |
 
 ## Gate ledger
 

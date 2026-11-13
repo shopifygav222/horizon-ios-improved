@@ -415,6 +415,25 @@ pub enum What {
     Group { visible: bool },
 }
 
+/// What a screen's button does, as newer Horizon names it for a controller's glyph
+/// ([`crate::ui::action_button`]). Here it only says which button it is: a native mod that
+/// draws its Done with it gets the plain button.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Action {
+    /// Leaves the screen, keeping what was set.
+    Done,
+    /// Goes back one screen.
+    Back,
+    /// Leaves the screen, dropping what was set.
+    Cancel,
+    /// Applies what was set and stays or leaves as the screen does.
+    Apply,
+    /// Opens the options.
+    Options,
+    /// Leaves the game or the world.
+    Exit,
+}
+
 /// A `NarratableEntry` as drawn this frame.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Narratable {

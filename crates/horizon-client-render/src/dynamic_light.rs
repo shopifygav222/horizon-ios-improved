@@ -111,6 +111,19 @@ pub fn select(sources: &[Source], camera: DVec3, out: &mut Vec<[f32; 4]>) {
     }));
 }
 
+/// [`select`] over any sources, appended to `out`, as newer Horizon gives native mods (the
+/// registry's dynamiclights hands it its sources straight from a drain).
+pub fn select_iter(
+    sources: impl IntoIterator<Item = Source>,
+    camera: DVec3,
+    out: &mut Vec<[f32; 4]>,
+) {
+    let sources: Vec<Source> = sources.into_iter().collect();
+    let mut chosen = Vec::new();
+    select(&sources, camera, &mut chosen);
+    out.extend(chosen);
+}
+
 /// The block light a vertex at `pos` (camera-relative) gets from `lights`, 0 to 15: the WGSL
 /// `dynamic_block_light` in Rust, for tests.
 pub fn level_at(pos: [f32; 3], lights: &[[f32; 4]]) -> f32 {

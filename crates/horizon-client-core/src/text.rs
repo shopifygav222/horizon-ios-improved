@@ -248,6 +248,11 @@ impl Text {
         t.source = Some(Value::Object(c).into());
         t
     }
+    /// CommonComponents.optionNameValue: "Caption: value", joined as the language joins them
+    /// (`options.generic_value`).
+    pub fn option_name_value(caption: Text, value: Text) -> Self {
+        Self::translate("options.generic_value", &[caption, value])
+    }
     /// A translatable message whose arguments are plain strings.
     pub fn tr(key: &str, args: &[&dyn std::fmt::Display]) -> Self {
         let args: Vec<Text> = args.iter().map(|a| Text::literal(a.to_string())).collect();

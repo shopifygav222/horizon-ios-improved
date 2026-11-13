@@ -76,6 +76,18 @@ CHANGED = (
     ),
     # Newer Horizon keeps the block textures' pixels behind `get()`; here they are the Vec itself.
     (r"\brender\.pixels\.get\(\)", "&render.pixels[..]"),
+    # Arrows and tridents here keep no fire time: a burning arrow is its state's (`on_fire`).
+    (r"let on_fire = p\.fire_ticks > 0 \|\| p\.arrow", "let on_fire = p.arrow"),
+    (r"game\.tridents\.iter\(\)\.filter\(\|t\| t\.fire_ticks > 0\)", "game.tridents.iter().filter(|_| false)"),
+    # The mob under the crosshair is (index, distance) here; newer Horizon adds a third.
+    (r"Some\(\((\w+), (\w+), _\)\) = game\.mob_hit\(\)", r"Some((\1, \2)) = game.mob_hit()"),
+    # `key_pressed` takes the key once here.
+    (
+        r"game\.key_pressed\(winit::keyboard::KeyCode::(\w+), winit::keyboard::KeyCode::\1\)",
+        r"game.key_pressed(winit::keyboard::KeyCode::\1)",
+    ),
+    # A pet's body armour (wolf, horse, llama...) is kept in `extra.head` here.
+    (r"\b(\w+)\.extra\.body\.as_deref\(\)", r"\1.extra.head.as_deref()"),
 )
 
 
