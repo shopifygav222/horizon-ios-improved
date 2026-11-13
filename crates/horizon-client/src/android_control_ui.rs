@@ -8297,11 +8297,20 @@ mod tests {
             ui.action(427., 267., [18., 13.], false),
             Some(Action::More)
         ));
-        assert!(ui.action(427., 267., [55., 13.], false).is_none());
+        // Esc sits beside "...", then at the end of the open row.
+        assert!(matches!(
+            ui.action(427., 267., [55., 13.], false),
+            Some(Action::Key(KeyCode::Escape))
+        ));
+        assert!(ui.action(427., 267., [90., 13.], false).is_none());
         ui.expanded = true;
         assert!(matches!(
             ui.action(427., 267., [55., 13.], false),
             Some(Action::Key(KeyCode::F3))
+        ));
+        assert!(matches!(
+            ui.action(427., 267., [200., 13.], false),
+            Some(Action::Key(KeyCode::Escape))
         ));
     }
     #[test]
