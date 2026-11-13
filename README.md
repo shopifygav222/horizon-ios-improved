@@ -82,42 +82,49 @@ shader packs, mods, screenshots and logs. Open a pack, a world, a skin or a mod 
 ## Controls
 
 The touch controls come in two styles: **MCPE** (the default, laid out like Minecraft Pocket Edition)
-and **GoyControl** (your own buttons, each sending up to three keys). A hardware keyboard, mouse or
-game controller takes over the moment you use it, and the touch controls come back when you touch
-the screen.
+and **GoyControl** (labelled buttons you place and bind yourself). A hardware keyboard, mouse or game
+controller takes over the moment you use it, and the touch controls come back when you touch the
+screen.
 
-<p align="center"><img src="docs/media/controls-world.png" alt="The MCPE touch controls in a world: the movement stick on the left; Attack, Use, Jump, Sprint and Sneak on the right; F3, Chat, Pause, Options and F5 along the top; the Horizon menu and the ... menu in the top left corner; the hotbar along the bottom"></p>
+<p align="center"><img src="docs/media/controls-mcpe.jpg" alt="Horizon PE in a world with the MCPE touch controls: the movement pad on the left; Use, Attack, Jump, Sprint, Sneak and the inventory button on the right; the debug, chat, pause, options and camera buttons along the top; the H button and the ... button in the top left corner; the hotbar along the bottom"></p>
+<p align="center"><sub>The MCPE style.</sub></p>
 
 | Control | What it does |
 | --- | --- |
-| **Movement stick** | Put a finger down anywhere on the left side and drag. With **Auto Sprint** on (Options > Controls), pushing it to the edge sprints |
+| **Movement pad** (bottom left) | Put a finger down anywhere on the left side and drag. With **Auto Sprint** on (Options > Controls), pushing it to the edge sprints |
 | **Look around** | Drag anywhere that isn't a button |
-| **Attack** / **Use** | Break and hit; place, eat, open. Hold Attack to keep breaking |
-| **Jump** / **Sneak** | Jump and sneak; while swimming or flying they go up and down, and Sneak gets off a mount |
-| **Sprint** | Tap to start sprinting, tap again to stop (**Toggle Sprint**, on by default). Turn it off to hold instead |
-| **Inventory** | Opens the inventory; tap it again to close |
-| **F3, Chat, Pause, Options, F5** | The debug screen, chat, the pause menu, the game's Options, and the camera view |
-| **Horizon menu** (the Horizon logo, top left) | Touch settings and the layout: see below |
-| **...** (top left) | A row of F3, F5, Chat and Keys, plus Hold F3 and the F3 combinations (F3 + B, G, H...) |
+| **Sword** / **crosshair** (right) | Attack: break and hit (hold to keep breaking). Use: place, eat, open |
+| **Up arrow** / **down arrow** | Jump and sneak; while swimming or flying they go up and down, and sneak gets off a mount |
+| **Double arrow** | Sprint: tap to start, tap again to stop (**Toggle Sprint**, on by default). Turn it off to hold instead |
+| **...** (beside the hotbar) | The inventory: tap to open, tap again to close |
+| **Top row** | The debug screen (F3), chat, pause, the game's Options, and the camera view (F5) |
+| **H** (top left) | The Horizon menu: touch settings and the layout (below) |
+| **...** (top left, beside H) | A row of F3, F5, Chat and Keys, plus Hold F3 and the F3 combinations (F3 + B, G, H...) |
 | **Hotbar** | Tap a slot to select it |
 
-<p align="center"><img src="docs/media/controls-inventory.png" alt="The touch controls over a chest: Shift and Inventory stay in the bottom right, the movement stick stays on the left, Mouse and Back are in the top right, LMB and RMB in the bottom right corner"></p>
+<p align="center"><img src="docs/media/controls-goycontrol.jpg" alt="Horizon PE in a world with the GoyControl touch controls: labelled buttons ESC, DEBUG, 3RD, CHAT, TAB and MOUSE along the top with the Horizon menu's sliders button among them; PRI and SEC on the left; DROP, SPRINT, SWAP, JUMP, INV and SNEAK on the right; a round movement stick in the bottom left"></p>
+<p align="center"><sub>The GoyControl style.</sub></p>
+
+**GoyControl** names every button: **PRI** and **SEC** (attack and use), **JUMP**, **SNEAK**,
+**SPRINT**, **INV**, **DROP**, **SWAP** (hands), **CHAT**, **TAB** (the player list), **DEBUG** (F3),
+**3RD** (camera view), **ESC** and **MOUSE**. The sliders button opens the Horizon menu; drag it
+anywhere. Each button can send up to three keys, so you can add your own.
 
 **In an inventory or chest:** tap an item to pick it up, tap a slot to put it down. The MCPE layout
 keeps two buttons there:
 
-- **Shift** (Sneak's place, with a Shift arrow): tap it to turn Shift on (the arrow fills in), then
-  tap items to **quick move** them between the chest and your inventory. Tap Shift again to turn it
-  off; closing the inventory turns it off too.
-- **Inventory** closes it, like **Back** in the top right corner.
+- **Shift** (the sneak button, showing the Shift arrow instead): tap it to turn Shift on (the arrow
+  fills in), then tap items to **quick move** them between the chest and your inventory. Tap it again
+  to turn Shift off; closing the inventory turns it off too.
+- **...** (the inventory button) closes it, like **Back** in the top right corner.
 
-With **Inventory Walk Controls** on (the default), the movement stick stays, so you can walk with the
+With **Inventory Walk Controls** on (the default), the movement pad stays, so you can walk with the
 inventory open. **Mouse** (turn on **Virtual Mouse Button** in the Horizon menu) shows a pointer for
 menus, moved by dragging, with **LMB** and **RMB** for left and right clicks; Shift stays on while
 you click with them, so they quick move too.
 
-**The Horizon menu** (the Horizon logo in the top left corner) holds the touch settings, in five
-tabs:
+**The Horizon menu** (**H** in MCPE, the sliders button in GoyControl) holds the touch settings, in
+five tabs:
 
 - **Recommended:** the most used settings in one place: resolution, look sensitivity, the virtual
   mouse, the style and animations.
