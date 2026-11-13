@@ -137,6 +137,8 @@ enum PictureSource {
     Url(String),
     /// A resource pack's own `pack.png`, in its zip or folder.
     Pack(std::path::PathBuf),
+    /// A project's icon, asked of its source by id: what the Installed view knows of a project.
+    Project(starling_catalog::browser::SourceId, String),
 }
 
 /// `rgba` (`w` x `h`) no larger than [`PICTURE_PX`] a side, by nearest pixel (pack icons are
@@ -185,6 +187,15 @@ fn read_picture(home: &std::path::Path, source: &PictureSource) -> Option<(u32, 
             horizon_client::hud::decode(&path).ok()?
         }
         PictureSource::Pack(path) => horizon_client::hud::decode_bytes(&pack_png(path)?).ok()?,
+        PictureSource::Project(source, id) => {
+            use starling_catalog::browser::Source as _;
+            let url = starling_catalog::browser::source(*source)?
+                .project(id)
+                .ok()?
+                .icon?;
+            let path = starling_catalog::browser::images::fetch(home, &url, PICTURE_PX).ok()?;
+            horizon_client::hud::decode(&path).ok()?
+        }
     };
     Some(fit_picture(w, h, rgba))
 }
@@ -254,6 +265,33 @@ fn built_in_mods() -> Vec<(String, String)> {
 #[cfg(not(target_os = "ios"))]
 fn built_in_mods() -> Vec<(String, String)> {
     Vec::new()
+}
+
+/// Whether the native mod `id` is compiled into this app (iOS): a file removed or not, only the next
+/// build takes it out.
+fn built_in(id: &str) -> bool {
+    built_in_mods().iter().any(|(built, _)| built == id)
+}
+
+/// What the question about removing says. A native mod compiled into the app leaves it only with
+/// the next build, and turning it off is the way to stop it without one.
+fn removal_note(native_id: Option<&str>) -> String {
+    match native_id {
+        Some(id) if built_in(id) => "It is compiled into this app: removing it turns it off now, \
+            and it leaves the app with your next build (Options > Mods > Build on GitHub). Rather \
+            not rebuild? Cancel, and turn it off in Options > Mods instead."
+            .to_owned(),
+        _ => "This deletes its file from your game folder. You can install it again from here."
+            .to_owned(),
+    }
+}
+
+/// What removing a native mod compiled into the app says once it is done.
+fn removed_built_in(title: &str) -> String {
+    format!(
+        "{title} was removed and turned off. It stays in this app until your next build: \
+         Options > Mods > Build on GitHub."
+    )
 }
 
 /// A size in words.
@@ -425,6 +463,8 @@ pub(super) struct Catalog {
     checked_at: Option<Instant>,
     /// The project the player was asked about removing: nothing else takes a touch meanwhile.
     removing: Option<Project>,
+    /// What that question says (`removal_note`).
+    removing_note: String,
     /// The Installed view instead of the catalog, its rows (the search narrows them), and the
     /// row the player was asked about removing.
     view_installed: bool,
@@ -558,15 +598,20 @@ fn installed_parts(rect: [f32; 4]) -> ([f32; 4], [f32; 4]) {
 
 /// The question over everything while the player is asked about deleting a file, and its buttons
 /// (they are all that takes a touch then).
-fn draw_confirm(ui: &mut Ui<'_>, title: &str, drawn: &mut Vec<([f32; 4], Act)>) {
+fn draw_confirm(ui: &mut Ui<'_>, title: &str, body: &str, drawn: &mut Vec<([f32; 4], Act)>) {
     drawn.clear();
     let (w, h) = (ui.w, ui.h);
     ui.fill(0.0, 0.0, w, h, color::hex(0x00_00_00, 190));
     let width = CONFIRM_W.min(w - 2.0 * MARGIN);
-    let panel = [(w - width) / 2.0, (h - CONFIRM_H) / 2.0, width, CONFIRM_H];
+    let inner = width - 48.0;
+    let lines = fitted_lines(ui, Face::Regular, BODY_TEXT, inner, 6, body);
+    // As tall as its lines need, the buttons under them.
+    let height = (70.0 + lines.len() as f32 * BODY_LINE + 20.0 + ROW_BUTTON_H + 20.0)
+        .max(CONFIRM_H)
+        .min(h - 16.0);
+    let panel = [(w - width) / 2.0, (h - height) / 2.0, width, height];
     ui.rounded(panel[0], panel[1], panel[2], panel[3], 14.0, color::BG);
     ui.rounded(panel[0], panel[1], panel[2], panel[3], 14.0, color::RAISED);
-    let inner = width - 48.0;
     let head = fitted(
         ui,
         Face::Semibold,
@@ -582,9 +627,8 @@ fn draw_confirm(ui: &mut Ui<'_>, title: &str, drawn: &mut Vec<([f32; 4], Act)>) 
         color::TEXT,
         &head,
     );
-    let body = "This deletes its file from your game folder. You can install it again from here.";
     let mut y = panel[1] + 70.0;
-    for line in fitted_lines(ui, Face::Regular, BODY_TEXT, inner, 3, body) {
+    for line in lines {
         ui.text(
             Face::Regular,
             BODY_TEXT,
@@ -595,7 +639,7 @@ fn draw_confirm(ui: &mut Ui<'_>, title: &str, drawn: &mut Vec<([f32; 4], Act)>) 
         );
         y += BODY_LINE;
     }
-    let by = panel[1] + CONFIRM_H - ROW_BUTTON_H - 20.0;
+    let by = panel[1] + height - ROW_BUTTON_H - 20.0;
     let remove = [
         panel[0] + width - 2.0 * ROW_BUTTON_W - 36.0,
         by,
@@ -805,10 +849,30 @@ fn shown_local(card: &Catalog) -> Vec<&Local> {
 
 /// The Installed view: each thing in the shelf's folders, with Remove (or Turn off).
 /// A local row's picture key: a resource pack's own `pack.png`.
+/// What the catalog installed shows the catalog's own icon; a resource pack added by hand its
+/// `pack.png`; another mod its registry project's icon, by its id; a shader pack added by hand has
+/// none (its tile).
+fn local_picture(
+    item: &Local,
+    home: &std::path::Path,
+) -> Option<(String, PictureSource)> {
+    use starling_catalog::browser::SourceId;
+    if let Some(entry) = &item.entry {
+        let key = format!("project:{}:{}", entry.source.label(), entry.project);
+        return Some((key, PictureSource::Project(entry.source, entry.project.clone())));
+    }
+    if item.file.starts_with("resourcepacks/") {
+        let key = format!("pack:{}", item.file);
+        return Some((key, PictureSource::Pack(home.join(&item.file))));
+    }
+    let id = item.mod_id.as_ref()?;
+    let key = format!("project:{}:{id}", SourceId::Horizon.label());
+    Some((key, PictureSource::Project(SourceId::Horizon, id.clone())))
+}
+
+/// [`local_picture`]'s key, which is all drawing needs.
 fn local_picture_key(item: &Local) -> Option<String> {
-    item.file
-        .starts_with("resourcepacks/")
-        .then(|| format!("pack:{}", item.file))
+    local_picture(item, std::path::Path::new("")).map(|(key, _)| key)
 }
 
 fn draw_local_list(
@@ -1125,6 +1189,9 @@ impl Game<'_> {
                 {
                     self.settings.mods.disabled.insert(id.clone());
                     self.settings.mods.save(&Self::game_dir());
+                    if built_in(id) {
+                        said = removed_built_in(&item.title);
+                    }
                 } else {
                     said.push_str(" It's gone the next time the game starts.");
                 }
@@ -1192,6 +1259,17 @@ impl Game<'_> {
             .rows()
             .get(index)
             .cloned();
+        // A native mod's id, from what the catalog installed for the project.
+        let native_id = project.as_ref().and_then(|p| {
+            let installed = starling_catalog::browser::installed::Installed::load(&Self::game_dir());
+            let entry = installed.lookup(&p.id)?;
+            entry
+                .file
+                .starts_with(horizon_client::mod_list::NATIVE_DIR)
+                .then(|| starling_catalog::mod_id(entry))
+                .flatten()
+        });
+        self.catalog.removing_note = removal_note(native_id.as_deref());
         self.catalog.removing = project;
     }
 
@@ -1213,7 +1291,20 @@ impl Game<'_> {
             match starling_catalog::remove(&Self::game_dir(), &project) {
                 Ok(entry) => {
                     self.after_removal(&entry);
-                    (format!("{title} was removed."), false)
+                    let native = entry
+                        .file
+                        .starts_with(horizon_client::mod_list::NATIVE_DIR)
+                        .then(|| starling_catalog::mod_id(&entry))
+                        .flatten();
+                    match native.filter(|id| built_in(id)) {
+                        Some(id) => {
+                            self.settings.mods.disabled.insert(id);
+                            self.settings.mods.save(&Self::game_dir());
+                            self.refresh_mods_page(None);
+                            (removed_built_in(&title), false)
+                        }
+                        None => (format!("{title} was removed."), false),
+                    }
                 }
                 Err(e) => (remove_failed(&title, &e), true),
             },
@@ -1357,11 +1448,7 @@ impl Game<'_> {
         let wanted: Vec<(String, PictureSource)> = if card.view_installed {
             let rows = shown_local(card);
             list::rows_shown(card.list.offset, ahead, ROW_H, rows.len())
-                .filter_map(|i| {
-                    let item = rows[i];
-                    let key = local_picture_key(item)?;
-                    Some((key, PictureSource::Pack(home.join(&item.file))))
-                })
+                .filter_map(|i| local_picture(rows[i], &home))
                 .collect()
         } else {
             let shared = card.shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -1589,9 +1676,9 @@ impl Game<'_> {
         draw_head(&mut ui, card, edge, &mut drawn);
         draw_foot(&mut ui, card, &shared, edge, &mut drawn);
         if let Some(project) = &card.removing {
-            draw_confirm(&mut ui, &project.title, &mut drawn);
+            draw_confirm(&mut ui, &project.title, &card.removing_note, &mut drawn);
         } else if let Some(item) = &card.removing_local {
-            draw_confirm(&mut ui, &item.title, &mut drawn);
+            draw_confirm(&mut ui, &item.title, &card.removing_note, &mut drawn);
         }
         ui.finish();
         *card.buttons.borrow_mut() = drawn;
@@ -1691,7 +1778,15 @@ impl Game<'_> {
                 card.notice = None;
                 self.catalog_search();
             }
-            Act::RemoveLocal(index) => card.removing_local = card.local.get(index).cloned(),
+            Act::RemoveLocal(index) => {
+                let item = card.local.get(index).cloned();
+                let native_id = item
+                    .as_ref()
+                    .filter(|i| i.native)
+                    .and_then(|i| i.mod_id.as_deref());
+                card.removing_note = removal_note(native_id);
+                card.removing_local = item;
+            }
             Act::TurnOff(index) => {
                 if let Some(item) = card.local.get(index).cloned() {
                     self.turn_off_local(&item);

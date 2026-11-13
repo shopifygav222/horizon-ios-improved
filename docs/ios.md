@@ -93,8 +93,11 @@ everything in that shelf's folders, whether it came from the catalog, the Files 
 with its size and where it came from, and the search box narrows it. **Remove** asks first, then
 deletes it (through the catalog when the catalog installed it, so its list stays right). A
 removed resource pack or shader pack leaves its page at once; a removed content mod leaves when
-the game next starts; a removed native mod also turns off. A native mod compiled into the app has
-no file to delete: its row has **Turn off** instead.
+the game next starts. A native mod compiled into the app is different: removing it turns it off at
+once, but it stays in the app until your next build (Options > Mods > **Build on GitHub**); the
+question before removing it says so, and if you'd rather not rebuild, turn it off in Options > Mods
+instead. One compiled in with no file left has **Turn off** instead of Remove. Each row shows the
+project's icon (a resource pack added by hand shows its own `pack.png`).
 
 ## Device checklist
 
