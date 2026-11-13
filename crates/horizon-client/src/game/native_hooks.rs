@@ -9442,6 +9442,18 @@ impl Game<'_> {
         shake_pose(bounded_shake(shake, self.screen_effect_scale()))
     }
 
+    /// The camera this frame is drawn from, as native mods see it: `view`, vanilla's position,
+    /// yaw and pitch. Newer Horizon lets mods pose it here (`native_camera_pose`); this base has
+    /// no such hook, so the view comes back as it is, and a mod can read it at its return (Atlas
+    /// keeps it so its waypoint labels sit on the frame's camera).
+    pub(super) fn native_camera_pose_now(
+        &self,
+        _partial: f32,
+        view: (glam::DVec3, f32, f32),
+    ) -> (glam::DVec3, f32, f32) {
+        view
+    }
+
     /// What native mods hand shader packs in this frame (`native_shader_params`),
     /// with values that aren't finite as 0.
     pub(super) fn native_shader_params_now(&self, partial: f32) -> [[f32; 4]; 8] {

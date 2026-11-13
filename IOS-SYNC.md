@@ -85,6 +85,8 @@ Every change to a file Starling has, in the order they were made.
 | `horizon-client-render/src/android_controls.rs` | Over an inventory, the MCPE Sneak button draws a Shift arrow (`shift_glyph`), filled while Shift is down | It is Shift there (quick move) |
 | `horizon-client/src/game/mobile_controls.rs` | Sneak latches Shift and Inventory closes over an inventory without the walk controls too; LMB and RMB no longer clear the touch state (Shift, walking); Shift ends with the inventory | Shift stayed on for taps but LMB and RMB dropped it |
 | `horizon-client-render/src/gfx/oit.rs` | Improved Transparency asks for `FLOAT32_BLENDABLE` only when `Rgba32Float` itself blends on the adapter | Metal reports the feature without blending the format: the depth-bounds pipeline panicked at world load (M2 iPad, Kelly-Inc/horizon-ios#25) |
+| `horizon-client/src/game/native_hooks.rs`, `game.rs` | `native_camera_pose_now` (the frame's camera as native mods see it; handed back unchanged, as this base has no camera-posing hook) and its call where the frame's view is made | The registry's Atlas mod reads the camera at its return; upstream Horizon f319701e8c has it |
+| `horizon-client/src/game/native_client_services.rs` (new), `game.rs` | `native_client_profiles`, `native_gui_nine_slice`, `native_send_chat`, as upstream Horizon f319701e8c has them | Host functions Atlas calls; upstream's own file name, so a sync meets them |
 
 ## Gate ledger
 

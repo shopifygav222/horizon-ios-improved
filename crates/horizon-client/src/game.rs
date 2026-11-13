@@ -230,6 +230,7 @@ mod native_builds;
 #[cfg(target_os = "ios")]
 mod native_builds_ios;
 mod native_claimed_items;
+mod native_client_services;
 mod native_components;
 mod native_criteria;
 mod native_data_maps;
@@ -15719,6 +15720,14 @@ impl Game<'_> {
         // player's own model stay smooth while the level is frozen.
         let camera_alpha = self.clock.camera_fraction();
         let view = self.camera_view(camera_alpha as f32);
+        // The camera this frame is drawn from, as native mods see it (`native_camera_pose_now`).
+        let view = view.map(|view| {
+            if self.shows_panorama() {
+                view
+            } else {
+                self.native_camera_pose_now(camera_alpha as f32, view)
+            }
+        });
         let eye = view.map(|_| {
             (
                 glam::DVec3::from_array(self.view.eye),
