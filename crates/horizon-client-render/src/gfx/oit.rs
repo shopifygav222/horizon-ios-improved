@@ -28,9 +28,28 @@ pub enum Stage {
     Accumulate,
 }
 
-/// What the device must support: max blending on 32-bit float targets.
+/// What the device must support: max blending on 32-bit float targets. The feature bit alone
+/// isn't enough: wgpu's Metal adapter reports `FLOAT32_BLENDABLE`, but Metal can't blend
+/// `Rgba32Float`, and with `TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES` on the device the depth
+/// bounds pipeline is then refused at world load (a panic: seen on an M2 iPad). So the bounds
+/// format itself must say it blends; without it Improved Transparency stays off.
 pub fn features(adapter: &wgpu::Adapter) -> wgpu::Features {
-    adapter.features() & wgpu::Features::FLOAT32_BLENDABLE
+    features_for(
+        adapter.features(),
+        adapter.get_texture_format_features(BOUNDS_FORMAT).flags,
+    )
+}
+
+/// [`features`] from what the adapter says, apart so it is testable without a GPU.
+fn features_for(
+    adapter: wgpu::Features,
+    bounds: wgpu::TextureFormatFeatureFlags,
+) -> wgpu::Features {
+    if bounds.contains(wgpu::TextureFormatFeatureFlags::BLENDABLE) {
+        adapter & wgpu::Features::FLOAT32_BLENDABLE
+    } else {
+        wgpu::Features::empty()
+    }
 }
 
 pub fn supported(device: &wgpu::Device) -> bool {
@@ -892,6 +911,20 @@ impl Oit {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn improved_transparency_needs_the_bounds_format_to_blend() {
+        let reported = wgpu::Features::FLOAT32_BLENDABLE;
+        let blends = wgpu::TextureFormatFeatureFlags::BLENDABLE;
+        let none = wgpu::TextureFormatFeatureFlags::empty();
+        // Metal: the bit, but not the format.
+        assert_eq!(features_for(reported, none), wgpu::Features::empty());
+        assert_eq!(features_for(reported, blends), reported);
+        assert_eq!(
+            features_for(wgpu::Features::empty(), blends),
+            wgpu::Features::empty()
+        );
+    }
 
     fn validate(source: &str, entries: &[&str]) {
         let module = naga::front::wgsl::parse_str(source).unwrap();

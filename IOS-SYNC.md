@@ -84,6 +84,7 @@ Every change to a file Starling has, in the order they were made.
 | `horizon-client-render/src/android_controls/layout.rs` | Toggle Sprint and Inventory Walk Controls on by default; `defaults_rev` turns them on once in files saved before | Asked for on iOS; shared with Android |
 | `horizon-client-render/src/android_controls.rs` | Over an inventory, the MCPE Sneak button draws a Shift arrow (`shift_glyph`), filled while Shift is down | It is Shift there (quick move) |
 | `horizon-client/src/game/mobile_controls.rs` | Sneak latches Shift and Inventory closes over an inventory without the walk controls too; LMB and RMB no longer clear the touch state (Shift, walking); Shift ends with the inventory | Shift stayed on for taps but LMB and RMB dropped it |
+| `horizon-client-render/src/gfx/oit.rs` | Improved Transparency asks for `FLOAT32_BLENDABLE` only when `Rgba32Float` itself blends on the adapter | Metal reports the feature without blending the format: the depth-bounds pipeline panicked at world load (M2 iPad, Kelly-Inc/horizon-ios#25) |
 
 ## Gate ledger
 
