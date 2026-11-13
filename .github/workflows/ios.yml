@@ -151,17 +151,21 @@ jobs:
       - name: Bundle it
         run: |
           set -euo pipefail
-          version=$(python3 -c 'import sys; sys.path.insert(0, "packaging/android"); import build_apk; print(build_apk.VERSION_NAME)')
           command -v xcodegen >/dev/null || brew install xcodegen
           ( cd packaging/ios && xcodegen generate )
           HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/HorizonPE.xcodeproj \
             -target HorizonPE -configuration Release -sdk iphoneos -arch arm64 \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO \
-            DEBUG_INFORMATION_FORMAT=dwarf MARKETING_VERSION="$version" \
+            DEBUG_INFORMATION_FORMAT=dwarf \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             CONFIGURATION_BUILD_DIR="$PWD/build-ios" \
             build > xcode-build.log 2>&1 || { tail -80 xcode-build.log; exit 1; }
           app=build-ios/HorizonPE.app
+          # The version project.yml sets, as iOS and the sideloading apps will show it.
+          shown=$(plutil -extract CFBundleShortVersionString raw "$app/Info.plist")
+          id=$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")
+          test -n "$shown" || { echo '::error::the app has no version'; exit 1; }
+          echo "::notice::Horizon PE $shown (build $GITHUB_RUN_NUMBER), $id"
           for asset in engine-data.zip lowbudget.zip StarlingVisuals.zip; do
             test -f "$app/assets/$asset" || { echo "::error::the app has no assets/$asset"; exit 1; }
           done

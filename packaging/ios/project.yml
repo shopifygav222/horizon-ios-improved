@@ -23,8 +23,9 @@ options:
     iOS: "16.0"
 settings:
   base:
-    # Starling's own version (packaging/android/build_apk.py's VERSION_NAME); the workflow passes it.
-    MARKETING_VERSION: 0.2.3
+    # Horizon PE's version, the one place it is set: what iOS Settings, the sideloading apps and the
+    # Mods page show (CFBundleShortVersionString). The build number is the workflow run's.
+    MARKETING_VERSION: 1.0.0
     CURRENT_PROJECT_VERSION: 1
     IPHONEOS_DEPLOYMENT_TARGET: 16.0
     ENABLE_STRICT_OBJC_MSGSEND: YES
