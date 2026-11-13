@@ -1,0 +1,103 @@
+name: shared-worlds-compat
+# Shared worlds, phase 0 (tools/shared_worlds_compat.py): this port's engine and the official
+# Horizon a PC friend runs play one world together by invite code, and each opens the save the
+# other wrote. Both are built here from source, each with the game files its own preparer makes.
+on:
+  push:
+    branches: [shared-worlds]
+    paths:
+      - .github/workflows/shared-worlds-compat.yml
+      - tools/shared_worlds_compat.py
+      - tools/ci/shared_worlds_game.py
+  workflow_dispatch:
+    inputs:
+      official:
+        description: The official Horizon commit to test against
+        default: 441f49d57e344bd56b90fd4af5c4e443ff3937c9
+permissions:
+  contents: read
+concurrency:
+  group: shared-worlds-compat-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  HORIZON_TELEMETRY_URL: "off"
+  HORIZON_LAUNCHER_NO_SELF_UPDATE: "1"
+  HORIZON_NO_AUDIO: "1"
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_FAST_DEBUG: "0"
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+  OFFICIAL: ${{ inputs.official || '441f49d57e344bd56b90fd4af5c4e443ff3937c9' }}
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Make room for two builds
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/checkout@v4
+        with:
+          path: port
+      - uses: actions/checkout@v4
+        with:
+          repository: horizon-rust/horizon
+          ref: ${{ env.OFFICIAL }}
+          path: official
+      - name: Install what the games link against, a virtual screen and a software GPU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev \
+            libfontconfig-dev libvulkan-dev libasound2-dev libudev-dev xvfb xauth mesa-vulkan-drivers libvulkan1
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            port
+            official
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: minecraft
+          key: shared-worlds-minecraft-${{ hashFiles('port/research-lock.json') }}
+      - name: Download the pinned official game files
+        run: |
+          set -euo pipefail
+          python3 port/tools/ci/shared_worlds_game.py "$PWD/minecraft" | tail -n 1 > server-jar.txt
+          cat server-jar.txt
+      - name: Prepare the game files with each engine's own preparer
+        run: |
+          set -euo pipefail
+          server=$(cat server-jar.txt)
+          for tree in port official; do
+            export HORIZON_HOME="$RUNNER_TEMP/prepare-$tree/home" HORIZON_LAUNCHER_HOME="$RUNNER_TEMP/prepare-$tree/launcher"
+            export XDG_DATA_HOME="$RUNNER_TEMP/prepare-$tree/data" XDG_CONFIG_HOME="$RUNNER_TEMP/prepare-$tree/config"
+            (cd "$tree" && cargo run --release -p horizon-prepare -- --root "$PWD" --prepare --complete \
+              --minecraft-dir "$GITHUB_WORKSPACE/minecraft" --server-jar "$server" --java-home "$JAVA_HOME" \
+              --output "$GITHUB_WORKSPACE/resources-$tree")
+            ls "$GITHUB_WORKSPACE/resources-$tree" | head -20
+          done
+      - name: Build this port's game for the desktop
+        working-directory: port
+        run: cargo build --profile fast -p horizon-client --bin horizon-client
+      - name: Build official Horizon
+        working-directory: official
+        run: cargo build --profile fast -p horizon-official --bin horizon-official
+      - name: Official hosts, the port joins; then the save goes official, port, official
+        run: |
+          python3 port/tools/shared_worlds_compat.py --xvfb --offscreen \
+            --a-client official/target/fast/horizon-official --a-resources resources-official \
+            --b-client port/target/fast/horizon-client --b-resources resources-port
+      - name: The port hosts, official joins; then the save goes port, official, port
+        if: ${{ !cancelled() }}
+        run: |
+          python3 port/tools/shared_worlds_compat.py --xvfb --offscreen \
+            --a-client port/target/fast/horizon-client --a-resources resources-port \
+            --b-client official/target/fast/horizon-official --b-resources resources-official
