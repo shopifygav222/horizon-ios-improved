@@ -188,7 +188,6 @@ fn read_picture(home: &std::path::Path, source: &PictureSource) -> Option<(u32, 
         }
         PictureSource::Pack(path) => horizon_client::hud::decode_bytes(&pack_png(path)?).ok()?,
         PictureSource::Project(source, id) => {
-            use starling_catalog::browser::Source as _;
             let url = starling_catalog::browser::source(*source)?
                 .project(id)
                 .ok()?
@@ -852,14 +851,14 @@ fn shown_local(card: &Catalog) -> Vec<&Local> {
 /// What the catalog installed shows the catalog's own icon; a resource pack added by hand its
 /// `pack.png`; another mod its registry project's icon, by its id; a shader pack added by hand has
 /// none (its tile).
-fn local_picture(
-    item: &Local,
-    home: &std::path::Path,
-) -> Option<(String, PictureSource)> {
+fn local_picture(item: &Local, home: &std::path::Path) -> Option<(String, PictureSource)> {
     use starling_catalog::browser::SourceId;
     if let Some(entry) = &item.entry {
         let key = format!("project:{}:{}", entry.source.label(), entry.project);
-        return Some((key, PictureSource::Project(entry.source, entry.project.clone())));
+        return Some((
+            key,
+            PictureSource::Project(entry.source, entry.project.clone()),
+        ));
     }
     if item.file.starts_with("resourcepacks/") {
         let key = format!("pack:{}", item.file);
@@ -1261,7 +1260,8 @@ impl Game<'_> {
             .cloned();
         // A native mod's id, from what the catalog installed for the project.
         let native_id = project.as_ref().and_then(|p| {
-            let installed = starling_catalog::browser::installed::Installed::load(&Self::game_dir());
+            let installed =
+                starling_catalog::browser::installed::Installed::load(&Self::game_dir());
             let entry = installed.lookup(&p.id)?;
             entry
                 .file
