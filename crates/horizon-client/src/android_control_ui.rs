@@ -873,6 +873,12 @@ impl TouchUi {
             if (39.0..72.0).contains(&p[0]) {
                 return Some(Action::More);
             }
+            // Esc: beside "...", or at the end of its row while it is open.
+            if !self.expanded && (75.0..108.0).contains(&p[0])
+                || self.expanded && (225.0..258.0).contains(&p[0])
+            {
+                return Some(Action::Key(KeyCode::Escape));
+            }
             if self.expanded && (75.0..108.0).contains(&p[0]) {
                 return Some(Action::Key(KeyCode::F3));
             }
@@ -934,14 +940,10 @@ impl TouchUi {
         }
         if !self.expanded {
             if !self.goy_mode && crate::android_controls::current_hud_opacity_scale() > 0.01 {
-                button(
-                    b,
-                    a,
-                    "...",
-                    if self.hub_visible { 39. } else { 3. },
-                    3.0 + self.utility_offset_y,
-                    33.0,
-                );
+                let x = if self.hub_visible { 39. } else { 3. };
+                button(b, a, "...", x, 3.0 + self.utility_offset_y, 33.0);
+                // The keyboard's Escape: closes a screen, opens the pause menu in a world.
+                button(b, a, "Esc", x + 36.0, 3.0 + self.utility_offset_y, 33.0);
             }
             return;
         }
@@ -951,6 +953,7 @@ impl TouchUi {
             ("F5", 111.0, 33.0),
             ("Chat", 147.0, 33.0),
             ("Keys", 183.0, 39.0),
+            ("Esc", 225.0, 33.0),
         ] {
             button(
                 b,

@@ -866,8 +866,10 @@ impl Game<'_> {
         not_built
     }
 
-    /// The title screen's line about a build, and where it is: under the account button, on the
-    /// title's main page. None without a build to tell about.
+    /// The title screen's line about a build, and where it is, on the title's main page: along the
+    /// top, between the account button (4..124) and the touch layout's Keys, Mouse and Back
+    /// (from 171 short of the right edge); on a screen too narrow for that, under the touch pad's
+    /// row (which the account button pushes down to 27..47). None without a build to tell about.
     fn build_badge(&self) -> Option<(Text, [f32; 4])> {
         let on_title = self
             .title
@@ -880,14 +882,21 @@ impl Game<'_> {
         let state = shared(&self.native_builds);
         let p = state.pending.as_ref()?;
         let text = if p.failed.is_some() {
-            "Native mods build failed: see why"
+            "Mods build failed"
         } else if p.ipa.is_some() {
-            "Native mods build ready: install"
+            "Mods ready: install"
         } else {
-            "Native mods: building..."
+            "Building mods..."
         };
         let width = (HudBatch::text_width(&self.gui.atlas, text) + 16.0).ceil();
-        Some((Text::literal(text.to_owned()), [4.0, 28.0, width, 20.0]))
+        let (gui_w, _) = self.gui_size();
+        let x = gui_w - 175.0 - width;
+        let rect = if x >= 128.0 {
+            [x, 3.0, width, 20.0]
+        } else {
+            [4.0, 51.0, width, 20.0]
+        };
+        Some((Text::literal(text.to_owned()), rect))
     }
 
     pub(super) fn draw_build_badge(&self, batch: &mut HudBatch) {

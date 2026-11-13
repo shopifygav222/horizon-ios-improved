@@ -89,7 +89,8 @@ shader packs, mods, screenshots and logs. Open a pack, a world, a skin or a mod 
   upgraded as Java does.
 - **Touch controls:** every action on screen, from the movement stick to the hotbar, chat and F3, in
   MCPE or GoyControl style, with presets, a layout editor (move, resize, colour, hide, bind), a control
-  hub, a virtual mouse for menus, a keypad, Sneak as Hold or Toggle, and optional gyroscope aiming.
+  hub, an Esc button beside the "..." menu, a virtual mouse for menus, a keypad, Sneak as Hold or
+  Toggle, and optional gyroscope aiming.
 - **Keyboard, mouse and controllers:** a hardware keyboard or mouse takes over the moment you use it;
   game controllers work through iOS's GameController. The on-screen keyboard opens on any text field
   and closes with a tap beside it.
