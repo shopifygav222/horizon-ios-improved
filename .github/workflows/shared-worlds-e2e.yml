@@ -1,0 +1,81 @@
+name: shared-worlds-e2e
+# Shared worlds end to end (tools/shared_worlds_e2e.py): two of this port's games for the desktop
+# and an S3 server on the runner, through create, host, join, Give Host, a killed host's takeover
+# and the last upload.
+on:
+  push:
+    branches: [shared-worlds]
+    paths:
+      - .github/workflows/shared-worlds-e2e.yml
+      - tools/shared_worlds_e2e.py
+      - tools/ci/s3_server.sh
+      - crates/horizon-shared-worlds/**
+      - crates/horizon-client/src/shared_worlds.rs
+      - crates/horizon-client/src/game/shared_worlds.rs
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: shared-worlds-e2e-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  HORIZON_TELEMETRY_URL: "off"
+  HORIZON_LAUNCHER_NO_SELF_UPDATE: "1"
+  HORIZON_NO_AUDIO: "1"
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_FAST_DEBUG: "0"
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: port
+      - name: Install what the game links against, a virtual screen and a software GPU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev             libfontconfig-dev libvulkan-dev libasound2-dev libudev-dev xvfb xauth mesa-vulkan-drivers libvulkan1
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: port
+          shared-key: shared-worlds-e2e
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: minecraft
+          key: shared-worlds-minecraft-${{ hashFiles('port/research-lock.json') }}
+      - uses: actions/cache@v4
+        id: resources
+        with:
+          path: resources-port
+          key: shared-worlds-resources-${{ hashFiles('port/research-lock.json', 'port/crates/horizon-prepare/**') }}
+      - name: Download the pinned official game files
+        if: steps.resources.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          python3 port/tools/ci/shared_worlds_game.py "$PWD/minecraft" | tail -n 1 > server-jar.txt
+      - name: Prepare the game files
+        if: steps.resources.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          export HORIZON_HOME="$RUNNER_TEMP/prepare/home" HORIZON_LAUNCHER_HOME="$RUNNER_TEMP/prepare/launcher"
+          export XDG_DATA_HOME="$RUNNER_TEMP/prepare/data" XDG_CONFIG_HOME="$RUNNER_TEMP/prepare/config"
+          (cd port && cargo run --release -p horizon-prepare -- --root "$PWD" --prepare --complete             --minecraft-dir "$GITHUB_WORKSPACE/minecraft" --server-jar "$(cat ../server-jar.txt)" --java-home "$JAVA_HOME"             --output "$GITHUB_WORKSPACE/resources-port")
+      - name: Build the game for the desktop
+        working-directory: port
+        run: cargo build --profile fast -p horizon-client --bin horizon-client
+      - name: An S3 server
+        run: bash port/tools/ci/s3_server.sh
+      - name: Shared worlds end to end (create, host, join, give, takeover, close)
+        run: |
+          python3 port/tools/shared_worlds_e2e.py --xvfb --offscreen             --client port/target/fast/horizon-client --resources resources-port

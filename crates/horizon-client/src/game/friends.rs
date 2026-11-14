@@ -182,7 +182,8 @@ impl Game<'_> {
                 HostEvent::Disconnected { .. } => {}
             }
         }
-        if announce {
+        // A shared world's code goes to its lease, not to the player (game/shared_worlds.rs).
+        if announce && !self.shared_active() {
             self.system_message(Text::literal(lang::get_or(
                 "horizon.friends.code_ready",
                 "Your invite code is ready: Game Menu, Play with Friends. Copy it and send it to your friends.",

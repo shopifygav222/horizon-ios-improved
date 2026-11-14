@@ -426,7 +426,9 @@ impl Game<'_> {
                 "The world's storage answers again.",
             )));
         }
-        // The invite code that joins this game, once it is known.
+        // The invite code that joins this game, once it is known. The world runs on its server
+        // thread, so nothing else reads the sharing's news while no screen shows it.
+        self.tick_friends();
         let view = self.friends_view();
         if let Some(code) = view.code
             && host.code.as_ref() != Some(&code)
