@@ -740,7 +740,7 @@ impl Hosting {
             day: today(),
         };
         let lease = self.lease.clone();
-        let outcome = (|| {
+        let outcome: Result<Manifest> = (|| {
             let layout = ctx.layout();
             rescan(&ctx.folder, &mut index)?;
             let folder = ctx.folder.clone();
