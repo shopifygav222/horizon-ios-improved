@@ -53,7 +53,11 @@ struct Button {
     active: bool,
 }
 
-fn layout(atlas: &HudAtlas, (w, h): (f32, f32), view: &View) -> (Vec<(String, u32, f32)>, Vec<Button>) {
+fn layout(
+    atlas: &HudAtlas,
+    (w, h): (f32, f32),
+    view: &View,
+) -> (Vec<(String, u32, f32)>, Vec<Button>) {
     let width = (w - 40.0).min(310.0);
     let cx = (w / 2.0).floor();
     let mut lines = Vec::new();
@@ -117,12 +121,27 @@ pub fn draw(batch: &mut HudBatch, atlas: &HudAtlas, cursor: (f32, f32), view: &V
     }
     for b in buttons {
         let hover = b.active && ui::hovered(cursor, b.x, b.y, b.w, 20.0);
-        ui::button(batch, atlas, b.x, b.y, b.w, 20.0, &label(&b.label), b.active, hover);
+        ui::button(
+            batch,
+            atlas,
+            b.x,
+            b.y,
+            b.w,
+            20.0,
+            &label(&b.label),
+            b.active,
+            hover,
+        );
     }
 }
 
 /// The button under a click, if it is active.
-pub fn click(atlas: &HudAtlas, size: (f32, f32), cursor: (f32, f32), view: &View) -> Option<Action> {
+pub fn click(
+    atlas: &HudAtlas,
+    size: (f32, f32),
+    cursor: (f32, f32),
+    view: &View,
+) -> Option<Action> {
     layout(atlas, size, view)
         .1
         .into_iter()
@@ -136,11 +155,20 @@ mod tests {
 
     #[test]
     fn every_button_fits_above_the_footer_and_done_is_always_there() {
-        let atlas = HudAtlas::build(std::path::Path::new("/nonexistent/horizon-test-assets")).unwrap();
+        let atlas =
+            HudAtlas::build(std::path::Path::new("/nonexistent/horizon-test-assets")).unwrap();
         let view = View {
             world: "Island".into(),
             lines: vec!["You host this world.".into()],
-            buttons: (0..9).map(|i| (format!("Give Host to P{i}"), Action::GiveHost(i.to_string()), true)).collect(),
+            buttons: (0..9)
+                .map(|i| {
+                    (
+                        format!("Give Host to P{i}"),
+                        Action::GiveHost(i.to_string()),
+                        true,
+                    )
+                })
+                .collect(),
         };
         let (_, buttons) = layout(&atlas, (427.0, 240.0), &view);
         assert_eq!(buttons.last().unwrap().action, Action::Done);
@@ -149,6 +177,9 @@ mod tests {
             assert!(b.y + 20.0 <= 240.0 - 33.0);
         }
         let done = buttons.last().unwrap();
-        assert_eq!(click(&atlas, (427.0, 240.0), (done.x + 5.0, done.y + 5.0), &view), Some(Action::Done));
+        assert_eq!(
+            click(&atlas, (427.0, 240.0), (done.x + 5.0, done.y + 5.0), &view),
+            Some(Action::Done)
+        );
     }
 }

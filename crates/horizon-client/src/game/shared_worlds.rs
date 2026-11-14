@@ -108,6 +108,8 @@ struct Guest {
     /// The newest copy this device holds or is fetching, and the fetch under way.
     fetched: Option<horizon_shared_worlds::manifest::GenId>,
     prefetch: Option<Receiver<()>>,
+    /// The host is reached through the public tunnel, and the player wasn't told yet.
+    tunnel_note: bool,
 }
 
 fn watch(ctx: &Arc<Context>) -> Result<Box<Guest>> {
@@ -122,6 +124,34 @@ fn watch(ctx: &Arc<Context>) -> Result<Box<Guest>> {
         cancel: list::new_cancel(),
         fetched: None,
         prefetch: None,
+        tunnel_note: false,
+    }))
+}
+
+/// The public tunnel a host takes when nothing else reaches it: bore's free server, or
+/// `HORIZON_SHARED_TUNNEL` (a host name; `none` turns it off).
+fn public_tunnel() -> Option<horizon_friends::host::Tunnel> {
+    let server = std::env::var("HORIZON_SHARED_TUNNEL")
+        .ok()
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| horizon_shared_worlds::bore::DEFAULT_SERVER.to_owned());
+    if server == "none" {
+        return None;
+    }
+    Some(Arc::new(move |port: u16| {
+        let local = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+        match horizon_shared_worlds::bore::Tunnel::open(&server, local) {
+            Ok(tunnel) => {
+                log::info!("Shared worlds: friends reach this host through {server} at {}", tunnel.address());
+                let address = tunnel.address();
+                Some((address, Box::new(tunnel) as Box<dyn std::any::Any + Send>))
+            }
+            Err(e) => {
+                log::warn!("Shared worlds: no public tunnel: {e}");
+                None
+            }
+        }
     }))
 }
 
@@ -152,7 +182,8 @@ fn probe_reach() -> Receiver<bool> {
             let mut reach = horizon_friends::reach::Reach::discover(port, &options);
             let reachable = matches!(
                 reach.verdict(),
-                horizon_friends::reach::Verdict::Mapped(_) | horizon_friends::reach::Verdict::Public
+                horizon_friends::reach::Verdict::Mapped(_)
+                    | horizon_friends::reach::Verdict::Public
             );
             reach.release();
             let _ = tx.send(reachable);
@@ -332,7 +363,7 @@ impl Game<'_> {
                         g.shared_inbox = Some(inbox);
                     });
                 }
-                if let Err(e) = self.friends_start() {
+                if let Err(e) = self.friends_start_with(public_tunnel()) {
                     self.system_message(Text::literal(
                         tr("share_failed", "Friends can't join yet: %s").replacen("%s", &e.to_string(), 1),
                     ));
@@ -383,15 +414,25 @@ impl Game<'_> {
             )));
         } else if !frozen && host.frozen_told {
             host.frozen_told = false;
-            self.system_message(Text::literal(tr("thawed", "The world's storage answers again.")));
+            self.system_message(Text::literal(tr(
+                "thawed",
+                "The world's storage answers again.",
+            )));
         }
         // The invite code that joins this game, once it is known.
         let view = self.friends_view();
         if let Some(code) = view.code
             && host.code.as_ref() != Some(&code)
         {
-            host.hosting.open(&code, false);
+            let tunnel = self.friends_tunnel().is_some();
+            host.hosting.open(&code, tunnel);
             host.code = Some(code);
+            if tunnel {
+                self.system_message(Text::literal(tr(
+                    "tunnel_host",
+                    "Nothing outside your network can reach your game, so friends join through bore.pub, a free public tunnel: play may be slower. The world stays encrypted between you and them.",
+                )));
+            }
         }
         // What the guests said.
         let messages = std::mem::take(&mut *host.inbox.lock().unwrap_or_else(|e| e.into_inner()));
@@ -422,7 +463,10 @@ impl Game<'_> {
             }
         }
         // Who is here, for the lease (the world list's count, and the next host).
-        if host.listed.is_none_or(|t| t.elapsed() >= Duration::from_secs(2)) {
+        if host
+            .listed
+            .is_none_or(|t| t.elapsed() >= Duration::from_secs(2))
+        {
             host.listed = Some(Instant::now());
             let me = &shared.ctx.me;
             let mut players = vec![Member {
@@ -439,7 +483,8 @@ impl Game<'_> {
                     });
                 }
             }
-            host.requests.retain(|(uuid, _)| players.iter().any(|p| p.uuid == uuid_text(*uuid)));
+            host.requests
+                .retain(|(uuid, _)| players.iter().any(|p| p.uuid == uuid_text(*uuid)));
             host.hosting.set_players(players.clone());
             host.players = players;
         }
@@ -452,7 +497,12 @@ impl Game<'_> {
     }
 
     /// The last copy's upload, on a thread.
-    fn shared_upload(&mut self, hosting: Arc<Hosting>, successor: Option<String>, rejoin: bool) -> Leaving {
+    fn shared_upload(
+        &mut self,
+        hosting: Arc<Hosting>,
+        successor: Option<String>,
+        rejoin: bool,
+    ) -> Leaving {
         let (tx, rx) = channel();
         let uploading = tr("uploading_last", "Uploading the world for your friends...");
         working(uploading.clone());
@@ -470,7 +520,9 @@ impl Game<'_> {
                     });
                     true
                 };
-                let result = thread_hosting.leave(thread_successor.as_deref(), &mut progress).map(|_| ());
+                let result = thread_hosting
+                    .leave(thread_successor.as_deref(), &mut progress)
+                    .map(|_| ());
                 horizon_client::platform::keep_working("shared-world", "", false);
                 let _ = tx.send(result);
             });
@@ -498,7 +550,11 @@ impl Game<'_> {
                 return Ok(false);
             }
             if Instant::now() >= *at {
-                let next = self.shared_upload(leaving.hosting.clone(), leaving.successor.clone(), leaving.rejoin);
+                let next = self.shared_upload(
+                    leaving.hosting.clone(),
+                    leaving.successor.clone(),
+                    leaving.rejoin,
+                );
                 **leaving = next;
             }
             return Ok(true);
@@ -507,12 +563,18 @@ impl Game<'_> {
             Err(TryRecvError::Empty) => Ok(true),
             Err(TryRecvError::Disconnected) => Err("the upload stopped".into()),
             Ok(Ok(())) if leaving.rejoin => {
-                working(tr("waiting_new_host", "Waiting for the new host to open the world..."));
+                working(tr(
+                    "waiting_new_host",
+                    "Waiting for the new host to open the world...",
+                ));
                 shared.phase = Phase::Watching(watch(&shared.ctx)?);
                 Ok(true)
             }
             Ok(Ok(())) => {
-                list::set_task(Task::Done(tr("uploaded", "The world is saved for your friends.")));
+                list::set_task(Task::Done(tr(
+                    "uploaded",
+                    "The world is saved for your friends.",
+                )));
                 Ok(false)
             }
             Ok(Err(Error::Fenced)) => {
@@ -556,6 +618,13 @@ impl Game<'_> {
         }
         if connected {
             self.shared_report_reach(guest);
+            if guest.tunnel_note && self.title.is_none() {
+                guest.tunnel_note = false;
+                self.system_message(Text::literal(tr(
+                    "tunnel_guest",
+                    "You reach this world's host through bore.pub, a free public tunnel: play may be slower. The world stays encrypted between you and the host.",
+                )));
+            }
         }
         let Some((read, quiet)) = guest.watcher.latest() else {
             return Ok(true);
@@ -566,8 +635,11 @@ impl Game<'_> {
             Err(e) => {
                 if !connected {
                     working(
-                        tr("storage_retry", "Can't reach the world's storage (%s). Trying again...")
-                            .replacen("%s", &e.to_string(), 1),
+                        tr(
+                            "storage_retry",
+                            "Can't reach the world's storage (%s). Trying again...",
+                        )
+                        .replacen("%s", &e.to_string(), 1),
                     );
                 }
                 return Ok(true);
@@ -575,13 +647,21 @@ impl Game<'_> {
         };
         // While another game hosts, this device brings its copy up to each new one in the
         // background, so that taking the world later has almost nothing to download.
-        if guest.prefetch.as_ref().is_some_and(|rx| !matches!(rx.try_recv(), Err(TryRecvError::Empty))) {
+        if guest
+            .prefetch
+            .as_ref()
+            .is_some_and(|rx| !matches!(rx.try_recv(), Err(TryRecvError::Empty)))
+        {
             guest.prefetch = None;
         }
         if guest.prefetch.is_none()
             && seen.lease.generation.is_some()
             && guest.fetched != seen.lease.generation
-            && seen.lease.host.as_ref().is_some_and(|h| h.uuid != shared.ctx.me.uuid)
+            && seen
+                .lease
+                .host
+                .as_ref()
+                .is_some_and(|h| h.uuid != shared.ctx.me.uuid)
         {
             guest.fetched = seen.lease.generation;
             let (tx, rx) = channel();
@@ -600,7 +680,7 @@ impl Game<'_> {
         }
         let me = shared.ctx.me.uuid.clone();
         match next_step(Some(&seen.lease), quiet, &me, &shared.ctx.timing) {
-            Next::Join { code, .. } => {
+            Next::Join { code, tunnel } => {
                 if connected && guest.joined.as_ref() == Some(&code) {
                     return Ok(true);
                 }
@@ -614,6 +694,7 @@ impl Game<'_> {
                     guest.lost = false;
                     guest.asked = false;
                     guest.reach_sent = false;
+                    guest.tunnel_note = tunnel;
                     list::set_task(Task::Idle);
                     let name = shared.ctx.me.name.clone();
                     self.connect_server_with_options(&format!("{}{code}", horizon_friends::ADDRESS_PREFIX), &name, None, false)?;
@@ -642,7 +723,8 @@ impl Game<'_> {
                 if !connected {
                     let host = seen.lease.host.map(|h| h.name).unwrap_or_default();
                     working(
-                        tr("waiting_host", "Waiting for %s to open the world...").replacen("%s", &host, 1),
+                        tr("waiting_host", "Waiting for %s to open the world...")
+                            .replacen("%s", &host, 1),
                     );
                 }
                 Ok(true)
@@ -688,7 +770,10 @@ impl Game<'_> {
         }
         guest.lost = true;
         guest.next_try = Instant::now() + Duration::from_secs(3);
-        working(tr("host_changing", "The host left. Waiting for the next host..."));
+        working(tr(
+            "host_changing",
+            "The host left. Waiting for the next host...",
+        ));
         true
     }
 
@@ -702,7 +787,10 @@ impl Game<'_> {
     /// A message on [`CHANNEL`] from the host, on a guest.
     pub(super) fn shared_from_host(&mut self, data: &[u8]) {
         if data == DENY {
-            self.system_message(Text::literal(tr("denied", "The host wants to keep hosting for now.")));
+            self.system_message(Text::literal(tr(
+                "denied",
+                "The host wants to keep hosting for now.",
+            )));
         }
     }
 
@@ -722,18 +810,35 @@ impl Game<'_> {
         match &shared.phase {
             Phase::Hosting(host) => {
                 view.lines.push(tr("you_host", "You host this world."));
-                let others: Vec<&Member> = host.players.iter().filter(|p| p.uuid != shared.ctx.me.uuid).collect();
+                let others: Vec<&Member> = host
+                    .players
+                    .iter()
+                    .filter(|p| p.uuid != shared.ctx.me.uuid)
+                    .collect();
                 view.lines.push(if others.is_empty() {
                     tr("alone", "Nobody else is here yet.")
                 } else {
-                    tr("here", "Here: %s")
-                        .replacen("%s", &others.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", "), 1)
+                    tr("here", "Here: %s").replacen(
+                        "%s",
+                        &others
+                            .iter()
+                            .map(|p| p.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        1,
+                    )
                 });
                 if host.code.is_none() {
-                    view.lines.push(tr("not_open_yet", "Friends can join once the invite code is ready."));
+                    view.lines.push(tr(
+                        "not_open_yet",
+                        "Friends can join once the invite code is ready.",
+                    ));
                 }
                 if host.hosting.must_freeze() {
-                    view.lines.push(tr("frozen", "Your game can't reach the world's storage: the world waits until it can."));
+                    view.lines.push(tr(
+                        "frozen",
+                        "Your game can't reach the world's storage: the world waits until it can.",
+                    ));
                 }
                 for (uuid, name) in &host.requests {
                     view.buttons.push((
@@ -748,7 +853,11 @@ impl Game<'_> {
                     ));
                 }
                 for player in others {
-                    if host.requests.iter().any(|(u, _)| uuid_text(*u) == player.uuid) {
+                    if host
+                        .requests
+                        .iter()
+                        .any(|(u, _)| uuid_text(*u) == player.uuid)
+                    {
                         continue;
                     }
                     view.buttons.push((
@@ -765,7 +874,8 @@ impl Game<'_> {
                     .and_then(|(read, _)| read.ok().flatten())
                     .and_then(|seen| seen.lease.host.map(|h| h.name))
                     .unwrap_or_default();
-                view.lines.push(tr("hosted_by", "Hosted by %s.").replacen("%s", &host, 1));
+                view.lines
+                    .push(tr("hosted_by", "Hosted by %s.").replacen("%s", &host, 1));
                 let label = if guest.asked {
                     tr("asked", "Asked to Host")
                 } else {
@@ -788,7 +898,9 @@ impl Game<'_> {
 
     pub(super) fn shared_screen_click(&mut self) {
         let view = self.shared_view();
-        let Some(action) = shared_screen::click(&self.gui.atlas, self.gui_size(), self.cursor, &view) else {
+        let Some(action) =
+            shared_screen::click(&self.gui.atlas, self.gui_size(), self.cursor, &view)
+        else {
             return;
         };
         self.audio.play_button_click();
@@ -823,7 +935,11 @@ impl Game<'_> {
             }
             Action::GiveHost(uuid) | Action::Accept(uuid) => {
                 let name = self.shared.as_ref().and_then(|s| match &s.phase {
-                    Phase::Hosting(host) => host.players.iter().find(|p| p.uuid == uuid).map(|p| p.name.clone()),
+                    Phase::Hosting(host) => host
+                        .players
+                        .iter()
+                        .find(|p| p.uuid == uuid)
+                        .map(|p| p.name.clone()),
                     _ => None,
                 });
                 if let Some(Shared {
@@ -834,7 +950,11 @@ impl Game<'_> {
                     host.successor = Some(uuid);
                 }
                 self.system_message(Text::literal(
-                    tr("handing", "Handing the world to %s...").replacen("%s", &name.unwrap_or_default(), 1),
+                    tr("handing", "Handing the world to %s...").replacen(
+                        "%s",
+                        &name.unwrap_or_default(),
+                        1,
+                    ),
                 ));
                 // The world closes and saves; its last copy then goes up named for them.
                 if let Err(e) = self.leave_server(None) {
@@ -937,12 +1057,20 @@ impl Game<'_> {
             return Ok(None);
         }
         match words.get(1).copied() {
-            Some("list") => Ok(Some(json!(
-                list::entries()
+            Some("list") => {
+                let worlds: Vec<serde_json::Value> = list::entries()
                     .into_iter()
-                    .map(|e| json!({ "id": e.id, "name": e.name, "folder": e.folder, "status": format!("{:?}", e.status) }))
-                    .collect::<Vec<_>>()
-            ))),
+                    .map(|e| {
+                        json!({
+                            "id": e.id,
+                            "name": e.name,
+                            "folder": e.folder,
+                            "status": format!("{:?}", e.status),
+                        })
+                    })
+                    .collect();
+                Ok(Some(json!({ "worlds": worlds })))
+            }
             Some("add") => {
                 let text = words.get(2).ok_or("shared add INVITE")?;
                 let name = list::add(text)?;

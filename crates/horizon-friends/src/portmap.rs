@@ -67,13 +67,25 @@ pub struct Targets {
     pub upnp: Vec<String>,
 }
 impl Targets {
-    /// The default gateway's port 5351, and the IGDs answering SSDP.
+    /// The default gateway's port 5351, and the IGDs answering SSDP. Where the system won't
+    /// say which the gateway is (iOS and Android give an app no routing table), the usual
+    /// router addresses of this device's networks are asked instead, and asked for UPnP
+    /// directly as well as by multicast (which iOS keeps from apps).
     pub fn discover(timeout: Duration) -> Self {
-        let mut pmp: Vec<SocketAddr> = default_gateway()
-            .into_iter()
-            .map(|g| SocketAddr::new(IpAddr::V4(g), PMP_PORT))
+        let gateways = match default_gateway() {
+            Some(gateway) => vec![gateway],
+            None => gateway_guesses(&crate::reach::interface_addresses(false)),
+        };
+        let mut pmp: Vec<SocketAddr> = gateways
+            .iter()
+            .map(|g| SocketAddr::new(IpAddr::V4(*g), PMP_PORT))
             .collect();
-        let upnp = ssdp_discover(timeout);
+        let unicast = if default_gateway().is_none() {
+            gateways.clone()
+        } else {
+            Vec::new()
+        };
+        let upnp = ssdp_search(timeout, &unicast);
         // An IGD's own address is a gateway too.
         for l in &upnp {
             if let Some((host, _, _)) = split_url(l)
@@ -494,22 +506,51 @@ fn tag<'a>(xml: &'a str, name: &str) -> Option<&'a str> {
     None
 }
 
+/// The usual addresses of the router on each private IPv4 network this device is on: the
+/// first and the last of its /24 (`x.y.z.1`, `x.y.z.254`), not the device's own.
+pub fn gateway_guesses(addresses: &[IpAddr]) -> Vec<Ipv4Addr> {
+    let mut guesses = Vec::new();
+    for address in addresses {
+        let IpAddr::V4(v4) = address else { continue };
+        if !v4.is_private() {
+            continue;
+        }
+        let [a, b, c, d] = v4.octets();
+        for last in [1u8, 254] {
+            let guess = Ipv4Addr::new(a, b, c, last);
+            if last != d && !guesses.contains(&guess) {
+                guesses.push(guess);
+            }
+        }
+    }
+    guesses
+}
+
 /// The Location headers of SSDP answers (devices answering an M-SEARCH for
 /// internet gateways).
 pub fn ssdp_discover(timeout: Duration) -> Vec<String> {
+    ssdp_search(timeout, &[])
+}
+
+/// [`ssdp_discover`], asking `unicast` routers directly too.
+pub fn ssdp_search(timeout: Duration, unicast: &[Ipv4Addr]) -> Vec<String> {
     let Ok(s) = UdpSocket::bind("0.0.0.0:0") else {
         return Vec::new();
     };
     let _ = s.set_read_timeout(Some(Duration::from_millis(200)));
-    for st in [
-        "urn:schemas-upnp-org:device:InternetGatewayDevice:1",
-        "urn:schemas-upnp-org:device:InternetGatewayDevice:2",
-        "urn:schemas-upnp-org:service:WANIPConnection:1",
-    ] {
-        let m = format!(
-            "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nST: {st}\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\n\r\n"
-        );
-        let _ = s.send_to(m.as_bytes(), "239.255.255.250:1900");
+    let mut targets = vec!["239.255.255.250:1900".to_owned()];
+    targets.extend(unicast.iter().map(|g| format!("{g}:1900")));
+    for target in &targets {
+        for st in [
+            "urn:schemas-upnp-org:device:InternetGatewayDevice:1",
+            "urn:schemas-upnp-org:device:InternetGatewayDevice:2",
+            "urn:schemas-upnp-org:service:WANIPConnection:1",
+        ] {
+            let m = format!(
+                "M-SEARCH * HTTP/1.1\r\nHOST: {target}\r\nST: {st}\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\n\r\n"
+            );
+            let _ = s.send_to(m.as_bytes(), target.as_str());
+        }
     }
     let deadline = Instant::now() + timeout;
     let mut found = Vec::new();
@@ -723,6 +764,16 @@ pub fn windows_gateway(text: &str) -> Option<Ipv4Addr> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_phone_guesses_its_router_from_its_own_addresses() {
+        let addresses: Vec<IpAddr> = ["192.168.1.37", "10.0.0.1", "100.101.102.103", "8.8.8.8", "fe80::1"]
+            .iter()
+            .map(|a| a.parse().unwrap())
+            .collect();
+        let guesses: Vec<String> = gateway_guesses(&addresses).iter().map(|g| g.to_string()).collect();
+        assert_eq!(guesses, ["192.168.1.1", "192.168.1.254", "10.0.0.254"]);
+    }
     use std::{
         collections::HashMap,
         net::TcpListener,

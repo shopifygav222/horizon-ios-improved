@@ -7481,7 +7481,11 @@ impl Game<'_> {
                 }
             };
             // A checkpoint put off is tried again in ten seconds.
-            self.ticks_until_autosave = if soon { 200 } else { self.next_autosave_interval() };
+            self.ticks_until_autosave = if soon {
+                200
+            } else {
+                self.next_autosave_interval()
+            };
             if let Some(serving) = &self.serving {
                 serving.set_saving(false);
             }

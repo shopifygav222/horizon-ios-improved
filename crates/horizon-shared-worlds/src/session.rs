@@ -64,7 +64,10 @@ impl Marker {
     }
 
     pub fn write(&self, world: &Path) -> Result<()> {
-        Ok(write_atomic(&Layout::new(world).marker(), &serde_json::to_vec(self)?)?)
+        Ok(write_atomic(
+            &Layout::new(world).marker(),
+            &serde_json::to_vec(self)?,
+        )?)
     }
 }
 
@@ -184,7 +187,9 @@ pub fn next_step(lease: Option<&Lease>, quiet: Duration, me: &str, timing: &Timi
         State::Handoff => match lease.successor.as_deref() {
             Some(successor) if successor == me => Next::Host(Claim::Free),
             None => Next::Host(Claim::Free),
-            Some(_) if timing.after(timing.handoff_wait, quiet, turn) => Next::Host(Claim::Takeover),
+            Some(_) if timing.after(timing.handoff_wait, quiet, turn) => {
+                Next::Host(Claim::Takeover)
+            }
             Some(_) => Next::Wait,
         },
         State::Closed => Next::Host(Claim::Free),
@@ -203,7 +208,13 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(store: Arc<dyn Store>, invite: &WorldInvite, folder: PathBuf, me: Member, device: String) -> Self {
+    pub fn new(
+        store: Arc<dyn Store>,
+        invite: &WorldInvite,
+        folder: PathBuf,
+        me: Member,
+        device: String,
+    ) -> Self {
         let prefix = invite.prefix();
         Self {
             store,
@@ -276,7 +287,9 @@ pub fn create(ctx: &Context, name: &str, progress: Progress<'_>) -> Result<GenId
         let mut index = LocalIndex::default();
         rescan(&ctx.folder, &mut index)?;
         if !index.files.contains_key("level.dat") {
-            return Err(Error::Format("this folder is not a world: it has no level.dat".into()));
+            return Err(Error::Format(
+                "this folder is not a world: it has no level.dat".into(),
+            ));
         }
         let id = GenId {
             epoch: held.lease().epoch,
@@ -284,12 +297,24 @@ pub fn create(ctx: &Context, name: &str, progress: Progress<'_>) -> Result<GenId
             day: today(),
         };
         let folder = ctx.folder.clone();
-        let manifest = publish(ctx.remote(), None, &index, &|p| under(&folder, p), id, &ctx.me.name, progress)?;
+        let manifest = publish(
+            ctx.remote(),
+            None,
+            &index,
+            &|p| under(&folder, p),
+            id,
+            &ctx.me.name,
+            progress,
+        )?;
         held.commit(id)?;
         layout.save_base(&manifest)?;
         index.save(&layout.index())?;
         Marker {
-            world: ctx.prefix.trim_start_matches("w/").trim_end_matches('/').to_owned(),
+            world: ctx
+                .prefix
+                .trim_start_matches("w/")
+                .trim_end_matches('/')
+                .to_owned(),
             name: name.to_owned(),
         }
         .write(&ctx.folder)?;
@@ -463,14 +488,22 @@ pub fn host(
     let lock = FolderLock::take(&ctx.folder)?;
     let leases = ctx.leases();
     let (held, resumed) = match start {
-        Start::Takeover(seen) => (leases.claim(Some(&seen), &ctx.me, &ctx.device, Claim::Takeover)?, false),
+        Start::Takeover(seen) => (
+            leases.claim(Some(&seen), &ctx.me, &ctx.device, Claim::Takeover)?,
+            false,
+        ),
         Start::Free => {
             let Some(seen) = leases.read()? else {
-                return Err(Error::Store("this world is no longer in its storage".into()));
+                return Err(Error::Store(
+                    "this world is no longer in its storage".into(),
+                ));
             };
             match leases.resume(&seen, &ctx.me, &ctx.device) {
                 Ok(held) => (held, true),
-                Err(Error::Refused) => (leases.claim(Some(&seen), &ctx.me, &ctx.device, Claim::Free)?, false),
+                Err(Error::Refused) => (
+                    leases.claim(Some(&seen), &ctx.me, &ctx.device, Claim::Free)?,
+                    false,
+                ),
                 // The lease changed while it was being picked up: read it again.
                 Err(Error::Fenced) => return Err(Error::Refused),
                 Err(e) => return Err(e),
@@ -559,13 +592,18 @@ impl Hosting {
             if unpublished(&layout, &index) && !index.files.is_empty() {
                 let to = recover_into();
                 copy_world(&ctx.folder, &to)?;
-                log::info!("Shared worlds: this device's own progress is kept in {}", to.display());
+                log::info!(
+                    "Shared worlds: this device's own progress is kept in {}",
+                    to.display()
+                );
                 self.recovered = Some(to);
             }
             self.fetched = Some(fetch(ctx.remote(), target, &layout, &mut index, progress)?);
         }
         if previous.is_none() && index.files.is_empty() {
-            return Err(Error::Store("this world has no saved copy to start from".into()));
+            return Err(Error::Store(
+                "this world has no saved copy to start from".into(),
+            ));
         }
         // Whatever differs from the newest copy (a resumed host's own progress) waits in the
         // staging folder for the first upload, as a checkpoint's files do.
@@ -663,7 +701,9 @@ impl Hosting {
         if !unchanged() {
             // Staged copies that may be torn stay unused: the index still says these files
             // differ, so the next checkpoint copies them again.
-            log::warn!("Shared worlds: the world was written to during a checkpoint; it is taken again later");
+            log::warn!(
+                "Shared worlds: the world was written to during a checkpoint; it is taken again later"
+            );
             return Ok(false);
         }
         let index = std::mem::take(&mut uploads.index);
@@ -681,8 +721,20 @@ impl Hosting {
             .spawn(move || {
                 let mut index = index;
                 let staging = ctx.layout().staging();
-                let id = GenId { epoch, seq, day: today() };
-                let outcome = upload(&ctx, &lease, &mut index, &found, previous.as_ref(), &staging, id);
+                let id = GenId {
+                    epoch,
+                    seq,
+                    day: today(),
+                };
+                let outcome = upload(
+                    &ctx,
+                    &lease,
+                    &mut index,
+                    &found,
+                    previous.as_ref(),
+                    &staging,
+                    id,
+                );
                 let (mutex, done) = &*shared;
                 let mut uploads = locked(mutex);
                 uploads.index = index;
@@ -740,7 +792,11 @@ impl Hosting {
             uploads.busy = true;
             let seq = uploads.next_seq;
             uploads.next_seq += 1;
-            (std::mem::take(&mut uploads.index), uploads.previous.clone(), seq)
+            (
+                std::mem::take(&mut uploads.index),
+                uploads.previous.clone(),
+                seq,
+            )
         };
         let id = GenId {
             epoch: self.epoch,
@@ -1010,7 +1066,10 @@ mod tests {
     fn new_world(store: &Arc<MemoryStore>) -> Device {
         let alex = Device::new(store, 1);
         alex.write("level.dat", b"level 1");
-        alex.write("dimensions/minecraft/overworld/region/r.0.0.mca", &bytes(1, 300_000));
+        alex.write(
+            "dimensions/minecraft/overworld/region/r.0.0.mca",
+            &bytes(1, 300_000),
+        );
         alex.write("players/data/alex.dat", b"alex");
         create(&alex.ctx, "Island", &mut go).unwrap();
         alex
@@ -1019,7 +1078,10 @@ mod tests {
     fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
         let start = Instant::now();
         while !done() {
-            assert!(start.elapsed() < Duration::from_secs(10), "waited too long for {what}");
+            assert!(
+                start.elapsed() < Duration::from_secs(10),
+                "waited too long for {what}"
+            );
             std::thread::sleep(Duration::from_millis(10));
         }
     }
@@ -1041,14 +1103,20 @@ mod tests {
         let lease = alex.ctx.status().unwrap().unwrap().lease;
         assert_eq!((lease.state, lease.playing()), (State::Closed, 0));
         assert_eq!(lease.generation.map(|g| (g.epoch, g.seq)), Some((1, 1)));
-        assert_eq!(Marker::read(&alex.world()).unwrap().world, "0123456789abcdef");
+        assert_eq!(
+            Marker::read(&alex.world()).unwrap().world,
+            "0123456789abcdef"
+        );
         // The same world can't be made twice; a folder that isn't a world isn't made at all.
         assert!(create(&alex.ctx, "Island", &mut go).is_err());
         let empty_store = Arc::new(MemoryStore::new());
         let empty = Device::new(&empty_store, 5);
         empty.write("notes.txt", b"x");
         assert!(create(&empty.ctx, "Island", &mut go).is_err());
-        assert!(empty_store.keys().is_empty(), "a failed creation leaves nothing behind");
+        assert!(
+            empty_store.keys().is_empty(),
+            "a failed creation leaves nothing behind"
+        );
     }
 
     #[test]
@@ -1070,24 +1138,41 @@ mod tests {
         assert_eq!(lease.playing(), 2);
         assert_eq!(
             next_step(Some(&lease), Duration::ZERO, &member(1, false).uuid, &FAST),
-            Next::Join { code: "CODE-STEVE".into(), tunnel: false }
+            Next::Join {
+                code: "CODE-STEVE".into(),
+                tunnel: false
+            }
         );
         // Play goes on; a checkpoint uploads what changed.
         steve.write("level.dat", b"level 2");
         steve.write("players/data/steve.dat", b"steve");
         let first = checkpoint(&hosting);
-        assert_eq!(alex.ctx.status().unwrap().unwrap().lease.generation, Some(first));
+        assert_eq!(
+            alex.ctx.status().unwrap().unwrap().lease.generation,
+            Some(first)
+        );
         // Nothing changed: still a copy, and nothing to upload but its list.
         let before = store.bytes();
         checkpoint(&hosting);
         assert!(store.bytes().saturating_sub(before) < 4096);
         // Steve leaves and hands the world to Alex.
         steve.write("level.dat", b"level 3");
-        let last = hosting.leave(Some(&member(1, false).uuid), &mut go).unwrap();
+        let last = hosting
+            .leave(Some(&member(1, false).uuid), &mut go)
+            .unwrap();
         let lease = alex.ctx.status().unwrap().unwrap().lease;
-        assert_eq!((lease.state, lease.generation), (State::Handoff, Some(last)));
-        assert_eq!(next_step(Some(&lease), Duration::ZERO, &member(1, false).uuid, &FAST), Next::Host(Claim::Free));
-        assert_eq!(next_step(Some(&lease), Duration::ZERO, &member(3, false).uuid, &FAST), Next::Wait);
+        assert_eq!(
+            (lease.state, lease.generation),
+            (State::Handoff, Some(last))
+        );
+        assert_eq!(
+            next_step(Some(&lease), Duration::ZERO, &member(1, false).uuid, &FAST),
+            Next::Host(Claim::Free)
+        );
+        assert_eq!(
+            next_step(Some(&lease), Duration::ZERO, &member(3, false).uuid, &FAST),
+            Next::Wait
+        );
         drop(hosting);
         let hosting = alex.host(Start::Free).unwrap();
         assert!(hosting.recovered.is_none());
@@ -1110,7 +1195,10 @@ mod tests {
         // The next one takes the file again.
         let id = checkpoint(&hosting);
         let manifest = alex.ctx.remote().manifest(id).unwrap();
-        assert_eq!(manifest.file("level.dat").unwrap().size, b"written while copied".len() as u64);
+        assert_eq!(
+            manifest.file("level.dat").unwrap().size,
+            b"written while copied".len() as u64
+        );
         hosting.abandon();
     }
 
@@ -1131,11 +1219,17 @@ mod tests {
         let id = outcome.unwrap().unwrap();
         let other = Device::new(&store, 4);
         let manifest = other.ctx.remote().manifest(id).unwrap();
-        assert_eq!(manifest.file("level.dat").unwrap().size, b"at the checkpoint".len() as u64);
+        assert_eq!(
+            manifest.file("level.dat").unwrap().size,
+            b"at the checkpoint".len() as u64
+        );
         // The next checkpoint has the newer bytes.
         let next = checkpoint(&hosting);
         let manifest = other.ctx.remote().manifest(next).unwrap();
-        assert_eq!(manifest.file("level.dat").unwrap().size, b"after the checkpoint, and longer too".len() as u64);
+        assert_eq!(
+            manifest.file("level.dat").unwrap().size,
+            b"after the checkpoint, and longer too".len() as u64
+        );
         hosting.abandon();
     }
 
@@ -1159,7 +1253,14 @@ mod tests {
         let id = checkpoint(&hosting);
         let fresh = Device::new(&store, 6);
         let manifest = fresh.ctx.remote().manifest(id).unwrap();
-        fetch(fresh.ctx.remote(), &manifest, &fresh.ctx.layout(), &mut LocalIndex::default(), &mut go).unwrap();
+        fetch(
+            fresh.ctx.remote(),
+            &manifest,
+            &fresh.ctx.layout(),
+            &mut LocalIndex::default(),
+            &mut go,
+        )
+        .unwrap();
         assert_eq!(fresh.tree(), alex.tree());
         hosting.abandon();
     }
@@ -1178,10 +1279,11 @@ mod tests {
         // Alex's game dies: the heartbeat stops, nothing more is uploaded.
         hosting.abandon();
         let watcher = Watcher::start(steve.ctx.clone()).unwrap();
-        let taken = None;
+        let mut taken = None;
         wait_for("the takeover", || {
             if let Some((Ok(Some(seen)), quiet)) = watcher.latest()
-                && next_step(Some(&seen.lease), quiet, &steve.ctx.me.uuid, &FAST) == Next::Host(Claim::Takeover)
+                && next_step(Some(&seen.lease), quiet, &steve.ctx.me.uuid, &FAST)
+                    == Next::Host(Claim::Takeover)
             {
                 taken = Some(seen);
             }
@@ -1194,7 +1296,10 @@ mod tests {
         // Alex comes back: the newer copy is Steve's, and Alex's own progress is kept apart.
         let again = alex.host(Start::Free).unwrap();
         let kept = again.recovered.clone().unwrap();
-        assert_eq!(fs::read(kept.join("level.dat")).unwrap(), b"only on alex's device");
+        assert_eq!(
+            fs::read(kept.join("level.dat")).unwrap(),
+            b"only on alex's device"
+        );
         assert!(!kept.join(WORK).exists());
         assert_eq!(alex.read("level.dat"), b"steve's");
         again.leave(None, &mut go).unwrap();
@@ -1207,7 +1312,7 @@ mod tests {
         let steve = Device::new(&store, 2);
         let hosting = alex.host(Start::Free).unwrap();
         // A heartbeat may land between the read and the takeover: then read again.
-        let taken = None;
+        let mut taken = None;
         wait_for("the takeover", || {
             let seen = steve.ctx.status().unwrap().unwrap();
             match steve.host(Start::Takeover(seen)) {
@@ -1227,7 +1332,10 @@ mod tests {
         assert!(matches!(hosting.leave(None, &mut go), Err(Error::Fenced)));
         let committed = steve.ctx.status().unwrap().unwrap().lease.generation;
         let manifest = steve.ctx.remote().manifest(committed.unwrap()).unwrap();
-        assert_eq!(manifest.file("level.dat").unwrap().size, b"level 1".len() as u64);
+        assert_eq!(
+            manifest.file("level.dat").unwrap().size,
+            b"level 1".len() as u64
+        );
         taken.leave(None, &mut go).unwrap();
         hosting.abandon();
     }
@@ -1247,7 +1355,10 @@ mod tests {
         assert_eq!(alex.read("level.dat"), b"played, never uploaded");
         let id = checkpoint(&resumed);
         let manifest = alex.ctx.remote().manifest(id).unwrap();
-        assert_eq!(manifest.file("level.dat").unwrap().size, b"played, never uploaded".len() as u64);
+        assert_eq!(
+            manifest.file("level.dat").unwrap().size,
+            b"played, never uploaded".len() as u64
+        );
         resumed.abandon();
     }
 
@@ -1260,7 +1371,10 @@ mod tests {
         store.fail_before.store(u32::MAX, Ordering::SeqCst);
         let lost = Instant::now();
         wait_for("the freeze", || hosting.must_freeze());
-        assert!(lost.elapsed() < FAST.dead, "frozen before anyone may take over");
+        assert!(
+            lost.elapsed() < FAST.dead,
+            "frozen before anyone may take over"
+        );
         store.fail_before.store(0, Ordering::SeqCst);
         wait_for("the thaw", || !hosting.must_freeze());
         hosting.abandon();
@@ -1272,12 +1386,20 @@ mod tests {
         let _alex = new_world(&store);
         let players: Vec<Device> = (2..6).map(|n| Device::new(&store, n)).collect();
         let results: Vec<Result<Hosting>> = std::thread::scope(|scope| {
-            let games: Vec<_> = players.iter().map(|p| scope.spawn(move || p.host(Start::Free))).collect();
+            let games: Vec<_> = players
+                .iter()
+                .map(|p| scope.spawn(move || p.host(Start::Free)))
+                .collect();
             games.into_iter().map(|g| g.join().unwrap()).collect()
         });
         let hosts: Vec<&Hosting> = results.iter().filter_map(|r| r.as_ref().ok()).collect();
         assert_eq!(hosts.len(), 1);
-        assert!(results.iter().filter_map(|r| r.as_ref().err()).all(|e| matches!(e, Error::Refused)));
+        assert!(
+            results
+                .iter()
+                .filter_map(|r| r.as_ref().err())
+                .all(|e| matches!(e, Error::Refused))
+        );
     }
 
     #[test]
@@ -1304,8 +1426,14 @@ mod tests {
     #[test]
     fn the_next_host_is_one_friends_can_reach() {
         let host = member(1, true).uuid;
-        assert_eq!(successor(&[member(1, true), member(3, false), member(2, true)], &host), Some(member(2, true).uuid));
-        assert_eq!(successor(&[member(1, true), member(3, false)], &host), Some(member(3, false).uuid));
+        assert_eq!(
+            successor(&[member(1, true), member(3, false), member(2, true)], &host),
+            Some(member(2, true).uuid)
+        );
+        assert_eq!(
+            successor(&[member(1, true), member(3, false)], &host),
+            Some(member(3, false).uuid)
+        );
         assert_eq!(successor(&[member(1, true)], &host), None);
     }
 
@@ -1328,16 +1456,34 @@ mod tests {
         };
         let at = |l: &Lease, ms: u64| next_step(Some(l), Duration::from_millis(ms), &me, &FAST);
         let hosting = lease(State::Hosting, Some("C"), None);
-        assert_eq!(at(&hosting, 0), Next::Join { code: "C".into(), tunnel: false });
+        assert_eq!(
+            at(&hosting, 0),
+            Next::Join {
+                code: "C".into(),
+                tunnel: false
+            }
+        );
         // Dead at 900 ms for the first in line; I'm second (100 ms later).
-        assert_eq!(at(&hosting, 950), Next::Join { code: "C".into(), tunnel: false });
+        assert_eq!(
+            at(&hosting, 950),
+            Next::Join {
+                code: "C".into(),
+                tunnel: false
+            }
+        );
         assert_eq!(at(&hosting, 1000), Next::Host(Claim::Takeover));
         assert_eq!(at(&lease(State::Starting, None, None), 500), Next::Wait);
         let handoff = lease(State::Handoff, None, Some(2));
         assert_eq!(at(&handoff, 350), Next::Wait);
         assert_eq!(at(&handoff, 400), Next::Host(Claim::Takeover));
-        assert_eq!(at(&lease(State::Handoff, None, Some(3)), 0), Next::Host(Claim::Free));
-        assert_eq!(at(&lease(State::Closed, None, None), 0), Next::Host(Claim::Free));
+        assert_eq!(
+            at(&lease(State::Handoff, None, Some(3)), 0),
+            Next::Host(Claim::Free)
+        );
+        assert_eq!(
+            at(&lease(State::Closed, None, None), 0),
+            Next::Host(Claim::Free)
+        );
         assert_eq!(next_step(None, Duration::ZERO, &me, &FAST), Next::Gone);
         assert!(FAST.consistent());
     }
@@ -1356,6 +1502,9 @@ mod tests {
         names.sort();
         assert_eq!(names, ["level.dat", "region/r.0.0.mca"]);
         assert!(!target.join("session.lock").exists() && !target.join(WORK).exists());
-        assert!(copy_world(&from.0, &target).is_err(), "never over an existing folder");
+        assert!(
+            copy_world(&from.0, &target).is_err(),
+            "never over an existing folder"
+        );
     }
 }

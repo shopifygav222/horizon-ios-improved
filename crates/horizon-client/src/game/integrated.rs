@@ -381,7 +381,9 @@ impl Game<'_> {
             // the signed-in account's own UUID. Only an offline start names its player by the
             // offline profile. So a player is the same player whether they host a world or join
             // it (their pets, statistics and saved state), as on official Horizon.
-            owner: auth.as_ref().map_or_else(|| offline_uuid(&player), |a| a.uuid),
+            owner: auth
+                .as_ref()
+                .map_or_else(|| offline_uuid(&player), |a| a.uuid),
             player: player.clone(),
             owner_profile: auth.as_ref().map(|a| {
                 let id = a.uuid;

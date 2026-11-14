@@ -53,7 +53,15 @@ pub struct HostConfig {
     /// The direct port to ask for (0: any).
     pub port: u16,
     pub reach: reach::Options,
+    /// When nothing outside this network can reach the host: opens a public tunnel to the
+    /// direct port (its argument), and returns the address friends dial and what keeps the
+    /// tunnel open. The code then holds that address too; guests still take a direct way
+    /// first when one answers.
+    pub tunnel: Option<Tunnel>,
 }
+
+/// Opens a tunnel to a local port: where it is reached, and what keeps it open.
+pub type Tunnel = Arc<dyn Fn(u16) -> Option<(SocketAddr, Box<dyn std::any::Any + Send>)> + Send + Sync>;
 
 /// What the host's game shows.
 #[derive(Clone, Debug, Default)]
@@ -68,6 +76,8 @@ pub struct HostState {
     /// Why the relay isn't serving, when one is configured.
     pub relay_problem: Option<String>,
     pub port: u16,
+    /// Where friends reach the host through the public tunnel, when it has one.
+    pub tunnel: Option<SocketAddr>,
 }
 
 #[derive(Debug)]
@@ -230,11 +240,24 @@ fn share(shared: Arc<Shared>, port: u16) {
     } else {
         Reach::discover(port, &config.reach)
     };
-    let endpoints = if config.path == PathMode::RelayOnly {
+    let mut endpoints = if config.path == PathMode::RelayOnly {
         Vec::new()
     } else {
         reach.endpoints()
     };
+    // Nothing outside this network reaches the host: a public tunnel, first in the code so the
+    // code keeps it whatever else it holds.
+    let reachable = matches!(reach.verdict(), Verdict::Mapped(_) | Verdict::Public);
+    let mut _tunnel = None;
+    if config.path != PathMode::RelayOnly
+        && !reachable
+        && let Some(open) = &config.tunnel
+        && let Some((address, guard)) = open(port)
+    {
+        endpoints.insert(0, address);
+        _tunnel = Some(guard);
+        shared.state.lock().unwrap().tunnel = Some(address);
+    }
     let invite = match Invite::new(port, endpoints, None) {
         Ok(i) => i,
         Err(_) => return,

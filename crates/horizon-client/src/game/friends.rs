@@ -56,6 +56,17 @@ fn env_flag(name: &str, default: bool) -> bool {
 impl Game<'_> {
     /// Start sharing the open world.
     pub(super) fn friends_start(&mut self) -> Result<()> {
+        self.friends_start_with(None)
+    }
+
+    /// Where friends reach this game through a public tunnel, when it shares through one.
+    pub(super) fn friends_tunnel(&self) -> Option<std::net::SocketAddr> {
+        self.friends.as_ref().and_then(|s| s.host.state().tunnel)
+    }
+
+    /// Start sharing the open world, through `tunnel` when nothing else reaches it (a shared
+    /// world's host, game/shared_worlds.rs).
+    pub(super) fn friends_start_with(&mut self, tunnel: Option<horizon_friends::host::Tunnel>) -> Result<()> {
         if self.friends.is_some() {
             return Ok(());
         }
@@ -91,6 +102,7 @@ impl Game<'_> {
                 // Both ends on one machine (tests).
                 loopback: env_flag("HORIZON_FRIENDS_LOOPBACK", false),
             },
+            tunnel,
         }) {
             Ok(h) => h,
             Err(e) => {

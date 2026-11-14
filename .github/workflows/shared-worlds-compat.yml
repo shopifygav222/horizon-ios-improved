@@ -9,6 +9,7 @@ on:
       - .github/workflows/shared-worlds-compat.yml
       - tools/shared_worlds_compat.py
       - tools/ci/shared_worlds_game.py
+      - tools/shared_worlds_e2e.py
   workflow_dispatch:
     inputs:
       official:
@@ -101,3 +102,11 @@ jobs:
           python3 port/tools/shared_worlds_compat.py --xvfb --offscreen \
             --a-client port/target/fast/horizon-client --a-resources resources-port \
             --b-client official/target/fast/horizon-official --b-resources resources-official
+      - name: An S3 server for the shared worlds check
+        if: ${{ !cancelled() }}
+        run: bash port/tools/ci/s3_server.sh
+      - name: Shared worlds end to end on the port (create, host, join, give, takeover, close)
+        if: ${{ !cancelled() }}
+        run: |
+          python3 port/tools/shared_worlds_e2e.py --xvfb --offscreen \
+            --client port/target/fast/horizon-client --resources resources-port

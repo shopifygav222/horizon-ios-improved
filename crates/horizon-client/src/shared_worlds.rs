@@ -128,7 +128,9 @@ pub fn device() -> String {
             return id.to_owned();
         }
     }
-    let id = random::<16>().map(|b| hex(&b)).unwrap_or_else(|_| "0".repeat(32));
+    let id = random::<16>()
+        .map(|b| hex(&b))
+        .unwrap_or_else(|_| "0".repeat(32));
     let _ = horizon_shared_worlds::scan::write_atomic(&path, id.as_bytes());
     id
 }
@@ -136,6 +138,17 @@ pub fn device() -> String {
 /// The player as a shared world knows them: a Microsoft account, which proves who they are to
 /// the other players' games. An offline or Ely.by player can't take part.
 pub fn me() -> Result<Member, String> {
+    // The end-to-end checks (tools/shared_worlds_e2e.py) run without Microsoft accounts: an
+    // offline player of this name, as the game's `--name` makes it. Never set in a player's game.
+    if let Ok(name) = std::env::var("HORIZON_SHARED_WORLDS_TEST_PLAYER")
+        && !name.is_empty()
+    {
+        return Ok(Member {
+            uuid: format!("{:032x}", horizon_protocol::crypto::offline_uuid(&name)),
+            name,
+            reachable: false,
+        });
+    }
     let Some(session) = crate::auth::current() else {
         return Err(tr(
             "horizon.shared.needs_account",
@@ -166,7 +179,8 @@ fn save_list(state: &State) -> Result<(), String> {
         })
         .collect();
     let data = serde_json::to_vec_pretty(&listed).map_err(|e| e.to_string())?;
-    horizon_shared_worlds::scan::write_atomic(&game_dir().join(LIST_FILE), &data).map_err(|e| e.to_string())
+    horizon_shared_worlds::scan::write_atomic(&game_dir().join(LIST_FILE), &data)
+        .map_err(|e| e.to_string())
 }
 
 /// Reads the list and its invites once.
@@ -187,10 +201,19 @@ pub fn load() {
                     Ok(invite) => {
                         state.invites.insert(world.id.clone(), invite);
                     }
-                    Err(e) => log::warn!("Shared worlds: the invite of {} doesn't read: {e}", world.name),
+                    Err(e) => log::warn!(
+                        "Shared worlds: the invite of {} doesn't read: {e}",
+                        world.name
+                    ),
                 },
-                Ok(None) => log::warn!("Shared worlds: this device no longer holds the invite of {}", world.name),
-                Err(e) => log::warn!("Shared worlds: the invite of {} wasn't read: {e}", world.name),
+                Ok(None) => log::warn!(
+                    "Shared worlds: this device no longer holds the invite of {}",
+                    world.name
+                ),
+                Err(e) => log::warn!(
+                    "Shared worlds: the invite of {} wasn't read: {e}",
+                    world.name
+                ),
             }
             state.entries.push(Entry {
                 id: world.id,
@@ -236,7 +259,9 @@ pub fn invite_text(id: &str) -> Option<String> {
 }
 
 fn store_for(invite: &WorldInvite) -> Result<Arc<dyn Store>, String> {
-    Ok(Arc::new(S3Store::new(&invite.bucket).map_err(|e| e.to_string())?))
+    Ok(Arc::new(
+        S3Store::new(&invite.bucket).map_err(|e| e.to_string())?,
+    ))
 }
 
 /// What the game needs to open world `id`: its storage, its folder, and this player.
@@ -245,7 +270,11 @@ pub fn context(id: &str) -> Result<Context, String> {
     let me = me()?;
     let (invite, folder) = with(|state| {
         let invite = state.invites.get(id).cloned();
-        let folder = state.entries.iter().find(|e| e.id == id).map(|e| e.folder.clone());
+        let folder = state
+            .entries
+            .iter()
+            .find(|e| e.id == id)
+            .map(|e| e.folder.clone());
         (invite, folder)
     });
     let invite = invite.ok_or_else(|| {
@@ -255,7 +284,13 @@ pub fn context(id: &str) -> Result<Context, String> {
         )
     })?;
     let folder = folder.ok_or("no such shared world")?;
-    Ok(Context::new(store_for(&invite)?, &invite, saves().join(folder), me, device()))
+    Ok(Context::new(
+        store_for(&invite)?,
+        &invite,
+        saves().join(folder),
+        me,
+        device(),
+    ))
 }
 
 /// Reads every world's lease again, in the background, at most every [`REFRESH`] unless `now`.
@@ -277,9 +312,12 @@ pub fn refresh(now: bool) {
         .spawn(move || {
             for (id, invite) in worlds {
                 let status = match store_for(&invite).and_then(|store| {
-                    horizon_shared_worlds::lease::Leases::new(store, &format!("{}lease", invite.prefix()))
-                        .read()
-                        .map_err(|e| e.to_string())
+                    horizon_shared_worlds::lease::Leases::new(
+                        store,
+                        &format!("{}lease", invite.prefix()),
+                    )
+                    .read()
+                    .map_err(|e| e.to_string())
                 }) {
                     Ok(Some(seen)) => {
                         let lease = seen.lease;
@@ -287,7 +325,12 @@ pub fn refresh(now: bool) {
                             playing: lease.playing(),
                             host: lease
                                 .host
-                                .filter(|_| matches!(lease.state, LeaseState::Hosting | LeaseState::Starting))
+                                .filter(|_| {
+                                    matches!(
+                                        lease.state,
+                                        LeaseState::Hosting | LeaseState::Starting
+                                    )
+                                })
                                 .map(|h| h.name),
                             open: lease.state == LeaseState::Hosting && lease.code.is_some(),
                             tunnel: lease.tunnel,
@@ -319,13 +362,23 @@ pub fn refresh(now: bool) {
 fn new_folder(name: &str) -> String {
     let base: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .trim()
         .chars()
         .take(40)
         .collect();
-    let base = if base.is_empty() { "Shared World".to_owned() } else { base };
+    let base = if base.is_empty() {
+        "Shared World".to_owned()
+    } else {
+        base
+    };
     let saves = saves();
     let mut folder = base.clone();
     let mut n = 2;
@@ -359,7 +412,10 @@ pub fn add(text: &str) -> Result<String, String> {
     let name = invite.name.clone();
     with(|state| {
         if state.entries.iter().any(|e| e.id == invite.world) {
-            return Err(tr("horizon.shared.already_added", "This world is already in your list."));
+            return Err(tr(
+                "horizon.shared.already_added",
+                "This world is already in your list.",
+            ));
         }
         let folder = new_folder(&name);
         remember(state, invite, folder)
@@ -402,7 +458,10 @@ pub fn create(folder: String, name: String, bucket: Bucket) {
                 let me = me()?;
                 let path = saves().join(&folder);
                 if Marker::read(&path).is_some() {
-                    return Err(tr("horizon.shared.already_shared", "This world is already shared."));
+                    return Err(tr(
+                        "horizon.shared.already_shared",
+                        "This world is already shared.",
+                    ));
                 }
                 let invite = WorldInvite {
                     bucket: bucket.clone(),
@@ -502,7 +561,8 @@ pub fn set_world_player(world: &Path, uuid: u128) -> Result<(), String> {
         _ => None,
     };
     if let Some(player) = legacy {
-        let owner = uuid_from_tag(player.get("UUID")).or_else(|| uuid_from_tag(data.get("singleplayer_uuid")));
+        let owner = uuid_from_tag(player.get("UUID"))
+            .or_else(|| uuid_from_tag(data.get("singleplayer_uuid")));
         if let Some(owner) = owner {
             let file = playerdata::path(world, playerdata::ints_uuid(owner));
             if !file.exists() {
@@ -510,7 +570,11 @@ pub fn set_world_player(world: &Path, uuid: u128) -> Result<(), String> {
             }
         }
     }
-    put(data, "singleplayer_uuid", uuid_tag(playerdata::uuid_ints(uuid)));
+    put(
+        data,
+        "singleplayer_uuid",
+        uuid_tag(playerdata::uuid_ints(uuid)),
+    );
     write_dat(&path, root).map_err(|e| e.to_string())
 }
 

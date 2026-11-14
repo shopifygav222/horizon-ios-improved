@@ -195,7 +195,9 @@ impl Leases {
             Ok(etag) => Ok(Held::new(self.clone(), Seen { lease, etag })),
             // The write may have landed although its answer was lost.
             Err(error) => match self.read() {
-                Ok(Some(found)) if found.lease.token == lease.token => Ok(Held::new(self.clone(), found)),
+                Ok(Some(found)) if found.lease.token == lease.token => {
+                    Ok(Held::new(self.clone(), found))
+                }
                 _ => Err(error),
             },
         }
@@ -378,7 +380,9 @@ impl Timing {
     /// Whether the rules hold together: a host that can't write freezes, with two heartbeats
     /// to spare, before anyone may take over, and watchers look often enough to see it.
     pub fn consistent(&self) -> bool {
-        self.self_fence + self.heartbeat * 2 < self.dead && self.poll < self.heartbeat && self.handoff_wait < self.dead
+        self.self_fence + self.heartbeat * 2 < self.dead
+            && self.poll < self.heartbeat
+            && self.handoff_wait < self.dead
     }
 
     /// Whether a lease quiet for `quiet` may be taken, after `base`, by the watcher whose turn
@@ -716,15 +720,21 @@ mod tests {
         let leases = Leases::new(store.clone(), KEY);
         let mut host = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         host.heartbeat(&[member(1), member(2), member(3)]).unwrap();
-        host.hand_off(generation(1, 1), Some(&member(2).uuid)).unwrap();
+        host.hand_off(generation(1, 1), Some(&member(2).uuid))
+            .unwrap();
         let lease = leases.read().unwrap().unwrap().lease;
         assert_eq!(lease.playing(), 0);
         assert_eq!(turn(&lease, &member(3).uuid), 1);
         let seen = leases.read().unwrap().unwrap();
-        let mut next = leases.claim(Some(&seen), &member(2), "b", Claim::Free).unwrap();
+        let mut next = leases
+            .claim(Some(&seen), &member(2), "b", Claim::Free)
+            .unwrap();
         next.release().unwrap();
         let lease = leases.read().unwrap().unwrap().lease;
-        assert_eq!((lease.state, lease.playing(), lease.generation), (State::Closed, 0, Some(generation(1, 1))));
+        assert_eq!(
+            (lease.state, lease.playing(), lease.generation),
+            (State::Closed, 0, Some(generation(1, 1)))
+        );
         assert!(lease.players.is_empty());
     }
 

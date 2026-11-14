@@ -63,6 +63,7 @@ fn start(relay: Option<&str>, path: PathMode) -> Host {
             stun: Vec::new(),
             loopback: true,
         },
+        tunnel: None,
     })
     .unwrap()
 }

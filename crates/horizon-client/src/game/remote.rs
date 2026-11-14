@@ -2106,7 +2106,12 @@ impl Game<'_> {
     pub(super) fn remote_player_list(&self) -> Vec<(u128, String)> {
         self.remote
             .as_ref()
-            .map(|r| r.players.iter().map(|(uuid, name)| (*uuid, name.clone())).collect())
+            .map(|r| {
+                r.players
+                    .iter()
+                    .map(|(uuid, name)| (*uuid, name.clone()))
+                    .collect()
+            })
             .unwrap_or_default()
     }
     pub(super) fn remote_online_names(&self) -> Option<Vec<String>> {

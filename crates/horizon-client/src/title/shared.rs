@@ -161,7 +161,11 @@ impl Screen {
             Page::Add => Some((INVITE_FIELD, &mut self.invite, 4096)),
             Page::Storage { .. } => {
                 let i = self.focus.min(3);
-                Some((("shared.storage", i), &mut self.storage[i], STORAGE_FIELDS[i].2))
+                Some((
+                    ("shared.storage", i),
+                    &mut self.storage[i],
+                    STORAGE_FIELDS[i].2,
+                ))
             }
             _ => None,
         }
@@ -204,11 +208,11 @@ impl Screen {
     pub(super) fn submit(&mut self, h: f32) -> bool {
         match self.page {
             Page::Add if !self.invite.trim().is_empty() => {
-                self.click(ADD_CONFIRM, h);
+                self.click(ADD_CONFIRM, h, std::path::Path::new(""));
                 true
             }
             Page::Storage { .. } if self.storage_ready() => {
-                self.click(STORAGE_SHARE, h);
+                self.click(STORAGE_SHARE, h, std::path::Path::new(""));
                 true
             }
             Page::Storage { .. } => self.tab(false),
@@ -311,7 +315,10 @@ impl Screen {
                         "No shared worlds yet. Share one of your worlds, or add one with the invite a friend sent you.",
                     )
                 } else {
-                    tr("intro", "Whoever opens a world while nobody is playing hosts it.")
+                    tr(
+                        "intro",
+                        "Whoever opens a world while nobody is playing hosts it.",
+                    )
                 };
                 lines(batch, &message, 36.0, grey());
             }
@@ -361,13 +368,23 @@ impl Screen {
                     grey(),
                 );
                 let rect = [(w / 2.0).floor() - 150.0, 60.0, 300.0, 20.0];
-                caret.draw(batch, atlas, (INVITE_FIELD, &self.invite, 4096), rect, true, started);
+                caret.draw(
+                    batch,
+                    atlas,
+                    (INVITE_FIELD, &self.invite, 4096),
+                    rect,
+                    true,
+                    started,
+                );
             }
             Page::Pick => {
                 let message = if self.local.is_empty() {
                     tr("no_local", "You have no singleplayer world to share.")
                 } else {
-                    tr("pick", "Which world? It moves to this list, and stays on this device.")
+                    tr(
+                        "pick",
+                        "Which world? It moves to this list, and stays on this device.",
+                    )
                 };
                 lines(batch, &message, 36.0, grey());
             }
@@ -404,7 +421,14 @@ impl Screen {
         };
         match shared_worlds::task() {
             Task::Working { .. } => {
-                push(cx - 100.0, h - 27.0, 200.0, tr("cancel", "Cancel"), true, TASK_CANCEL);
+                push(
+                    cx - 100.0,
+                    h - 27.0,
+                    200.0,
+                    tr("cancel", "Cancel"),
+                    true,
+                    TASK_CANCEL,
+                );
                 return out;
             }
             Task::Failed(_) | Task::Done(_) => {
@@ -419,21 +443,51 @@ impl Screen {
                 let n = rows(h);
                 let offset = self.offset.min(entries.len().saturating_sub(1) / n * n);
                 for (i, entry) in entries.iter().skip(offset).take(n).enumerate() {
-                    push(cx - 150.0, 56.0 + 24.0 * i as f32, 300.0, summary(entry), true, ROW + i as u8);
+                    push(
+                        cx - 150.0,
+                        56.0 + 24.0 * i as f32,
+                        300.0,
+                        summary(entry),
+                        true,
+                        ROW + i as u8,
+                    );
                 }
                 if entries.len() > n {
                     push(cx - 176.0, 56.0, 20.0, "<".into(), offset > 0, PREVIOUS);
-                    push(cx + 156.0, 56.0, 20.0, ">".into(), offset + n < entries.len(), NEXT);
+                    push(
+                        cx + 156.0,
+                        56.0,
+                        20.0,
+                        ">".into(),
+                        offset + n < entries.len(),
+                        NEXT,
+                    );
                 }
-                push(cx - 154.0, h - 52.0, 150.0, tr("share", "Share a World..."), true, SHARE);
-                push(cx + 4.0, h - 52.0, 150.0, tr("add", "Add with Invite..."), true, ADD);
+                push(
+                    cx - 154.0,
+                    h - 52.0,
+                    150.0,
+                    tr("share", "Share a World..."),
+                    true,
+                    SHARE,
+                );
+                push(
+                    cx + 4.0,
+                    h - 52.0,
+                    150.0,
+                    tr("add", "Add with Invite..."),
+                    true,
+                    ADD,
+                );
                 push(cx - 100.0, h - 27.0, 200.0, tr("back", "Back"), true, BACK);
             }
             Page::World(id) => {
                 let status = self.entry(id).map(|e| e.status);
                 let (label, enabled) = match &status {
                     Some(Status::Known { playing: 0, .. }) => (tr("start", "Start"), true),
-                    Some(Status::Known { open: true, host, .. }) => (
+                    Some(Status::Known {
+                        open: true, host, ..
+                    }) => (
                         tr("join", "Join %s").replacen("%s", host.as_deref().unwrap_or(""), 1),
                         true,
                     ),
@@ -449,37 +503,135 @@ impl Screen {
                     tr("copy_invite", "Copy World Invite")
                 };
                 push(cx - 100.0, 134.0, 200.0, copy, true, COPY);
-                push(cx - 100.0, 158.0, 200.0, tr("remove", "Remove from This Device"), true, REMOVE);
-                push(cx - 100.0, h - 27.0, 200.0, tr("back", "Back"), true, WORLD_BACK);
+                push(
+                    cx - 100.0,
+                    158.0,
+                    200.0,
+                    tr("remove", "Remove from This Device"),
+                    true,
+                    REMOVE,
+                );
+                push(
+                    cx - 100.0,
+                    h - 27.0,
+                    200.0,
+                    tr("back", "Back"),
+                    true,
+                    WORLD_BACK,
+                );
             }
             Page::Remove(_) => {
-                push(cx - 154.0, h - 27.0, 150.0, tr("remove_yes", "Remove"), true, REMOVE_CONFIRM);
-                push(cx + 4.0, h - 27.0, 150.0, tr("cancel", "Cancel"), true, REMOVE_CANCEL);
+                push(
+                    cx - 154.0,
+                    h - 27.0,
+                    150.0,
+                    tr("remove_yes", "Remove"),
+                    true,
+                    REMOVE_CONFIRM,
+                );
+                push(
+                    cx + 4.0,
+                    h - 27.0,
+                    150.0,
+                    tr("cancel", "Cancel"),
+                    true,
+                    REMOVE_CANCEL,
+                );
             }
             Page::Add => {
                 push(cx - 100.0, 86.0, 200.0, tr("paste", "Paste"), true, PASTE);
                 let ready = !self.invite.trim().is_empty();
-                push(cx - 154.0, h - 27.0, 150.0, tr("add_world", "Add World"), ready, ADD_CONFIRM);
-                push(cx + 4.0, h - 27.0, 150.0, tr("cancel", "Cancel"), true, ADD_CANCEL);
+                push(
+                    cx - 154.0,
+                    h - 27.0,
+                    150.0,
+                    tr("add_world", "Add World"),
+                    ready,
+                    ADD_CONFIRM,
+                );
+                push(
+                    cx + 4.0,
+                    h - 27.0,
+                    150.0,
+                    tr("cancel", "Cancel"),
+                    true,
+                    ADD_CANCEL,
+                );
             }
             Page::Pick => {
                 let n = rows(h);
                 let offset = self.offset.min(self.local.len().saturating_sub(1) / n * n);
                 for (i, (_, name)) in self.local.iter().skip(offset).take(n).enumerate() {
-                    push(cx - 150.0, 56.0 + 24.0 * i as f32, 300.0, name.clone(), true, PICK_ROW + i as u8);
+                    push(
+                        cx - 150.0,
+                        56.0 + 24.0 * i as f32,
+                        300.0,
+                        name.clone(),
+                        true,
+                        PICK_ROW + i as u8,
+                    );
                 }
                 if self.local.len() > n {
-                    push(cx - 176.0, 56.0, 20.0, "<".into(), offset > 0, PICK_PREVIOUS);
-                    push(cx + 156.0, 56.0, 20.0, ">".into(), offset + n < self.local.len(), PICK_NEXT);
+                    push(
+                        cx - 176.0,
+                        56.0,
+                        20.0,
+                        "<".into(),
+                        offset > 0,
+                        PICK_PREVIOUS,
+                    );
+                    push(
+                        cx + 156.0,
+                        56.0,
+                        20.0,
+                        ">".into(),
+                        offset + n < self.local.len(),
+                        PICK_NEXT,
+                    );
                 }
-                push(cx - 100.0, h - 27.0, 200.0, tr("cancel", "Cancel"), true, PICK_CANCEL);
+                push(
+                    cx - 100.0,
+                    h - 27.0,
+                    200.0,
+                    tr("cancel", "Cancel"),
+                    true,
+                    PICK_CANCEL,
+                );
             }
             Page::Storage { .. } => {
-                push(cx - 154.0, h - 52.0, 150.0, tr("paste", "Paste"), true, PASTE);
-                push(cx + 4.0, h - 52.0, 150.0, tr("setup_help", "How to Set Up..."), true, STORAGE_HELP);
+                push(
+                    cx - 154.0,
+                    h - 52.0,
+                    150.0,
+                    tr("paste", "Paste"),
+                    true,
+                    PASTE,
+                );
+                push(
+                    cx + 4.0,
+                    h - 52.0,
+                    150.0,
+                    tr("setup_help", "How to Set Up..."),
+                    true,
+                    STORAGE_HELP,
+                );
                 let ready = self.storage_ready();
-                push(cx - 154.0, h - 27.0, 150.0, tr("share_world", "Share World"), ready, STORAGE_SHARE);
-                push(cx + 4.0, h - 27.0, 150.0, tr("cancel", "Cancel"), true, STORAGE_CANCEL);
+                push(
+                    cx - 154.0,
+                    h - 27.0,
+                    150.0,
+                    tr("share_world", "Share World"),
+                    ready,
+                    STORAGE_SHARE,
+                );
+                push(
+                    cx + 4.0,
+                    h - 27.0,
+                    150.0,
+                    tr("cancel", "Cancel"),
+                    true,
+                    STORAGE_CANCEL,
+                );
             }
         }
         out
@@ -546,7 +698,9 @@ impl Screen {
                     self.notice = shared_worlds::remove(&world).err();
                 }
             }
-            REMOVE_CANCEL | WORLD_BACK | ADD_CANCEL | PICK_CANCEL | STORAGE_CANCEL => self.leave_page(),
+            REMOVE_CANCEL | WORLD_BACK | ADD_CANCEL | PICK_CANCEL | STORAGE_CANCEL => {
+                self.leave_page()
+            }
             ADD => {
                 self.page = Page::Add;
                 self.invite.clear();
@@ -581,7 +735,12 @@ impl Screen {
                 if let Some(i) = self.row(id, PICK_ROW, h, self.local.len()) {
                     let (folder, name) = self.local[i].clone();
                     if let Some(bucket) = shared_worlds::last_bucket() {
-                        self.storage = [bucket.endpoint, bucket.bucket, bucket.access_key, bucket.secret_key];
+                        self.storage = [
+                            bucket.endpoint,
+                            bucket.bucket,
+                            bucket.access_key,
+                            bucket.secret_key,
+                        ];
                     }
                     self.focus = self.storage.iter().position(|f| f.is_empty()).unwrap_or(0);
                     self.page = Page::Storage { folder, name };
@@ -623,13 +782,31 @@ mod tests {
 
     #[test]
     fn a_status_reads_as_who_is_there() {
-        assert_eq!(status_line(&Status::Known { playing: 0, host: None, open: false, tunnel: false }), "Nobody playing");
         assert_eq!(
-            status_line(&Status::Known { playing: 3, host: Some("Alex".into()), open: true, tunnel: false }),
+            status_line(&Status::Known {
+                playing: 0,
+                host: None,
+                open: false,
+                tunnel: false
+            }),
+            "Nobody playing"
+        );
+        assert_eq!(
+            status_line(&Status::Known {
+                playing: 3,
+                host: Some("Alex".into()),
+                open: true,
+                tunnel: false
+            }),
             "3 playing, hosted by Alex"
         );
         assert_eq!(
-            status_line(&Status::Known { playing: 1, host: Some("Alex".into()), open: false, tunnel: false }),
+            status_line(&Status::Known {
+                playing: 1,
+                host: Some("Alex".into()),
+                open: false,
+                tunnel: false
+            }),
             "Alex is opening it"
         );
     }
