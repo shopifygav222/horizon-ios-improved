@@ -697,9 +697,13 @@ impl Hosting {
             return Ok(false);
         }
         let layout = self.ctx.layout();
+        // Every file's size and time of change, before and after the copies: whatever the game
+        // says, a file that moved meanwhile gives the copies up.
+        let before = walk(&self.ctx.folder)?;
         let found = changes(&self.ctx.folder, &uploads.index)?;
         stage(&self.ctx.folder, &layout.staging(), &found)?;
-        if !unchanged() {
+        let still = unchanged();
+        if !still || walk(&self.ctx.folder)? != before {
             // Staged copies that may be torn stay unused: the index still says these files
             // differ, so the next checkpoint copies them again.
             log::warn!(
@@ -1201,6 +1205,29 @@ mod tests {
         assert_eq!(
             manifest.file("level.dat").unwrap().size,
             b"written while copied".len() as u64
+        );
+        hosting.abandon();
+    }
+
+    #[test]
+    fn a_file_that_moves_during_a_checkpoint_gives_it_up_whatever_the_game_says() {
+        let store = Arc::new(MemoryStore::new());
+        let alex = new_world(&store);
+        let hosting = alex.host(Start::Free).unwrap();
+        alex.write("level.dat", b"before the copy");
+        // A writer the game didn't count, mid-copy.
+        let folder = alex.world();
+        let writer = move || {
+            fs::write(under(&folder, "players/data/alex.dat"), b"written during the copy, longer").unwrap();
+            true
+        };
+        assert!(!hosting.capture(&writer).unwrap());
+        assert!(!hosting.uploading());
+        let id = checkpoint(&hosting);
+        let manifest = alex.ctx.remote().manifest(id).unwrap();
+        assert_eq!(
+            manifest.file("players/data/alex.dat").unwrap().size,
+            b"written during the copy, longer".len() as u64
         );
         hosting.abandon();
     }
