@@ -1218,7 +1218,11 @@ mod tests {
         // A writer the game didn't count, mid-copy.
         let folder = alex.world();
         let writer = move || {
-            fs::write(under(&folder, "players/data/alex.dat"), b"written during the copy, longer").unwrap();
+            fs::write(
+                under(&folder, "players/data/alex.dat"),
+                b"written during the copy, longer",
+            )
+            .unwrap();
             true
         };
         assert!(!hosting.capture(&writer).unwrap());
