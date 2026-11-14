@@ -18,6 +18,8 @@ pub enum Error {
     Format(String),
     /// The player called it off.
     Cancelled,
+    /// Another game on this device is working on the same world's files.
+    Busy,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -32,6 +34,7 @@ impl fmt::Display for Error {
             Self::Corrupt(m) => write!(f, "damaged data: {m}"),
             Self::Format(m) => write!(f, "unreadable record: {m}"),
             Self::Cancelled => f.write_str("cancelled"),
+            Self::Busy => f.write_str("another game on this device is using this world's files"),
         }
     }
 }

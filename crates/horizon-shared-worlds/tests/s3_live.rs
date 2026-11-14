@@ -126,16 +126,19 @@ fn objects_ranges_and_listings() {
 #[test]
 fn one_of_two_games_gets_the_world() {
     let Some(store) = store() else { return };
+    let store = std::sync::Arc::new(store);
     let prefix = prefix();
     let key = format!("{prefix}lease");
-    let leases = Leases::new(&store, &key);
+    let leases = Leases::new(store.clone(), &key);
     let alex = Member {
         uuid: "0".repeat(32),
         name: "Alex".into(),
+        reachable: false,
     };
     let steve = Member {
         uuid: "1".repeat(32),
         name: "Steve".into(),
+        reachable: true,
     };
     let mut held = leases.claim(None, &alex, "phone", Claim::Free).unwrap();
     assert!(matches!(
@@ -154,7 +157,7 @@ fn one_of_two_games_gets_the_world() {
         .claim(Some(&seen), &steve, "pc", Claim::Takeover)
         .unwrap();
     assert!(matches!(
-        held.heartbeat(&[alex.clone()]),
+        held.heartbeat(std::slice::from_ref(&alex)),
         Err(Error::Fenced)
     ));
     let generation = GenId {
@@ -169,6 +172,7 @@ fn one_of_two_games_gets_the_world() {
         (State::Closed, Some(generation))
     );
     // Two games open the closed world at once, in threads: exactly one gets it.
+    let leases = &leases;
     let won: Vec<bool> = std::thread::scope(|scope| {
         let games: Vec<_> = [&alex, &steve]
             .into_iter()

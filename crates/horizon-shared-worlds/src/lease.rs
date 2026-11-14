@@ -16,7 +16,10 @@ use crate::{
     store::{Condition, Etag, Store},
 };
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 /// The record's format. A lease written by a newer format is never touched.
 pub const VERSION: u32 = 1;
@@ -52,6 +55,9 @@ pub struct Member {
     /// The player's account UUID, as 32 hex digits.
     pub uuid: String,
     pub name: String,
+    /// Friends on other networks can reach this player's game: a good next host.
+    #[serde(default)]
+    pub reachable: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -106,24 +112,27 @@ pub enum Claim {
 }
 
 /// A world's lease in its storage.
-#[derive(Clone, Copy)]
-pub struct Leases<'a> {
-    store: &'a dyn Store,
-    key: &'a str,
+#[derive(Clone)]
+pub struct Leases {
+    store: Arc<dyn Store>,
+    key: String,
 }
 
 fn token() -> Result<String> {
     Ok(hex(&random::<12>()?))
 }
 
-impl<'a> Leases<'a> {
+impl Leases {
     /// `key` is the lease's full key in the bucket (`w/<world>/lease`).
-    pub fn new(store: &'a dyn Store, key: &'a str) -> Self {
-        Self { store, key }
+    pub fn new(store: Arc<dyn Store>, key: &str) -> Self {
+        Self {
+            store,
+            key: key.to_owned(),
+        }
     }
 
     pub fn read(&self) -> Result<Option<Seen>> {
-        let Some(object) = self.store.get(self.key)? else {
+        let Some(object) = self.store.get(&self.key)? else {
             return Ok(None);
         };
         let lease: Lease = serde_json::from_slice(&object.data)?;
@@ -142,12 +151,12 @@ impl<'a> Leases<'a> {
     /// Takes the world for `me`. `seen` is the lease as last read (None: there is none yet).
     /// [`Error::Refused`] when the lease doesn't allow it or changed since: read it again.
     pub fn claim(
-        self,
+        &self,
         seen: Option<&Seen>,
         me: &Member,
         device: &str,
         why: Claim,
-    ) -> Result<Held<'a>> {
+    ) -> Result<Held> {
         let (epoch, generation, condition) = match seen {
             None => (1, None, Condition::Absent),
             Some(seen) => {
@@ -182,11 +191,11 @@ impl<'a> Leases<'a> {
             generation,
         };
         let data = serde_json::to_vec(&lease)?;
-        match self.store.put(self.key, &data, &condition) {
-            Ok(etag) => Ok(Held::new(self, Seen { lease, etag })),
+        match self.store.put(&self.key, &data, &condition) {
+            Ok(etag) => Ok(Held::new(self.clone(), Seen { lease, etag })),
             // The write may have landed although its answer was lost.
             Err(error) => match self.read() {
-                Ok(Some(found)) if found.lease.token == lease.token => Ok(Held::new(self, found)),
+                Ok(Some(found)) if found.lease.token == lease.token => Ok(Held::new(self.clone(), found)),
                 _ => Err(error),
             },
         }
@@ -194,7 +203,7 @@ impl<'a> Leases<'a> {
 
     /// The same game picking its own lease up again after a restart, without a new epoch: the
     /// lease still names this player on this device, and nobody took it meanwhile.
-    pub fn resume(self, seen: &Seen, me: &Member, device: &str) -> Result<Held<'a>> {
+    pub fn resume(&self, seen: &Seen, me: &Member, device: &str) -> Result<Held> {
         let lease = &seen.lease;
         let mine = matches!(lease.state, State::Starting | State::Hosting)
             && lease.host.as_ref().is_some_and(|h| h.uuid == me.uuid)
@@ -202,7 +211,7 @@ impl<'a> Leases<'a> {
         if !mine {
             return Err(Error::Refused);
         }
-        let mut held = Held::new(self, seen.clone());
+        let mut held = Held::new(self.clone(), seen.clone());
         held.update(|lease| {
             lease.state = State::Starting;
             lease.code = None;
@@ -215,15 +224,15 @@ impl<'a> Leases<'a> {
 
 /// The lease while this game holds it. Every method is one conditional write; after
 /// [`Error::Fenced`] the world is someone else's and this value is of no further use.
-pub struct Held<'a> {
-    leases: Leases<'a>,
+pub struct Held {
+    leases: Leases,
     seen: Seen,
     /// Tokens of writes whose answer never came: any of them may still land.
     unanswered: Vec<String>,
 }
 
-impl<'a> Held<'a> {
-    fn new(leases: Leases<'a>, seen: Seen) -> Self {
+impl Held {
+    fn new(leases: Leases, seen: Seen) -> Self {
         Self {
             leases,
             seen,
@@ -248,7 +257,7 @@ impl<'a> Held<'a> {
             next.token = token()?;
             let data = serde_json::to_vec(&next)?;
             let condition = Condition::Unchanged(self.seen.etag.clone());
-            let error = match self.leases.store.put(self.leases.key, &data, &condition) {
+            let error = match self.leases.store.put(&self.leases.key, &data, &condition) {
                 Ok(etag) => {
                     self.seen = Seen { lease: next, etag };
                     self.unanswered.clear();
@@ -310,6 +319,9 @@ impl<'a> Held<'a> {
     }
 
     /// The host leaves, having published `generation`; `successor` (a UUID) hosts next.
+    ///
+    /// The players stay listed through a handoff: if the successor never comes, the others take
+    /// their turns in that order ([`turn`]). Nobody is playing either way ([`Lease::playing`]).
     pub fn hand_off(&mut self, generation: GenId, successor: Option<&str>) -> Result<()> {
         self.update(|lease| {
             lease.state = if successor.is_some() {
@@ -321,8 +333,59 @@ impl<'a> Held<'a> {
             lease.successor = successor.map(str::to_owned);
             lease.code = None;
             lease.tunnel = false;
+            if successor.is_none() {
+                lease.players.clear();
+            }
+        })
+    }
+
+    /// Gives the world back without a new copy: it couldn't be made ready, or was never opened.
+    pub fn release(&mut self) -> Result<()> {
+        self.update(|lease| {
+            lease.state = State::Closed;
+            lease.successor = None;
+            lease.code = None;
+            lease.tunnel = false;
             lease.players.clear();
         })
+    }
+}
+
+/// The intervals the lease's rules run on. [`Timing::REAL`] is the game's; tests run the same
+/// rules faster.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Timing {
+    pub heartbeat: Duration,
+    pub self_fence: Duration,
+    pub dead: Duration,
+    pub turn: Duration,
+    /// How long a handoff waits for its successor before the others may take the world.
+    pub handoff_wait: Duration,
+    /// How often a watcher reads the lease.
+    pub poll: Duration,
+}
+
+impl Timing {
+    pub const REAL: Self = Self {
+        heartbeat: HEARTBEAT,
+        self_fence: SELF_FENCE,
+        dead: DEAD,
+        turn: TURN,
+        handoff_wait: Duration::from_secs(30),
+        poll: Duration::from_secs(5),
+    };
+
+    /// Whether the rules hold together: a host that can't write freezes, with two heartbeats
+    /// to spare, before anyone may take over, and watchers look often enough to see it.
+    pub fn consistent(&self) -> bool {
+        self.self_fence + self.heartbeat * 2 < self.dead && self.poll < self.heartbeat && self.handoff_wait < self.dead
+    }
+
+    /// Whether a lease quiet for `quiet` may be taken, after `base`, by the watcher whose turn
+    /// is `turn`.
+    pub fn after(&self, base: Duration, quiet: Duration, turn: usize) -> bool {
+        let turn = u32::try_from(turn).unwrap_or(u32::MAX);
+        quiet >= base.saturating_add(self.turn.saturating_mul(turn))
     }
 }
 
@@ -355,8 +418,7 @@ impl Watch {
     /// Whether a lease quiet for `quiet` may be taken by the watcher whose place in the lease's
     /// player list (the host aside) is `turn`: the first at [`DEAD`], each next one [`TURN`] later.
     pub fn may_take(quiet: Duration, turn: usize) -> bool {
-        let turn = u32::try_from(turn).unwrap_or(u32::MAX);
-        quiet >= DEAD.saturating_add(TURN.saturating_mul(turn))
+        Timing::REAL.after(DEAD, quiet, turn)
     }
 }
 
@@ -415,6 +477,7 @@ mod tests {
         Member {
             uuid: format!("{n:032x}"),
             name: format!("Player{n}"),
+            reachable: false,
         }
     }
 
@@ -428,8 +491,8 @@ mod tests {
 
     #[test]
     fn the_first_to_open_a_world_hosts_it() {
-        let store = MemoryStore::new();
-        let leases = Leases::new(&store, KEY);
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
         assert!(leases.read().unwrap().is_none());
         let mut held = leases
             .claim(None, &member(1), "phone", Claim::Free)
@@ -459,8 +522,8 @@ mod tests {
 
     #[test]
     fn a_closed_world_goes_to_one_of_two_who_open_it_together() {
-        let store = MemoryStore::new();
-        let leases = Leases::new(&store, KEY);
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
         let mut first = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         first.commit(generation(1, 1)).unwrap();
         first.hand_off(generation(1, 2), None).unwrap();
@@ -484,8 +547,8 @@ mod tests {
 
     #[test]
     fn a_handoff_is_for_its_successor() {
-        let store = MemoryStore::new();
-        let leases = Leases::new(&store, KEY);
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
         let mut host = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         host.open("C", false).unwrap();
         host.hand_off(generation(1, 1), Some(&member(2).uuid))
@@ -506,8 +569,8 @@ mod tests {
 
     #[test]
     fn a_host_that_was_replaced_is_fenced() {
-        let store = MemoryStore::new();
-        let leases = Leases::new(&store, KEY);
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
         let mut old = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         old.open("C", false).unwrap();
         let seen = leases.read().unwrap().unwrap();
@@ -528,8 +591,8 @@ mod tests {
 
     #[test]
     fn a_write_whose_answer_was_lost_still_counts() {
-        let store = MemoryStore::new();
-        let leases = Leases::new(&store, KEY);
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
         store.fail_after_write.store(1, Ordering::SeqCst);
         let mut held = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         assert_eq!(held.lease().epoch, 1);
@@ -542,8 +605,8 @@ mod tests {
 
     #[test]
     fn an_unreachable_storage_is_not_a_lost_world() {
-        let store = MemoryStore::new();
-        let leases = Leases::new(&store, KEY);
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
         let mut held = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         // The write fails, and so does reading it back.
         store.fail_before.store(2, Ordering::SeqCst);
@@ -558,8 +621,8 @@ mod tests {
 
     #[test]
     fn a_game_picks_its_own_lease_up_after_a_restart() {
-        let store = MemoryStore::new();
-        let leases = Leases::new(&store, KEY);
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
         let mut held = leases
             .claim(None, &member(1), "phone", Claim::Free)
             .unwrap();
@@ -589,8 +652,8 @@ mod tests {
 
     #[test]
     fn a_lease_from_a_newer_format_is_left_alone() {
-        let store = MemoryStore::new();
-        let leases = Leases::new(&store, KEY);
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
         let held = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         let mut lease = held.lease().clone();
         lease.version = VERSION + 1;
@@ -608,8 +671,8 @@ mod tests {
 
     #[test]
     fn a_heartbeat_that_stands_still_is_a_host_that_stopped() {
-        let store = MemoryStore::new();
-        let leases = Leases::new(&store, KEY);
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
         let mut held = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
         held.heartbeat(&[member(1), member(2), member(3)]).unwrap();
         let start = Instant::now();
@@ -637,6 +700,32 @@ mod tests {
         assert!(!Watch::may_take(quiet, 1));
         assert!(Watch::may_take(quiet + TURN, 1));
         assert!(!Watch::may_take(DEAD - Duration::from_millis(1), 0));
+    }
+
+    #[test]
+    fn the_real_timing_holds_together() {
+        assert!(Timing::REAL.consistent());
+        let mut fast = Timing::REAL;
+        fast.self_fence = fast.dead;
+        assert!(!fast.consistent());
+    }
+
+    #[test]
+    fn a_handoff_keeps_the_players_in_line_and_a_release_frees_the_world() {
+        let store = Arc::new(MemoryStore::new());
+        let leases = Leases::new(store.clone(), KEY);
+        let mut host = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
+        host.heartbeat(&[member(1), member(2), member(3)]).unwrap();
+        host.hand_off(generation(1, 1), Some(&member(2).uuid)).unwrap();
+        let lease = leases.read().unwrap().unwrap().lease;
+        assert_eq!(lease.playing(), 0);
+        assert_eq!(turn(&lease, &member(3).uuid), 1);
+        let seen = leases.read().unwrap().unwrap();
+        let mut next = leases.claim(Some(&seen), &member(2), "b", Claim::Free).unwrap();
+        next.release().unwrap();
+        let lease = leases.read().unwrap().unwrap().lease;
+        assert_eq!((lease.state, lease.playing(), lease.generation), (State::Closed, 0, Some(generation(1, 1))));
+        assert!(lease.players.is_empty());
     }
 
     #[test]
@@ -671,10 +760,10 @@ mod tests {
     #[test]
     fn many_games_never_share_an_epoch() {
         for seed in 1..=40u64 {
-            let store = MemoryStore::new();
-            let leases = Leases::new(&store, KEY);
+            let store = Arc::new(MemoryStore::new());
+            let leases = Leases::new(store.clone(), KEY);
             let mut random = Random(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15));
-            let mut games: Vec<Option<Held<'_>>> = (0..5).map(|_| None).collect();
+            let mut games: Vec<Option<Held>> = (0..5).map(|_| None).collect();
             let mut owner: std::collections::HashMap<u64, usize> = Default::default();
             let mut sequence = 0u32;
             let (mut last_epoch, mut last_generation) = (0u64, None::<GenId>);
@@ -733,7 +822,7 @@ mod tests {
 
     fn check(
         store: &MemoryStore,
-        leases: &Leases<'_>,
+        leases: &Leases,
         last_epoch: &mut u64,
         last_generation: &mut Option<GenId>,
         seed: u64,

@@ -30,6 +30,7 @@ pub mod manifest;
 pub mod retention;
 pub mod s3;
 pub mod scan;
+pub mod session;
 pub mod store;
 pub mod sync;
 
