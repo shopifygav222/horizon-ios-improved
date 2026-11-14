@@ -60,6 +60,15 @@ jobs:
         run: |
           cargo test -p horizon-ios-prepare
           cargo test -p horizon-client-render --lib -- auth:: android_controls keypad::
+      # Shared worlds: the crate itself (shared-worlds.yml also runs it against an S3 server), the
+      # title's screens, the in-game screen, the list, the host's login identity, the save's write
+      # count, and the friends tunnel and router guesses.
+      - name: Test shared worlds
+        if: ${{ !cancelled() }}
+        run: |
+          cargo test -p horizon-shared-worlds
+          cargo test -p horizon-friends
+          cargo test -p horizon-client-lib --lib -- title:: shared_screen:: shared_worlds:: lan::conn:: save::writes::
 
   android:
     runs-on: ubuntu-latest
