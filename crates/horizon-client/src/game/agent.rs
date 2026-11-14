@@ -573,6 +573,7 @@ impl Game<'_> {
         match &title.mode {
             Mode::Main => json!({ "mode": "main", "worlds": worlds() }),
             Mode::Account(_) => json!({ "mode": "account" }),
+            Mode::Shared(_) => json!({ "mode": "shared-worlds" }),
             Mode::Select {
                 worlds: list,
                 selected,

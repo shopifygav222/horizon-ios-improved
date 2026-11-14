@@ -66,7 +66,10 @@ impl Game<'_> {
 
     /// Start sharing the open world, through `tunnel` when nothing else reaches it (a shared
     /// world's host, game/shared_worlds.rs).
-    pub(super) fn friends_start_with(&mut self, tunnel: Option<horizon_friends::host::Tunnel>) -> Result<()> {
+    pub(super) fn friends_start_with(
+        &mut self,
+        tunnel: Option<horizon_friends::host::Tunnel>,
+    ) -> Result<()> {
         if self.friends.is_some() {
             return Ok(());
         }

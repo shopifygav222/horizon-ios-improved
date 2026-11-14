@@ -61,7 +61,8 @@ pub struct HostConfig {
 }
 
 /// Opens a tunnel to a local port: where it is reached, and what keeps it open.
-pub type Tunnel = Arc<dyn Fn(u16) -> Option<(SocketAddr, Box<dyn std::any::Any + Send>)> + Send + Sync>;
+pub type Tunnel =
+    Arc<dyn Fn(u16) -> Option<(SocketAddr, Box<dyn std::any::Any + Send>)> + Send + Sync>;
 
 /// What the host's game shows.
 #[derive(Clone, Debug, Default)]

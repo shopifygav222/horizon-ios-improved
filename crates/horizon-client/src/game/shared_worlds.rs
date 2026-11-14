@@ -143,7 +143,10 @@ fn public_tunnel() -> Option<horizon_friends::host::Tunnel> {
         let local = std::net::SocketAddr::from(([127, 0, 0, 1], port));
         match horizon_shared_worlds::bore::Tunnel::open(&server, local) {
             Ok(tunnel) => {
-                log::info!("Shared worlds: friends reach this host through {server} at {}", tunnel.address());
+                log::info!(
+                    "Shared worlds: friends reach this host through {server} at {}",
+                    tunnel.address()
+                );
                 let address = tunnel.address();
                 Some((address, Box::new(tunnel) as Box<dyn std::any::Any + Send>))
             }
@@ -365,7 +368,11 @@ impl Game<'_> {
                 }
                 if let Err(e) = self.friends_start_with(public_tunnel()) {
                     self.system_message(Text::literal(
-                        tr("share_failed", "Friends can't join yet: %s").replacen("%s", &e.to_string(), 1),
+                        tr("share_failed", "Friends can't join yet: %s").replacen(
+                            "%s",
+                            &e.to_string(),
+                            1,
+                        ),
                     ));
                 }
             } else if !world_running && !world_starting && host.since.elapsed() > OPEN_LIMIT {
@@ -698,7 +705,12 @@ impl Game<'_> {
                     guest.tunnel_note = tunnel;
                     list::set_task(Task::Idle);
                     let name = shared.ctx.me.name.clone();
-                    self.connect_server_with_options(&format!("{}{code}", horizon_friends::ADDRESS_PREFIX), &name, None, false)?;
+                    self.connect_server_with_options(
+                        &format!("{}{code}", horizon_friends::ADDRESS_PREFIX),
+                        &name,
+                        None,
+                        false,
+                    )?;
                 }
                 Ok(true)
             }

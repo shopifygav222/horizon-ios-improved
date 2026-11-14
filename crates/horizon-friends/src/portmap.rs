@@ -767,11 +767,20 @@ mod tests {
 
     #[test]
     fn a_phone_guesses_its_router_from_its_own_addresses() {
-        let addresses: Vec<IpAddr> = ["192.168.1.37", "10.0.0.1", "100.101.102.103", "8.8.8.8", "fe80::1"]
+        let addresses: Vec<IpAddr> = [
+            "192.168.1.37",
+            "10.0.0.1",
+            "100.101.102.103",
+            "8.8.8.8",
+            "fe80::1",
+        ]
+        .iter()
+        .map(|a| a.parse().unwrap())
+        .collect();
+        let guesses: Vec<String> = gateway_guesses(&addresses)
             .iter()
-            .map(|a| a.parse().unwrap())
+            .map(|g| g.to_string())
             .collect();
-        let guesses: Vec<String> = gateway_guesses(&addresses).iter().map(|g| g.to_string()).collect();
         assert_eq!(guesses, ["192.168.1.1", "192.168.1.254", "10.0.0.254"]);
     }
     use std::{
