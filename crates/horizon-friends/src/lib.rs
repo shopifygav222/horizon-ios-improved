@@ -36,6 +36,33 @@ use std::{
 /// (`horizon-client --server friend:…`, what the launcher's Join a friend
 /// starts).
 pub const ADDRESS_PREFIX: &str = "friend:";
+/// After a code in an address: the endpoints of it that are the host's public tunnel
+/// (`guest::GuestConfig::tunnels`), comma-separated. The code's own letters never include it.
+pub const TUNNEL_MARK: char = '~';
+
+/// `code` with its tunnel endpoints marked, for an address after [`ADDRESS_PREFIX`].
+pub fn with_tunnels(code: &str, tunnels: &[SocketAddr]) -> String {
+    if tunnels.is_empty() {
+        return code.to_owned();
+    }
+    let list: Vec<String> = tunnels.iter().map(SocketAddr::to_string).collect();
+    format!("{code}{TUNNEL_MARK}{}", list.join(","))
+}
+
+/// The code and its marked tunnel endpoints ([`with_tunnels`]); what doesn't read as an
+/// address is left out.
+pub fn split_tunnels(text: &str) -> (&str, Vec<SocketAddr>) {
+    match text.split_once(TUNNEL_MARK) {
+        Some((code, list)) => (
+            code,
+            list.split(',')
+                .filter_map(|a| a.trim().parse().ok())
+                .take(invite::MAX_ENDPOINTS)
+                .collect(),
+        ),
+        None => (text, Vec::new()),
+    }
+}
 
 /// Fill `buf` from the OS random generator.
 pub(crate) fn fill_random(buf: &mut [u8]) -> io::Result<()> {

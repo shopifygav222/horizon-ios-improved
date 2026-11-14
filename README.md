@@ -157,6 +157,9 @@ to the friends you play with. A second world can go in the same bucket: the game
 - **Start** when nobody is playing: you host. **Join** when someone is: you join them.
 - **Leaving as the host:** Save and Quit. The world uploads (a moment; keep the app open until it
   says so) and passes to a player who is still in it. Their game takes it and the others follow.
+- **The invite code:** Game Menu, the Friends button shows the code that joins the host right now,
+  with **Copy Code**. Friends with the world in their list never need it; anyone else can join
+  with it as with Play with Friends, until the host changes.
 - **Give Host:** Game Menu, the Friends button, **Give Host to ...**. **Ask to Host** does the same
   from a guest's side, and the host answers yes or no.
 - **While you host,** the world's copy updates every 5 minutes, and whenever your app goes to the
@@ -170,12 +173,22 @@ to the friends you play with. A second world can go in the same bucket: the game
 
 ### Reaching the host
 
-The game connects friends directly when it can: on the same Wi-Fi or hotspot, through a router
-that opens a port (the game asks it), over IPv6, or over a VPN such as Tailscale. When nothing
-outside the host's network can reach it (most phones on mobile data are behind their carrier's
-shared address), friends join through **bore.pub**, a free public tunnel, and the game tells
-everyone it is in use. The world stays encrypted between the host and each friend; the tunnel
-can be slower, and it is run by volunteers.
+Each friend's game connects straight to the host's whenever it can, which is the fastest way:
+
+1. **Directly:** on the same Wi-Fi or hotspot, through a router that opens a port (the game asks
+   it by UPnP or NAT-PMP), or over a VPN such as Tailscale.
+2. **Both at once:** when the host can't be called into (UPnP is off, or the host is on mobile
+   data), the two games reach each other through **bore.pub**, a free public tunnel, and from
+   there both dial the other at the same moment. Over IPv6 (most mobile networks and many home
+   connections have it) and through most home routers, the two connections meet and the game goes
+   straight between the phones: that friend leaves bore.pub at once.
+3. **bore.pub:** only when neither works (both behind a carrier's shared address, with no IPv6)
+   does a friend play through the tunnel. It can be slower, and it is run by volunteers. That
+   friend and the host are told, and the host's Friends screen says why and how many friends
+   connect each way. The world stays encrypted between the host and each friend either way.
+
+Faster for everyone: a host on home Wi-Fi with UPnP on in the router; or, when the host is behind
+the tunnel, **Give Host** to a player marked "(faster)", whose network takes direct connections.
 
 ### Good to know
 

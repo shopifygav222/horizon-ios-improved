@@ -145,7 +145,7 @@ fn one_of_two_games_gets_the_world() {
         leases.claim(None, &steve, "pc", Claim::Free),
         Err(Error::Refused)
     ));
-    held.open("CODE", false).unwrap();
+    held.open("CODE", None).unwrap();
     held.heartbeat(&[alex.clone(), steve.clone()]).unwrap();
     let seen = leases.read().unwrap().unwrap();
     assert_eq!(

@@ -103,6 +103,8 @@ Every change to a file Starling has, in the order they were made.
 | `horizon-client/src/game/native_net.rs` | Messages on `shared_worlds:ctl` go to the shared world, not to mods | Ask to Host, reachability |
 | `horizon-client/src/game/friends.rs`, `game/saving.rs`, `game/control.rs` | The Friends screen of a shared world; `friends_start_with` (a public tunnel); a checkpoint when the app leaves the screen; `horizon-ctl shared ...` | Shared worlds |
 | `horizon-friends/src/portmap.rs`, `host.rs`, `horizon-relay/tests/tunnel.rs` | Without a routing table (iOS, Android) the router is asked at its usual addresses and by unicast SSDP; `HostConfig::tunnel` adds a public tunnel's address to the code when nothing else reaches the host | Phones can host friends on other networks |
+| `horizon-friends/src/guest.rs`, `host.rs`, `direct.rs`, `lib.rs`, `reach.rs`; `horizon-client/src/net.rs` | `GuestConfig::tunnels`: the code's tunnel endpoints are dialled after the others had 600 ms; a guest that came through the tunnel (`HZF3`) races the host for a direct stream over it (`session::settle`, as relayed sessions do); `HostEvent::Connected::tunnel`, `Tunnel::tunneled`; `friend:CODE~ADDR` marks them; the code's IPv6 address is the one the device sends from; `net::last_friend_path` | Shared worlds play directly whenever the two ends can meet, bore.pub only when not |
+| `horizon-client/src/shared_screen.rs`, `friends_screen.rs` | The shared world's Friends screen shows the invite code with Copy Code beside Done; `friends_screen::code_lines` shared | The code of a shared world's host |
 
 ## Gate ledger
 

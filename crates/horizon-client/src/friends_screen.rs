@@ -205,7 +205,7 @@ fn layout(
     (lines, buttons)
 }
 /// The code's groups packed into lines of at most `width`.
-fn code_lines(atlas: &HudAtlas, code: &str, width: f32) -> Vec<String> {
+pub(crate) fn code_lines(atlas: &HudAtlas, code: &str, width: f32) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for group in code.split('-') {
         match lines.last_mut() {

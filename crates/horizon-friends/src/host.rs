@@ -85,10 +85,12 @@ pub struct HostState {
 pub enum HostEvent {
     /// A new invite code (the first, or after the relay's short code changed).
     Code(String),
-    /// A guest's session is carried directly or through the relay.
+    /// A guest's session is carried directly or through the relay; `tunnel` when it goes
+    /// through the host's public tunnel (no direct stream was found over it).
     Connected {
         session: u64,
         direct: bool,
+        tunnel: bool,
     },
     Disconnected {
         session: u64,
@@ -344,6 +346,9 @@ fn route_inbound(listeners: Vec<TcpListener>, shared: Arc<Shared>) {
                         Ok(direct::Hello::Code(session)) => {
                             serve_code(&shared, s, session, deadline)
                         }
+                        Ok(direct::Hello::Tunneled(session)) => {
+                            serve_tunneled(&shared, s, session, deadline)
+                        }
                         Err(_) => {
                             shared.handshakes.fetch_sub(1, Ordering::Relaxed);
                         }
@@ -375,7 +380,7 @@ fn serve_code(shared: &Arc<Shared>, mut s: TcpStream, session: u64, deadline: cr
     drop(deadline);
     shared.handshakes.fetch_sub(1, Ordering::Relaxed);
     match secured {
-        Ok(secure) => carry(shared, session, secure, true),
+        Ok(secure) => carry(shared, session, secure, true, false),
         Err(e) if crypto::is_wrong_code(&e) => {
             let count = shared.wrong.fetch_add(1, Ordering::Relaxed) + 1;
             shared.emit(HostEvent::WrongCode { count });
@@ -384,8 +389,71 @@ fn serve_code(shared: &Arc<Shared>, mut s: TcpStream, session: u64, deadline: cr
     }
 }
 
+/// A guest that reached the host through its public tunnel: the code's handshake, then the two
+/// ends race for a direct stream over it (each dials the other's addresses from its direct
+/// port, so IPv6 and most home routers let the two meet) and the game goes over that one when
+/// it connects; else over the tunnel.
+fn serve_tunneled(shared: &Arc<Shared>, mut s: TcpStream, session: u64, deadline: crate::Deadline) {
+    let secret = shared
+        .invite
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(Invite::secret_text);
+    let secured = (|| -> io::Result<(session::Secure, crypto::Key)> {
+        let secret = secret.ok_or_else(|| io::Error::other("not ready"))?;
+        direct::answer_tunnel(&mut s, session)?;
+        let key = crypto::exchange(&mut s, &secret, "tunnel", session)?;
+        Ok((session::secure(s, &key, Role::Host)?, key))
+    })();
+    drop(deadline);
+    shared.handshakes.fetch_sub(1, Ordering::Relaxed);
+    let (tunneled, key) = match secured {
+        Ok(found) => found,
+        Err(e) => {
+            if crypto::is_wrong_code(&e) {
+                let count = shared.wrong.fetch_add(1, Ordering::Relaxed) + 1;
+                shared.emit(HostEvent::WrongCode { count });
+            }
+            return;
+        }
+    };
+    // This host's own addresses on its direct port, as the code has them (without the tunnel).
+    let (port, candidates) = match shared.reach.lock().unwrap().as_ref() {
+        Some(reach) => (Some(reach.port), reach.endpoints()),
+        None => (None, Vec::new()),
+    };
+    let routes = shared.clone();
+    let settled = session::settle(
+        tunneled,
+        &key,
+        Role::Host,
+        shared.config.path,
+        session,
+        port,
+        candidates,
+        Box::new(move |tx, deadline, _stop| {
+            routes
+                .routes
+                .lock()
+                .unwrap()
+                .insert(session, (tx, deadline + Duration::from_millis(500)));
+        }),
+    );
+    shared.routes.lock().unwrap().remove(&session);
+    if let Ok(settled) = settled {
+        carry(shared, session, settled.secure, settled.direct, !settled.direct);
+    }
+}
+
 /// Connect a settled session to the integrated server and carry it.
-fn carry(shared: &Arc<Shared>, session: u64, (r, w): session::Secure, direct: bool) {
+fn carry(
+    shared: &Arc<Shared>,
+    session: u64,
+    (r, w): session::Secure,
+    direct: bool,
+    tunnel: bool,
+) {
     if shared.sessions.fetch_add(1, Ordering::Relaxed) >= MAX_SESSIONS {
         shared.sessions.fetch_sub(1, Ordering::Relaxed);
         let _ = r.get_ref().shutdown(Shutdown::Both);
@@ -396,7 +464,11 @@ fn carry(shared: &Arc<Shared>, session: u64, (r, w): session::Secure, direct: bo
         shared.sessions.fetch_sub(1, Ordering::Relaxed);
         return;
     };
-    shared.emit(HostEvent::Connected { session, direct });
+    shared.emit(HostEvent::Connected {
+        session,
+        direct,
+        tunnel,
+    });
     if let Ok(t) = crate::pump(server, r, w) {
         let _ = t.join();
     }
@@ -613,6 +685,6 @@ fn serve_relayed(
     );
     shared.routes.lock().unwrap().remove(&session);
     if let Ok(settled) = settled {
-        carry(shared, session, settled.secure, settled.direct);
+        carry(shared, session, settled.secure, settled.direct, false);
     }
 }

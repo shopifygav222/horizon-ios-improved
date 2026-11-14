@@ -13,6 +13,10 @@ use std::{
     cell::RefCell,
     io::{Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -106,13 +110,200 @@ fn invite_of(host: &Host, with_relay: bool) -> (String, Option<Code>) {
 }
 
 fn join(code: &str, relay: Option<&str>, path: PathMode) -> Result<guest::Tunnel, JoinError> {
+    join_with(code, relay, Vec::new(), path)
+}
+
+fn join_with(
+    code: &str,
+    relay: Option<&str>,
+    tunnels: Vec<SocketAddr>,
+    path: PathMode,
+) -> Result<guest::Tunnel, JoinError> {
     guest::join(&GuestConfig {
         code: code.to_owned(),
         relay: relay.map(str::to_owned),
         protocol: PROTOCOL,
         game: "26.3".into(),
         path,
+        tunnels,
+        stun: Vec::new(),
     })
+}
+
+/// A guest that knows which of the code's endpoints are the host's public tunnel.
+fn join_via(
+    code: &str,
+    tunnels: Vec<SocketAddr>,
+    path: PathMode,
+) -> Result<guest::Tunnel, JoinError> {
+    join_with(code, None, tunnels, path)
+}
+
+/// A stand-in for the public tunnel (bore's server and the host's end of it): a loopback port
+/// that carries every connection to the host's direct port, counted.
+fn tunneled_host(path: PathMode) -> (Host, Arc<AtomicUsize>) {
+    let carried = Arc::new(AtomicUsize::new(0));
+    let count = carried.clone();
+    let open: horizon_friends::host::Tunnel = Arc::new(move |port: u16| {
+        let listener = TcpListener::bind("127.0.0.1:0").ok()?;
+        let address = listener.local_addr().ok()?;
+        let count = count.clone();
+        std::thread::spawn(move || {
+            for visitor in listener.incoming() {
+                let Ok(visitor) = visitor else { continue };
+                count.fetch_add(1, Ordering::SeqCst);
+                let Ok(host) = TcpStream::connect(("127.0.0.1", port)) else {
+                    continue;
+                };
+                for (mut from, mut to) in [
+                    (visitor.try_clone().unwrap(), host.try_clone().unwrap()),
+                    (host, visitor),
+                ] {
+                    std::thread::spawn(move || {
+                        let _ = std::io::copy(&mut from, &mut to);
+                        let _ = to.shutdown(std::net::Shutdown::Both);
+                        let _ = from.shutdown(std::net::Shutdown::Both);
+                    });
+                }
+            }
+        });
+        Some((address, Box::new(()) as Box<dyn std::any::Any + Send>))
+    });
+    let host = Host::start(HostConfig {
+        lan: echo_server(),
+        protocol: PROTOCOL,
+        game: "26.3".into(),
+        relay: None,
+        path,
+        port: 0,
+        reach: reach::Options {
+            map_port: false,
+            stun: Vec::new(),
+            loopback: true,
+        },
+        tunnel: Some(open),
+    })
+    .unwrap();
+    (host, carried)
+}
+
+fn tunnel_of(host: &Host) -> SocketAddr {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Some(t) = host.state().tunnel {
+            return t;
+        }
+        assert!(Instant::now() < deadline, "no tunnel");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// How the host says the next session is carried: (direct, through the tunnel).
+fn carried_as(host: &Host) -> (bool, bool) {
+    wait_event(host, |e| match e {
+        HostEvent::Connected { direct, tunnel, .. } => Some((*direct, *tunnel)),
+        _ => None,
+    })
+}
+
+#[test]
+fn a_direct_endpoint_wins_over_the_hosts_public_tunnel() {
+    let (host, carried) = tunneled_host(PathMode::Auto);
+    let (code, _) = invite_of(&host, false);
+    let tunnel = tunnel_of(&host);
+    // The tunnel comes first in the code, the host's own addresses after it.
+    let invite = long(&code);
+    assert_eq!(invite.endpoints[0], tunnel);
+    assert!(invite.endpoints[1..].iter().any(|e| e.ip().is_loopback()));
+    let joined = join_via(&code, vec![tunnel], PathMode::Auto).unwrap();
+    assert!(joined.direct && !joined.tunneled);
+    assert_eq!(carried_as(&host), (true, false));
+    round_trip(joined, &payload(300_000));
+    // The tunnel was never dialled: the direct endpoint answered within the head start.
+    std::thread::sleep(guest::TUNNEL_HEAD_START + Duration::from_millis(300));
+    assert_eq!(carried.load(Ordering::SeqCst), 0);
+    // A guest that doesn't know which endpoint is the tunnel (an older game) still joins.
+    let joined = join_via(&code, Vec::new(), PathMode::Auto).unwrap();
+    assert!(joined.direct);
+    round_trip(joined, b"older guest");
+}
+
+#[test]
+fn through_the_public_tunnel_the_two_ends_still_connect_directly() {
+    let (host, carried) = tunneled_host(PathMode::Auto);
+    let (code, _) = invite_of(&host, false);
+    let tunnel = tunnel_of(&host);
+    // Only the tunnel answers from where this guest is.
+    let mut invite = long(&code);
+    invite.endpoints = vec![tunnel];
+    let started = Instant::now();
+    let joined = join_via(&invite.encode(), vec![tunnel], PathMode::Auto).unwrap();
+    // The two found a direct stream over it, and the game goes there.
+    assert!(joined.direct && !joined.tunneled);
+    assert_eq!(carried_as(&host), (true, false));
+    assert_eq!(carried.load(Ordering::SeqCst), 1);
+    assert!(started.elapsed() < Duration::from_secs(8), "{:?}", started.elapsed());
+    round_trip(joined, &payload(1 << 20));
+}
+
+#[test]
+fn a_guest_that_never_goes_direct_plays_through_the_public_tunnel() {
+    let (host, carried) = tunneled_host(PathMode::Auto);
+    let (code, _) = invite_of(&host, false);
+    let tunnel = tunnel_of(&host);
+    let joined = join_via(&code, vec![tunnel], PathMode::RelayOnly).unwrap();
+    assert!(!joined.direct && joined.tunneled);
+    assert_eq!(carried_as(&host), (false, true));
+    assert_eq!(carried.load(Ordering::SeqCst), 1);
+    round_trip(joined, &payload(1 << 20));
+    // Without the tunnel in the code, it has nowhere to go.
+    let mut invite = long(&code);
+    invite.endpoints.retain(|e| *e != tunnel);
+    assert!(matches!(
+        join_via(&invite.encode(), vec![tunnel], PathMode::RelayOnly),
+        Err(JoinError::NotReachable)
+    ));
+}
+
+#[test]
+fn a_wrong_secret_through_the_tunnel_is_refused() {
+    let (host, _) = tunneled_host(PathMode::Auto);
+    let (code, _) = invite_of(&host, false);
+    let tunnel = tunnel_of(&host);
+    let mut invite = long(&code);
+    invite.endpoints = vec![tunnel];
+    let mut other = long(&invite_of(&start(None, PathMode::Auto), false).0);
+    other.endpoints = vec![tunnel];
+    assert!(join_via(&other.encode(), vec![tunnel], PathMode::Auto).is_err());
+    assert!(wait_event(&host, |e| match e {
+        HostEvent::WrongCode { count } => Some(*count >= 1),
+        _ => None,
+    }));
+    // The right code still joins after it.
+    let joined = join_via(&invite.encode(), vec![tunnel], PathMode::Auto).unwrap();
+    round_trip(joined, b"after a wrong code");
+}
+
+#[test]
+fn tunnel_marks_ride_along_in_an_address_and_come_back_off_it() {
+    let tunnels: Vec<SocketAddr> = vec![
+        "203.0.113.9:4000".parse().unwrap(),
+        "[2001:db8::1]:4001".parse().unwrap(),
+    ];
+    let marked = horizon_friends::with_tunnels("0B33K-Q405Q", &tunnels);
+    assert_eq!(
+        horizon_friends::split_tunnels(&marked),
+        ("0B33K-Q405Q", tunnels)
+    );
+    assert_eq!(horizon_friends::with_tunnels("0B33K-Q405Q", &[]), "0B33K-Q405Q");
+    assert_eq!(
+        horizon_friends::split_tunnels("0B33K-Q405Q"),
+        ("0B33K-Q405Q", Vec::new())
+    );
+    assert_eq!(
+        horizon_friends::split_tunnels("0B33K~nonsense,203.0.113.9:4000"),
+        ("0B33K", vec![tunnels[0]])
+    );
 }
 
 /// What the game's client does: connect to the loopback port, send, read
@@ -307,6 +498,8 @@ fn bad_codes_unknown_codes_versions_and_ended_invites() {
         protocol: PROTOCOL - 1,
         game: "26.2".into(),
         path: PathMode::Auto,
+        tunnels: Vec::new(),
+        stun: Vec::new(),
     });
     match other {
         Err(e @ JoinError::VersionMismatch { .. }) => {

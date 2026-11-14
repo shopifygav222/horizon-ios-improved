@@ -13,7 +13,11 @@ use crate::{
 use std::{
     fmt, io,
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
-    sync::mpsc::channel,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::channel,
+    },
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -29,7 +33,18 @@ pub struct GuestConfig {
     pub protocol: i32,
     pub game: String,
     pub path: PathMode,
+    /// Endpoints of the code that are the host's public tunnel (a shared world's lease names
+    /// them): dialled only when no other endpoint answered within [`TUNNEL_HEAD_START`], and
+    /// over them the two ends still race for a direct stream. Empty: every endpoint is dialled
+    /// at once, as for any code.
+    pub tunnels: Vec<SocketAddr>,
+    /// STUN servers for this end's public address, offered to the host for that race.
+    pub stun: Vec<String>,
 }
+
+/// How long a code's own endpoints are dialled alone before the host's public tunnel is too:
+/// one that works answers well within it, and is faster to play over.
+pub const TUNNEL_HEAD_START: Duration = Duration::from_millis(600);
 
 /// Why joining failed, in words for the player.
 #[derive(Debug)]
@@ -103,8 +118,10 @@ impl std::error::Error for JoinError {}
 /// A settled session, ready to carry the game's connection.
 pub struct Tunnel {
     secure: Secure,
-    /// Whether the stream goes straight to the host (else through the relay).
+    /// Whether the stream goes straight to the host (else through the relay or the tunnel).
     pub direct: bool,
+    /// Whether it goes through the host's public tunnel.
+    pub tunneled: bool,
 }
 
 /// Join with what the player pasted: a full invite is dialled directly
@@ -117,9 +134,14 @@ pub fn join(config: &GuestConfig) -> Result<Tunnel, JoinError> {
             join_relay(config, relay, &code)
         }
         Parsed::Long(invite) => {
-            if config.path != PathMode::RelayOnly
+            // A tunnel is no direct path: a guest that never goes direct still takes it.
+            let tunnels = invite
+                .endpoints
+                .iter()
+                .any(|e| config.tunnels.contains(e));
+            if (config.path != PathMode::RelayOnly || tunnels)
                 && !invite.endpoints.is_empty()
-                && let Some(t) = join_direct(&invite)?
+                && let Some(t) = join_direct(&invite, config)?
             {
                 return Ok(t);
             }
@@ -133,32 +155,80 @@ pub fn join(config: &GuestConfig) -> Result<Tunnel, JoinError> {
     }
 }
 
-/// Dial every endpoint of the code; the first that answers as a Horizon
-/// host gets the handshake, the others are dropped before it.
-fn join_direct(invite: &Invite) -> Result<Option<Tunnel>, JoinError> {
-    let (tx, rx) = channel();
-    let deadline = Instant::now() + Duration::from_secs(5);
+/// Dial every endpoint of the code (the host's public tunnel only after the others had
+/// [`TUNNEL_HEAD_START`]); the first that answers as a Horizon host gets the handshake, the
+/// others are dropped before it.
+fn join_direct(invite: &Invite, config: &GuestConfig) -> Result<Option<Tunnel>, JoinError> {
+    let (tx, rx) = channel::<(TcpStream, SocketAddr, bool)>();
+    let tunnels: Vec<SocketAddr> = invite
+        .endpoints
+        .iter()
+        .copied()
+        .filter(|e| config.tunnels.contains(e))
+        .collect();
+    let race = config.path != PathMode::RelayOnly;
+    // The tunnel waits only while something else is being dialled.
+    let head_start = if !tunnels.is_empty() && race && invite.endpoints.len() > tunnels.len() {
+        TUNNEL_HEAD_START
+    } else {
+        Duration::ZERO
+    };
+    let deadline = Instant::now() + Duration::from_secs(5) + head_start;
     let mut session = [0u8; 8];
     crate::fill_random(&mut session).map_err(|e| JoinError::Failed(e.to_string()))?;
     let session = u64::from_le_bytes(session);
+    let won = Arc::new(AtomicBool::new(false));
+    // This end's public address, looked up meanwhile, for a direct race over the tunnel.
+    let stun = (!tunnels.is_empty() && race && !config.stun.is_empty())
+        .then(|| {
+            let servers = config.stun.clone();
+            std::thread::Builder::new()
+                .name("horizon-friends-stun".into())
+                .spawn(move || crate::stun::public_ip(&servers, Duration::from_secs(2)))
+                .ok()
+        })
+        .flatten();
+    let started = Instant::now();
     for &endpoint in &invite.endpoints {
-        let tx = tx.clone();
+        let tunnel = tunnels.contains(&endpoint);
+        if !tunnel && !race {
+            continue;
+        }
+        let (tx, won) = (tx.clone(), won.clone());
         let _ = std::thread::Builder::new()
             .name("horizon-friends-dial".into())
             .spawn(move || {
-                if let Ok(mut s) = TcpStream::connect_timeout(&endpoint, Duration::from_secs(4))
-                    && direct::code_hello(&mut s, session).is_ok()
-                {
-                    let _ = tx.send(s);
+                if tunnel {
+                    while started.elapsed() < head_start && !won.load(Ordering::Relaxed) {
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    if won.load(Ordering::Relaxed) {
+                        return;
+                    }
+                }
+                let Ok(mut s) = TcpStream::connect_timeout(&endpoint, Duration::from_secs(4))
+                else {
+                    return;
+                };
+                let hello = if tunnel {
+                    direct::tunnel_hello(&mut s, session)
+                } else {
+                    direct::code_hello(&mut s, session)
+                };
+                if hello.is_ok() {
+                    let _ = tx.send((s, endpoint, tunnel));
                 }
             });
     }
     drop(tx);
     let left = deadline.saturating_duration_since(Instant::now());
-    let Ok(mut stream) = rx.recv_timeout(left) else {
+    let received = rx.recv_timeout(left);
+    won.store(true, Ordering::Relaxed);
+    let Ok((mut stream, endpoint, tunnel)) = received else {
         return Ok(None);
     };
-    let key = crypto::exchange(&mut stream, &invite.secret_text(), "direct", session)
+    let context = if tunnel { "tunnel" } else { "direct" };
+    let key = crypto::exchange(&mut stream, &invite.secret_text(), context, session)
         .map_err(|e| JoinError::Failed(e.to_string()))?;
     let secure = session::secure(stream, &key, Role::Guest).map_err(|e| {
         if crypto::is_wrong_code(&e) {
@@ -167,9 +237,41 @@ fn join_direct(invite: &Invite) -> Result<Option<Tunnel>, JoinError> {
             JoinError::Failed(e.to_string())
         }
     })?;
-    Ok(Some(Tunnel {
+    if !tunnel {
+        return Ok(Some(Tunnel {
+            secure,
+            direct: true,
+            tunneled: false,
+        }));
+    }
+    // Through the tunnel: race for a direct stream over it, from a port of this end's own.
+    let (listeners, port) = if race {
+        match direct::listen(0) {
+            Ok((l, p)) => (l, Some(p)),
+            Err(_) => (Vec::new(), None),
+        }
+    } else {
+        (Vec::new(), None)
+    };
+    let public = stun.and_then(|t| t.join().ok()).flatten();
+    let candidates = port.map_or_else(Vec::new, |p| {
+        direct::candidates(p, Some(endpoint), public.map(|ip| SocketAddr::new(ip, p)))
+    });
+    let settled = session::settle(
         secure,
-        direct: true,
+        &key,
+        Role::Guest,
+        config.path,
+        session,
+        port,
+        candidates,
+        Box::new(move |tx, deadline, stop| direct::accept(listeners, session, deadline, stop, tx)),
+    )
+    .map_err(|e| JoinError::Failed(e.to_string()))?;
+    Ok(Some(Tunnel {
+        secure: settled.secure,
+        direct: settled.direct,
+        tunneled: !settled.direct,
     }))
 }
 
@@ -256,6 +358,7 @@ fn join_relay(config: &GuestConfig, relay_url: &str, code: &Code) -> Result<Tunn
     Ok(Tunnel {
         secure: settled.secure,
         direct: settled.direct,
+        tunneled: false,
     })
 }
 

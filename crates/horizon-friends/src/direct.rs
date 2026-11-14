@@ -20,6 +20,9 @@ const RETRY: Duration = Duration::from_millis(250);
 const MAGIC: &[u8; 4] = b"HZF1";
 /// A guest dialling an endpoint from an invite code (no relay involved).
 pub const CODE_MAGIC: &[u8; 4] = b"HZF2";
+/// A guest that reached the host through the host's public tunnel: as [`CODE_MAGIC`], then the
+/// two ends race for a direct stream over it (`session::settle`).
+pub const TUNNEL_MAGIC: &[u8; 4] = b"HZF3";
 
 fn socket_for(addr: &SocketAddr) -> io::Result<Socket> {
     let s = Socket::new(
@@ -149,6 +152,8 @@ pub enum Hello {
     Relayed(u64),
     /// A guest with the invite code.
     Code(u64),
+    /// A guest with the invite code, through the host's public tunnel.
+    Tunneled(u64),
 }
 pub fn read_hello(stream: &mut TcpStream) -> io::Result<Hello> {
     stream.set_read_timeout(Some(Duration::from_secs(5)))?;
@@ -158,6 +163,7 @@ pub fn read_hello(stream: &mut TcpStream) -> io::Result<Hello> {
     match &theirs[..4] {
         m if m == MAGIC => Ok(Hello::Relayed(session)),
         m if m == CODE_MAGIC => Ok(Hello::Code(session)),
+        m if m == TUNNEL_MAGIC => Ok(Hello::Tunneled(session)),
         _ => Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "not a Horizon stream",
@@ -167,8 +173,15 @@ pub fn read_hello(stream: &mut TcpStream) -> io::Result<Hello> {
 /// The guest's side of a code session's opening: send the hello, wait for
 /// its echo (proof a Horizon host listens there).
 pub fn code_hello(stream: &mut TcpStream, session: u64) -> io::Result<()> {
+    hello_with(stream, CODE_MAGIC, session)
+}
+/// [`code_hello`] through the host's public tunnel.
+pub fn tunnel_hello(stream: &mut TcpStream, session: u64) -> io::Result<()> {
+    hello_with(stream, TUNNEL_MAGIC, session)
+}
+fn hello_with(stream: &mut TcpStream, magic: &[u8; 4], session: u64) -> io::Result<()> {
     let mut hello = [0u8; 12];
-    hello[..4].copy_from_slice(CODE_MAGIC);
+    hello[..4].copy_from_slice(magic);
     hello[4..].copy_from_slice(&session.to_be_bytes());
     stream.set_read_timeout(Some(Duration::from_secs(4)))?;
     stream.write_all(&hello)?;
@@ -184,8 +197,15 @@ pub fn code_hello(stream: &mut TcpStream, session: u64) -> io::Result<()> {
 }
 /// The host echoes a code session's hello.
 pub fn answer_code(stream: &mut TcpStream, session: u64) -> io::Result<()> {
+    answer_with(stream, CODE_MAGIC, session)
+}
+/// The host echoes a tunneled session's hello.
+pub fn answer_tunnel(stream: &mut TcpStream, session: u64) -> io::Result<()> {
+    answer_with(stream, TUNNEL_MAGIC, session)
+}
+fn answer_with(stream: &mut TcpStream, magic: &[u8; 4], session: u64) -> io::Result<()> {
     let mut hello = [0u8; 12];
-    hello[..4].copy_from_slice(CODE_MAGIC);
+    hello[..4].copy_from_slice(magic);
     hello[4..].copy_from_slice(&session.to_be_bytes());
     stream.write_all(&hello)
 }

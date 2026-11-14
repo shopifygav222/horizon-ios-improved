@@ -79,6 +79,10 @@ pub struct Lease {
     pub code: Option<String>,
     /// The code goes through the public tunnel.
     pub tunnel: bool,
+    /// Where the public tunnel is reached (one of the code's endpoints): a guest dials it only
+    /// when nothing else answers, and still tries for a direct connection over it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tunnel_at: Option<String>,
     /// Who is in the world, the host first.
     pub players: Vec<Member>,
     /// The newest copy of the save. A copy counts only once it is named here.
@@ -187,6 +191,7 @@ impl Leases {
             token: token()?,
             code: None,
             tunnel: false,
+            tunnel_at: None,
             players: vec![me.clone()],
             generation,
         };
@@ -218,6 +223,7 @@ impl Leases {
             lease.state = State::Starting;
             lease.code = None;
             lease.tunnel = false;
+            lease.tunnel_at = None;
             lease.players = vec![me.clone()];
         })?;
         Ok(held)
@@ -306,12 +312,14 @@ impl Held {
         self.update(|lease| lease.players = players.to_vec())
     }
 
-    /// The world is open and `code` joins it.
-    pub fn open(&mut self, code: &str, tunnel: bool) -> Result<()> {
+    /// The world is open and `code` joins it; `tunnel` is where its public tunnel is reached,
+    /// when it has one.
+    pub fn open(&mut self, code: &str, tunnel: Option<&str>) -> Result<()> {
         self.update(|lease| {
             lease.state = State::Hosting;
             lease.code = Some(code.to_owned());
-            lease.tunnel = tunnel;
+            lease.tunnel = tunnel.is_some();
+            lease.tunnel_at = tunnel.map(str::to_owned);
         })
     }
 
@@ -335,6 +343,7 @@ impl Held {
             lease.successor = successor.map(str::to_owned);
             lease.code = None;
             lease.tunnel = false;
+            lease.tunnel_at = None;
             if successor.is_none() {
                 lease.players.clear();
             }
@@ -348,6 +357,7 @@ impl Held {
             lease.successor = None;
             lease.code = None;
             lease.tunnel = false;
+            lease.tunnel_at = None;
             lease.players.clear();
         })
     }
@@ -471,6 +481,24 @@ impl Pulse {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_lease_without_the_tunnel_address_reads_and_writes_as_before() {
+        // As a game from before `tunnel_at` writes it.
+        let old = r#"{"version":1,"epoch":3,"state":"hosting","host":null,"device":"d","successor":null,"beat":7,"token":"t","code":"C","tunnel":true,"players":[],"generation":null}"#;
+        let lease: Lease = serde_json::from_str(old).unwrap();
+        assert!(lease.tunnel);
+        assert_eq!(lease.tunnel_at, None);
+        // Written back, it has no new field for an older game to stumble on.
+        let back = serde_json::to_string(&lease).unwrap();
+        assert!(!back.contains("tunnel_at"), "{back}");
+        let with = Lease {
+            tunnel_at: Some("203.0.113.9:4000".into()),
+            ..lease
+        };
+        let text = serde_json::to_string(&with).unwrap();
+        assert_eq!(serde_json::from_str::<Lease>(&text).unwrap(), with);
+    }
+
     use super::*;
     use crate::store::MemoryStore;
     use std::sync::atomic::Ordering;
@@ -510,7 +538,7 @@ mod tests {
             leases.claim(None, &member(2), "pc", Claim::Free),
             Err(Error::Refused)
         ));
-        held.open("CODE-1", false).unwrap();
+        held.open("CODE-1", None).unwrap();
         held.heartbeat(&[member(1), member(2)]).unwrap();
         let seen = leases.read().unwrap().unwrap();
         assert_eq!(seen.lease.state, State::Hosting);
@@ -554,7 +582,7 @@ mod tests {
         let store = Arc::new(MemoryStore::new());
         let leases = Leases::new(store.clone(), KEY);
         let mut host = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
-        host.open("C", false).unwrap();
+        host.open("C", None).unwrap();
         host.hand_off(generation(1, 1), Some(&member(2).uuid))
             .unwrap();
         let seen = leases.read().unwrap().unwrap();
@@ -576,7 +604,7 @@ mod tests {
         let store = Arc::new(MemoryStore::new());
         let leases = Leases::new(store.clone(), KEY);
         let mut old = leases.claim(None, &member(1), "a", Claim::Free).unwrap();
-        old.open("C", false).unwrap();
+        old.open("C", None).unwrap();
         let seen = leases.read().unwrap().unwrap();
         let mut new = leases
             .claim(Some(&seen), &member(2), "b", Claim::Takeover)
@@ -630,9 +658,11 @@ mod tests {
         let mut held = leases
             .claim(None, &member(1), "phone", Claim::Free)
             .unwrap();
-        held.open("C", true).unwrap();
+        held.open("C", Some("203.0.113.9:4000")).unwrap();
         drop(held);
         let seen = leases.read().unwrap().unwrap();
+        assert!(seen.lease.tunnel);
+        assert_eq!(seen.lease.tunnel_at.as_deref(), Some("203.0.113.9:4000"));
         assert!(matches!(
             leases.resume(&seen, &member(1), "pc"),
             Err(Error::Refused)
@@ -647,6 +677,8 @@ mod tests {
             (1, State::Starting)
         );
         assert_eq!(again.lease().code, None);
+        assert!(!again.lease().tunnel);
+        assert_eq!(again.lease().tunnel_at, None);
         // The lease read before the restart is stale now.
         assert!(matches!(
             leases.resume(&seen, &member(1), "phone"),

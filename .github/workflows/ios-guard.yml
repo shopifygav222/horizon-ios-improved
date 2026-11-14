@@ -54,6 +54,7 @@ jobs:
           cargo clippy --keep-going -p horizon-client -p horizon-gamecontroller --lib --bins -- -D warnings
           cargo clippy --keep-going -p horizon-ios-game --bins -- -D warnings
           cargo clippy --keep-going -p horizon-ios-prepare --all-targets -- -D warnings
+          cargo clippy --keep-going -p horizon-friends -p horizon-relay --all-targets -- -D warnings
       # The iOS port's host-testable parts: the installer's pack/assemble round trip; and what the
       # iOS gates touch of Starling's render crate (sessions, the control system, the keypad).
       - name: Test the iOS port's host-side code
@@ -68,7 +69,8 @@ jobs:
         run: |
           cargo test -p horizon-shared-worlds
           cargo test -p horizon-friends
-          cargo test -p horizon-client-lib --lib -- title:: shared_screen:: shared_worlds:: lan::conn:: save::writes::
+          cargo test -p horizon-relay --test tunnel
+          cargo test -p horizon-client-lib --lib -- title:: shared_screen:: friends_screen:: shared_worlds:: lan::conn:: save::writes::
 
   android:
     runs-on: ubuntu-latest

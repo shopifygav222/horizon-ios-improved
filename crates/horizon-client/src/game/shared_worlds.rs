@@ -54,6 +54,8 @@ pub(super) struct Shared {
     name: String,
     ctx: Arc<Context>,
     phase: Phase,
+    /// Copy Code was pressed.
+    copied: Option<Instant>,
 }
 
 enum Phase {
@@ -82,6 +84,8 @@ struct Host {
     frozen_told: bool,
     /// Another game took the world: it closes without uploading.
     fenced: bool,
+    /// Sessions through the public tunnel the player was told about.
+    tunneled_told: u32,
 }
 
 struct Leaving {
@@ -108,7 +112,8 @@ struct Guest {
     /// The newest copy this device holds or is fetching, and the fetch under way.
     fetched: Option<horizon_shared_worlds::manifest::GenId>,
     prefetch: Option<Receiver<()>>,
-    /// The host is reached through the public tunnel, and the player wasn't told yet.
+    /// The last join's path isn't known yet: the player is told once it is, if it is the
+    /// public tunnel.
     tunnel_note: bool,
 }
 
@@ -195,6 +200,32 @@ fn probe_reach() -> Receiver<bool> {
 }
 
 impl Game<'_> {
+    /// How friends reach this host, for the Friends screen: nothing when every friend can
+    /// connect directly.
+    fn shared_route_line(&self) -> Option<String> {
+        self.friends_tunnel()?;
+        let mut line = match self.friends_verdict() {
+            Some(horizon_friends::reach::Verdict::LocalOnly { cgnat: true }) => tr(
+                "why_shared_address",
+                "Friends on other networks may play through bore.pub (slower): your connection shares its address (mobile data, or a second router).",
+            ),
+            _ => tr(
+                "why_router",
+                "Friends on other networks may play through bore.pub (slower): your router didn't open a port. Turning on UPnP in its settings fixes that.",
+            ),
+        };
+        let (direct, tunneled) = self.friends_paths();
+        if direct + tunneled > 0 {
+            line.push(' ');
+            line.push_str(
+                &tr("paths", "Direct: %d, bore.pub: %d.")
+                    .replacen("%d", &direct.to_string(), 1)
+                    .replacen("%d", &tunneled.to_string(), 1),
+            );
+        }
+        Some(line)
+    }
+
     /// The Shared Worlds screen's Start or Join: watch the world's lease, which says what to do.
     pub(super) fn shared_play(&mut self, world: &str) -> Result<()> {
         if self.shared.is_some() {
@@ -216,6 +247,7 @@ impl Game<'_> {
         self.shared = Some(Shared {
             name,
             ctx,
+            copied: None,
             phase: Phase::Watching(guest),
         });
         Ok(())
@@ -346,6 +378,7 @@ impl Game<'_> {
             listed: None,
             frozen_told: false,
             fenced: false,
+            tunneled_told: 0,
         }));
         Ok(true)
     }
@@ -433,15 +466,18 @@ impl Game<'_> {
         if let Some(code) = view.code
             && host.code.as_ref() != Some(&code)
         {
-            let tunnel = self.friends_tunnel().is_some();
-            host.hosting.open(&code, tunnel);
+            let tunnel = self.friends_tunnel().map(|a| a.to_string());
+            host.hosting.open(&code, tunnel.as_deref());
             host.code = Some(code);
-            if tunnel {
-                self.system_message(Text::literal(tr(
-                    "tunnel_host",
-                    "Nothing outside your network can reach your game, so friends join through bore.pub, a free public tunnel: play may be slower. The world stays encrypted between you and them.",
-                )));
-            }
+        }
+        // A friend whose game couldn't reach this one directly plays through the tunnel.
+        let (_, tunneled) = self.friends_paths();
+        if tunneled > host.tunneled_told {
+            host.tunneled_told = tunneled;
+            self.system_message(Text::literal(tr(
+                "tunnel_host",
+                "A friend couldn't connect to your game directly, so they play through bore.pub, a free public tunnel: it can be slower. The world stays encrypted between you and them.",
+            )));
         }
         // What the guests said.
         let messages = std::mem::take(&mut *host.inbox.lock().unwrap_or_else(|e| e.into_inner()));
@@ -632,12 +668,18 @@ impl Game<'_> {
         }
         if connected {
             self.shared_report_reach(guest);
-            if guest.tunnel_note && self.title.is_none() {
+            let path = horizon_client::net::last_friend_path();
+            if guest.tunnel_note
+                && self.title.is_none()
+                && path != horizon_client::net::FriendPath::Unknown
+            {
                 guest.tunnel_note = false;
-                self.system_message(Text::literal(tr(
-                    "tunnel_guest",
-                    "You reach this world's host through bore.pub, a free public tunnel: play may be slower. The world stays encrypted between you and the host.",
-                )));
+                if path == horizon_client::net::FriendPath::Tunnel {
+                    self.system_message(Text::literal(tr(
+                        "tunnel_guest",
+                        "Your game couldn't connect to the host's directly, so you play through bore.pub, a free public tunnel: it can be slower. The world stays encrypted between you and the host.",
+                    )));
+                }
             }
         }
         let Some((read, quiet)) = guest.watcher.latest() else {
@@ -708,11 +750,19 @@ impl Game<'_> {
                     guest.lost = false;
                     guest.asked = false;
                     guest.reach_sent = false;
-                    guest.tunnel_note = tunnel;
+                    guest.tunnel_note = true;
                     list::set_task(Task::Idle);
                     let name = shared.ctx.me.name.clone();
+                    // The host's public tunnel, marked: dialled last, and left for a direct
+                    // connection when the two games find one.
+                    let tunnels: Vec<std::net::SocketAddr> =
+                        tunnel.and_then(|t| t.parse().ok()).into_iter().collect();
                     self.connect_server_with_options(
-                        &format!("{}{code}", horizon_friends::ADDRESS_PREFIX),
+                        &format!(
+                            "{}{}",
+                            horizon_friends::ADDRESS_PREFIX,
+                            horizon_friends::with_tunnels(&code, &tunnels)
+                        ),
                         &name,
                         None,
                         false,
@@ -824,17 +874,20 @@ impl Game<'_> {
         };
         let mut view = View {
             world: shared.name.clone(),
+            copied: shared
+                .copied
+                .is_some_and(|t| t.elapsed() < Duration::from_secs(2)),
             ..View::default()
         };
         match &shared.phase {
             Phase::Hosting(host) => {
-                view.lines.push(tr("you_host", "You host this world."));
+                view.code = host.code.clone();
                 let others: Vec<&Member> = host
                     .players
                     .iter()
                     .filter(|p| p.uuid != shared.ctx.me.uuid)
                     .collect();
-                view.lines.push(if others.is_empty() {
+                let here = if others.is_empty() {
                     tr("alone", "Nobody else is here yet.")
                 } else {
                     tr("here", "Here: %s").replacen(
@@ -846,12 +899,16 @@ impl Game<'_> {
                             .join(", "),
                         1,
                     )
-                });
+                };
+                view.lines
+                    .push(format!("{} {here}", tr("you_host", "You host this world.")));
                 if host.code.is_none() {
                     view.lines.push(tr(
                         "not_open_yet",
                         "Friends can join once the invite code is ready.",
                     ));
+                } else if let Some(line) = self.shared_route_line() {
+                    view.lines.push(line);
                 }
                 if host.hosting.must_freeze() {
                     view.lines.push(tr(
@@ -871,6 +928,8 @@ impl Game<'_> {
                         true,
                     ));
                 }
+                // Behind the tunnel, a player whose game takes direct connections hosts faster.
+                let tunneled = self.friends_tunnel().is_some();
                 for player in others {
                     if host
                         .requests
@@ -879,8 +938,13 @@ impl Game<'_> {
                     {
                         continue;
                     }
+                    let label = if tunneled && player.reachable {
+                        tr("give_host_direct", "Give Host to %s (faster)")
+                    } else {
+                        tr("give_host", "Give Host to %s")
+                    };
                     view.buttons.push((
-                        tr("give_host", "Give Host to %s").replacen("%s", &player.name, 1),
+                        label.replacen("%s", &player.name, 1),
                         Action::GiveHost(player.uuid.clone()),
                         true,
                     ));
@@ -895,6 +959,20 @@ impl Game<'_> {
                     .unwrap_or_default();
                 view.lines
                     .push(tr("hosted_by", "Hosted by %s.").replacen("%s", &host, 1));
+                let connected = self.remote.is_some() && self.integrated.is_none();
+                if connected {
+                    view.code = guest.joined.clone();
+                    let path = horizon_client::net::last_friend_path();
+                    if path == horizon_client::net::FriendPath::Tunnel {
+                        view.lines.push(tr(
+                            "via_tunnel",
+                            "You play through bore.pub: your game couldn't connect to the host's directly.",
+                        ));
+                    } else if path == horizon_client::net::FriendPath::Direct {
+                        view.lines
+                            .push(tr("via_direct", "Connected to the host directly."));
+                    }
+                }
                 let label = if guest.asked {
                     tr("asked", "Asked to Host")
                 } else {
@@ -925,6 +1003,14 @@ impl Game<'_> {
         self.audio.play_button_click();
         match action {
             Action::Done => self.screen = super::Screen::Paused,
+            Action::CopyCode => {
+                if let Some(code) = view.code {
+                    self.copy_text(&code);
+                    if let Some(shared) = self.shared.as_mut() {
+                        shared.copied = Some(Instant::now());
+                    }
+                }
+            }
             Action::AskHost => {
                 if self.native_net_send_to_server(CHANNEL, REQUEST).is_ok()
                     && let Some(Shared {

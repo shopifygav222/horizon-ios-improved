@@ -159,7 +159,11 @@ pub enum Next {
     /// Nothing yet: the world is getting ready, or its host may still come back.
     Wait,
     /// The world is open: connect with this code.
-    Join { code: String, tunnel: bool },
+    Join {
+        code: String,
+        /// Where the host's public tunnel is reached, when it has one.
+        tunnel: Option<String>,
+    },
     /// Take the world and host it.
     Host(Claim),
     /// The world is no longer in its storage.
@@ -179,7 +183,7 @@ pub fn next_step(lease: Option<&Lease>, quiet: Duration, me: &str, timing: &Timi
         State::Hosting => match &lease.code {
             Some(code) if !host_is_me => Next::Join {
                 code: code.clone(),
-                tunnel: lease.tunnel,
+                tunnel: lease.tunnel_at.clone().filter(|_| lease.tunnel),
             },
             _ => Next::Wait,
         },
@@ -380,7 +384,7 @@ struct HostLease {
     /// The lease as last written, for readers that mustn't wait on a write under way.
     snapshot: Mutex<Lease>,
     players: Mutex<(Vec<Member>, bool)>,
-    open: Mutex<Option<(String, bool)>>,
+    open: Mutex<Option<(String, Option<String>)>>,
     last_ok: Mutex<Instant>,
     fenced: AtomicBool,
     stop: AtomicBool,
@@ -424,7 +428,8 @@ impl HostLease {
         let (players, changed) = locked(&self.players).clone();
         let due = self.quiet() >= self.timing.heartbeat;
         let result = if let Some(asked) = open {
-            self.write(|held| held.open(&asked.0, asked.1)).map(|()| {
+            self.write(|held| held.open(&asked.0, asked.1.as_deref()))
+                .map(|()| {
                 let mut open = locked(&self.open);
                 // A newer code that came meanwhile is written next.
                 if open.as_ref() == Some(&asked) {
@@ -647,9 +652,9 @@ impl Hosting {
         self.fenced() || self.lease.quiet() >= self.ctx.timing.self_fence
     }
 
-    /// The world is open and `code` joins it.
-    pub fn open(&self, code: &str, tunnel: bool) {
-        *locked(&self.lease.open) = Some((code.to_owned(), tunnel));
+    /// The world is open and `code` joins it; `tunnel` is where its public tunnel is reached.
+    pub fn open(&self, code: &str, tunnel: Option<&str>) {
+        *locked(&self.lease.open) = Some((code.to_owned(), tunnel.map(str::to_owned)));
     }
 
     /// Who is in the world now, the host first.
@@ -1135,7 +1140,7 @@ mod tests {
         let hosting = steve.host(Start::Free).unwrap();
         assert_eq!(hosting.fetched.unwrap().replaced, 3);
         assert_eq!(steve.tree(), alex.tree());
-        hosting.open("CODE-STEVE", false);
+        hosting.open("CODE-STEVE", None);
         hosting.set_players(vec![member(2, true), member(1, false)]);
         wait_for("the code and the players in the lease", || {
             let lease = alex.ctx.status().unwrap().unwrap().lease;
@@ -1147,7 +1152,7 @@ mod tests {
             next_step(Some(&lease), Duration::ZERO, &member(1, false).uuid, &FAST),
             Next::Join {
                 code: "CODE-STEVE".into(),
-                tunnel: false
+                tunnel: None
             }
         );
         // Play goes on; a checkpoint uploads what changed.
@@ -1305,7 +1310,7 @@ mod tests {
         let alex = new_world(&store);
         let steve = Device::new(&store, 2);
         let hosting = alex.host(Start::Free).unwrap();
-        hosting.open("CODE-ALEX", false);
+        hosting.open("CODE-ALEX", None);
         hosting.set_players(vec![member(1, false), member(2, true)]);
         alex.write("level.dat", b"saved in the storage");
         checkpoint(&hosting);
@@ -1379,7 +1384,7 @@ mod tests {
         let store = Arc::new(MemoryStore::new());
         let alex = new_world(&store);
         let hosting = alex.host(Start::Free).unwrap();
-        hosting.open("CODE", false);
+        hosting.open("CODE", None);
         alex.write("level.dat", b"played, never uploaded");
         hosting.abandon();
         // Back before anyone took it: same epoch, nothing replaced, and the first upload has it.
@@ -1485,6 +1490,7 @@ mod tests {
             token: hex(b"t"),
             code: code.map(str::to_owned),
             tunnel: false,
+            tunnel_at: None,
             players: vec![member(1, true), member(2, true), member(3, false)],
             generation: None,
         };
@@ -1494,7 +1500,7 @@ mod tests {
             at(&hosting, 0),
             Next::Join {
                 code: "C".into(),
-                tunnel: false
+                tunnel: None
             }
         );
         // Dead at 900 ms for the first in line; I'm second (100 ms later).
@@ -1502,10 +1508,36 @@ mod tests {
             at(&hosting, 950),
             Next::Join {
                 code: "C".into(),
-                tunnel: false
+                tunnel: None
             }
         );
         assert_eq!(at(&hosting, 1000), Next::Host(Claim::Takeover));
+        // A host behind the public tunnel: the guest learns where it is reached.
+        let tunneled = Lease {
+            tunnel: true,
+            tunnel_at: Some("203.0.113.9:4000".into()),
+            ..hosting.clone()
+        };
+        assert_eq!(
+            at(&tunneled, 0),
+            Next::Join {
+                code: "C".into(),
+                tunnel: Some("203.0.113.9:4000".into())
+            }
+        );
+        // An older host's lease says only that it has one: every endpoint is dialled at once.
+        let older = Lease {
+            tunnel: true,
+            tunnel_at: None,
+            ..hosting.clone()
+        };
+        assert_eq!(
+            at(&older, 0),
+            Next::Join {
+                code: "C".into(),
+                tunnel: None
+            }
+        );
         assert_eq!(at(&lease(State::Starting, None, None), 500), Next::Wait);
         let handoff = lease(State::Handoff, None, Some(2));
         assert_eq!(at(&handoff, 350), Next::Wait);

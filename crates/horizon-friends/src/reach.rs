@@ -54,6 +54,17 @@ fn shared(ip: IpAddr) -> bool {
     }
 }
 
+/// The IPv6 address this device sends from to the internet (temporary addresses are preferred
+/// to the stable one). Connecting a UDP socket sends nothing: the system only picks the route.
+fn outbound_v6() -> Option<std::net::Ipv6Addr> {
+    let socket = std::net::UdpSocket::bind("[::]:0").ok()?;
+    socket.connect("[2001:4860:4860::8888]:53").ok()?;
+    match socket.local_addr().ok()?.ip() {
+        IpAddr::V6(v6) if !v6.is_unspecified() && !v6.is_loopback() => Some(v6),
+        _ => None,
+    }
+}
+
 /// Interface names of containers and VMs, whose addresses nobody else reaches.
 fn virtual_interface(name: &str) -> bool {
     [
@@ -67,6 +78,7 @@ fn virtual_interface(name: &str) -> bool {
 /// LAN), shared IPv4 (Tailscale's 100.64/10, CGNAT), other IPv4, one global
 /// IPv6. No link-local or unique-local; loopback on request.
 pub fn interface_addresses(loopback: bool) -> Vec<IpAddr> {
+    let outbound = outbound_v6();
     let mut found: Vec<(u8, IpAddr)> = Vec::new();
     for i in if_addrs::get_if_addrs().unwrap_or_default() {
         if virtual_interface(&i.name) {
@@ -90,7 +102,10 @@ pub fn interface_addresses(loopback: bool) -> Vec<IpAddr> {
             IpAddr::V6(v6) if v6.segments()[0] & 0xffc0 == 0xfe80 => continue,
             // fc00::/7: VPNs that use it (Tailscale) also give an IPv4 address.
             IpAddr::V6(v6) if v6.segments()[0] & 0xfe00 == 0xfc00 => continue,
-            IpAddr::V6(_) => 3,
+            // The one this device sends from first: a direct race's two dials meet only on
+            // the addresses they come from (IPv6 firewalls let in what answers an outbound).
+            IpAddr::V6(v6) if Some(v6) == outbound => 3,
+            IpAddr::V6(_) => 4,
         };
         if !found.iter().any(|(_, a)| *a == ip) {
             found.push((rank, ip));

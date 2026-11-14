@@ -27,8 +27,10 @@ pub(super) struct Sharing {
     wrong: u32,
     notice: Option<String>,
     copied: Option<Instant>,
-    /// Sessions carried directly and through the relay so far.
+    /// Sessions carried directly and through the relay (or the public tunnel) so far.
     paths: (u32, u32),
+    /// Of those not direct, the sessions carried through the public tunnel.
+    tunneled: u32,
 }
 
 pub const HELP: &[&str] = &[
@@ -62,6 +64,24 @@ impl Game<'_> {
     /// Where friends reach this game through a public tunnel, when it shares through one.
     pub(super) fn friends_tunnel(&self) -> Option<std::net::SocketAddr> {
         self.friends.as_ref().and_then(|s| s.host.state().tunnel)
+    }
+
+    /// Sessions carried directly, and through the public tunnel, so far.
+    pub(super) fn friends_paths(&self) -> (u32, u32) {
+        self.friends
+            .as_ref()
+            .map_or((0, 0), |s| (s.paths.0, s.tunneled))
+    }
+
+    /// What the sharing found about how this device is reached.
+    pub(super) fn friends_verdict(&self) -> Option<reach::Verdict> {
+        self.friends.as_ref().and_then(|s| s.host.state().verdict)
+    }
+
+    /// The code to the clipboard.
+    pub(super) fn copy_text(&mut self, text: &str) {
+        use horizon_client::clipboard::Clipboard;
+        self.clipboard.set(text);
     }
 
     /// Start sharing the open world, through `tunnel` when nothing else reaches it (a shared
@@ -123,6 +143,7 @@ impl Game<'_> {
             notice: None,
             copied: None,
             paths: (0, 0),
+            tunneled: 0,
         });
         Ok(())
     }
@@ -176,6 +197,10 @@ impl Game<'_> {
                         "horizon.friends.wrong_code",
                         "Someone tried a wrong code.",
                     ));
+                }
+                HostEvent::Connected { tunnel: true, .. } => {
+                    sharing.paths.1 += 1;
+                    sharing.tunneled += 1;
                 }
                 HostEvent::Connected { direct: true, .. } => sharing.paths.0 += 1,
                 HostEvent::Connected { direct: false, .. } => sharing.paths.1 += 1,
@@ -335,6 +360,7 @@ impl Game<'_> {
                     "sessions": self.friends.as_ref().map_or(0, |s| s.host.sessions()),
                     "direct": self.friends.as_ref().map_or(0, |s| s.paths.0),
                     "relayed": self.friends.as_ref().map_or(0, |s| s.paths.1),
+                    "tunneled": self.friends.as_ref().map_or(0, |s| s.tunneled),
                     "guests": view.guests,
                     "lan_port": self.lan_port(),
                 })))

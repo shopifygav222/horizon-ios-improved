@@ -26,6 +26,8 @@ pub enum Action {
     Deny(String),
     /// A guest asks the host for the world.
     AskHost,
+    /// The invite code that joins the host now, to the clipboard.
+    CopyCode,
     Done,
 }
 
@@ -37,6 +39,10 @@ pub struct View {
     pub lines: Vec<String>,
     /// Buttons above the footer, at most six.
     pub buttons: Vec<(String, Action, bool)>,
+    /// The invite code that joins the host now (Play with Friends' code), once it is known.
+    pub code: Option<String>,
+    /// The code was just copied.
+    pub copied: bool,
 }
 
 const WHITE: u32 = u32::MAX;
@@ -73,8 +79,22 @@ fn layout(
             y += 10.0;
         }
     }
-    y += 6.0;
     let mut buttons = Vec::new();
+    // The code (Copy Code is beside Done, so that it always fits).
+    if let Some(code) = &view.code {
+        y += 4.0;
+        lines.push((
+            crate::lang::get_or("horizon.multiplayer.invite_code", "Invite Code"),
+            WHITE,
+            y,
+        ));
+        y += 10.0;
+        for line in crate::friends_screen::code_lines(atlas, code, width) {
+            lines.push((line, WHITE, y));
+            y += 10.0;
+        }
+    }
+    y += 6.0;
     for (label, action, active) in view.buttons.iter().take(6) {
         if y + 20.0 > h - 33.0 {
             break;
@@ -89,10 +109,27 @@ fn layout(
         });
         y += 24.0;
     }
+    let done = if view.code.is_some() {
+        buttons.push(Button {
+            x: cx - 100.0,
+            y: h - 27.0,
+            w: 98.0,
+            label: if view.copied {
+                crate::lang::get_or("horizon.friends.copied", "Copied")
+            } else {
+                crate::lang::get_or("horizon.friends.copy_code", "Copy Code")
+            },
+            action: Action::CopyCode,
+            active: true,
+        });
+        (cx + 2.0, 98.0)
+    } else {
+        (cx - 100.0, 200.0)
+    };
     buttons.push(Button {
-        x: cx - 100.0,
+        x: done.0,
         y: h - 27.0,
-        w: 200.0,
+        w: done.1,
         label: "gui.done".into(),
         action: Action::Done,
         active: true,
@@ -169,6 +206,7 @@ mod tests {
                     )
                 })
                 .collect(),
+            ..View::default()
         };
         let (_, buttons) = layout(&atlas, (427.0, 240.0), &view);
         assert_eq!(buttons.last().unwrap().action, Action::Done);
@@ -181,5 +219,72 @@ mod tests {
             click(&atlas, (427.0, 240.0), (done.x + 5.0, done.y + 5.0), &view),
             Some(Action::Done)
         );
+    }
+
+    #[test]
+    fn the_code_shows_with_copy_code_first_whatever_else_is_there() {
+        let atlas =
+            HudAtlas::build(std::path::Path::new("/nonexistent/horizon-test-assets")).unwrap();
+        let code = "0B33K-Q405Q-1Z5CV-X6NHY-R12N0-VK8T1-60N00-RA134-952PE-1HA08-910P0-K5M01-ST1NB-JDTB6-K4W1P-0";
+        let view = View {
+            world: "Island".into(),
+            lines: vec![
+                "You host this world. Here: Steve, Alex, Sam".into(),
+                "Friends on other networks may play through bore.pub (slower): your router didn't open a port. Turning on UPnP in its settings fixes that. Direct: 1, bore.pub: 1.".into(),
+            ],
+            buttons: (0..7)
+                .map(|i| {
+                    (
+                        format!("Give Host to P{i}"),
+                        Action::GiveHost(i.to_string()),
+                        true,
+                    )
+                })
+                .collect(),
+            code: Some(code.into()),
+            copied: false,
+        };
+        for size in [(427.0, 240.0), (320.0, 240.0), (640.0, 360.0)] {
+            let (lines, buttons) = layout(&atlas, size, &view);
+            // Every group of the code is on screen, in order.
+            let shown: Vec<&str> = lines
+                .iter()
+                .map(|(l, _, _)| l.as_str())
+                .skip_while(|l| *l != "Invite Code")
+                .skip(1)
+                .take_while(|l| l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+                .collect();
+            assert_eq!(shown.join("-"), code, "{size:?}");
+            let copy = &buttons[buttons.len() - 2];
+            let done = &buttons[buttons.len() - 1];
+            assert_eq!((&copy.action, &done.action), (&Action::CopyCode, &Action::Done));
+            assert!(copy.active && copy.x + copy.w <= done.x, "{size:?}");
+            assert_eq!(
+                click(&atlas, size, (copy.x + 5.0, copy.y + 5.0), &view),
+                Some(Action::CopyCode)
+            );
+            assert_eq!(
+                click(&atlas, size, (done.x + 5.0, done.y + 5.0), &view),
+                Some(Action::Done)
+            );
+            // Above the footer: the text, then at least three Give Host buttons.
+            let give: Vec<&Button> = buttons
+                .iter()
+                .filter(|b| matches!(b.action, Action::GiveHost(_)))
+                .collect();
+            assert!(give.len() >= 3, "{size:?}: {}", give.len());
+            let bottom = lines.iter().map(|(_, _, y)| *y + 10.0).fold(0.0, f32::max);
+            assert!(give.iter().all(|b| b.y >= bottom && b.y + 20.0 <= size.1 - 33.0), "{size:?}");
+        }
+        // Before the code is known there is nothing to copy.
+        let (_, buttons) = layout(
+            &atlas,
+            (427.0, 240.0),
+            &View {
+                code: None,
+                ..view
+            },
+        );
+        assert!(buttons.iter().all(|b| b.action != Action::CopyCode));
     }
 }

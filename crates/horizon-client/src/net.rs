@@ -388,7 +388,7 @@ pub const FRIEND: &str = horizon_friends::ADDRESS_PREFIX;
 /// out of it (its secret is in there).
 pub fn shown_address(address: &str) -> String {
     match address.strip_prefix(FRIEND) {
-        Some(code) => match horizon_friends::invite::parse(code) {
+        Some(code) => match horizon_friends::invite::parse(horizon_friends::split_tunnels(code).0) {
             Some(horizon_friends::invite::Parsed::Short(c)) => {
                 format!("Friend's world ({}-****)", c.nameplate)
             }
@@ -413,6 +413,30 @@ pub fn save_friends_relay(relay: &str) {
     }
 }
 
+/// How the last join of a friend's world reached it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FriendPath {
+    /// Still joining, or the join failed.
+    Unknown,
+    Direct,
+    /// Through the host's public tunnel.
+    Tunnel,
+    Relay,
+}
+
+static FRIEND_PATH: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+/// How the last join of a friend's world reached it (a shared world tells its player when
+/// that is the public tunnel).
+pub fn last_friend_path() -> FriendPath {
+    match FRIEND_PATH.load(std::sync::atomic::Ordering::SeqCst) {
+        1 => FriendPath::Direct,
+        2 => FriendPath::Tunnel,
+        3 => FriendPath::Relay,
+        _ => FriendPath::Unknown,
+    }
+}
+
 /// Reach the friend's world from the code (directly, or through a relay)
 /// and open the tunnel: the loopback address to connect to.
 fn join_friend(code: &str, lang: &Language, send: &Sender<Event>) -> Result<(String, u16), Reason> {
@@ -420,15 +444,32 @@ fn join_friend(code: &str, lang: &Language, send: &Sender<Event>) -> Result<(Str
         PathMode,
         guest::{self, GuestConfig},
     };
+    use std::sync::atomic::Ordering;
+    FRIEND_PATH.store(0, Ordering::SeqCst);
     status(send, &tr(lang, "horizon.multiplayer.finding_friend"));
+    let (code, tunnels) = horizon_friends::split_tunnels(code);
     let tunnel = guest::join(&GuestConfig {
         code: code.to_owned(),
         relay: friends_relay_setting(),
         protocol: PROTOCOL_VERSION,
         game: horizon_protocol::GAME_VERSION.to_owned(),
         path: PathMode::from_env(),
+        stun: if tunnels.is_empty() {
+            Vec::new()
+        } else {
+            horizon_friends::stun::servers_from_env()
+        },
+        tunnels,
     })
     .map_err(|e| Reason::plain(e.to_string()))?;
+    let path = if tunnel.tunneled {
+        2
+    } else if tunnel.direct {
+        1
+    } else {
+        3
+    };
+    FRIEND_PATH.store(path, Ordering::SeqCst);
     status(
         send,
         &if tunnel.direct {
