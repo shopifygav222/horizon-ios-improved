@@ -112,6 +112,59 @@ pub fn chunks_with_block_entities<'a, N: std::hash::BuildHasher>(
 use horizon_client_core::nbt_value::string;
 pub use horizon_client_core::nbt_value::{float, number, text};
 /// Insert or replace a key of a compound tag.
+/// Every write of a world's files (region files, `.dat` and other saved files) is counted as it
+/// starts and as it ends, so a shared world's checkpoint can prove that none ran while it copied
+/// the files (`game/shared_worlds.rs`).
+pub mod writes {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static STARTED: AtomicU64 = AtomicU64::new(0);
+    static FINISHED: AtomicU64 = AtomicU64::new(0);
+
+    /// A write under way; counted as done when dropped, however it ends.
+    pub struct Writing(());
+
+    impl Drop for Writing {
+        fn drop(&mut self) {
+            FINISHED.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    pub fn begin() -> Writing {
+        STARTED.fetch_add(1, Ordering::SeqCst);
+        Writing(())
+    }
+
+    /// Writes begun and writes finished. The finished count is read first, so a write that
+    /// starts in between shows as one under way.
+    pub fn stamp() -> (u64, u64) {
+        let finished = FINISHED.load(Ordering::SeqCst);
+        let started = STARTED.load(Ordering::SeqCst);
+        (started, finished)
+    }
+
+    /// No write under way at `stamp`.
+    pub fn idle(stamp: (u64, u64)) -> bool {
+        stamp.0 == stamp.1
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn a_write_under_way_is_seen_until_it_ends() {
+            let before = stamp();
+            let writing = begin();
+            let during = stamp();
+            assert!(during.0 > before.0 && during.0 > during.1);
+            drop(writing);
+            let after = stamp();
+            assert!(after.0 >= during.0 && after.1 > during.1);
+        }
+    }
+}
+
 pub(crate) fn put(tag: &mut Tag, key: &str, value: Tag) {
     if let Tag::Compound(map) = tag {
         map.insert(key.into(), value);
@@ -2056,6 +2109,7 @@ fn write_region_records(
     folder: &str,
     records: &[((i32, i32), &Record)],
 ) -> Result<()> {
+    let _writing = writes::begin();
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as u32);
@@ -3119,6 +3173,7 @@ pub fn write_file(path: &Path, bytes: Vec<u8>) -> Result<()> {
     write_file_now(path, &bytes)
 }
 fn write_file_now(path: &Path, bytes: &[u8]) -> Result<()> {
+    let _writing = writes::begin();
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
     }
@@ -3136,6 +3191,7 @@ pub fn read_file(path: &Path) -> std::io::Result<Vec<u8>> {
     }
 }
 fn write_dat_now(path: &Path, tag: Tag) -> Result<()> {
+    let _writing = writes::begin();
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
     }

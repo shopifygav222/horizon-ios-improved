@@ -377,8 +377,11 @@ impl Game<'_> {
             seed,
             creative,
             create: create.cloned(),
-            // An offline-mode server names its players by their offline profile.
-            owner: offline_uuid(&player),
+            // `IntegratedServer`'s constructor: `setSingleplayerProfile(minecraft.getGameProfile())`,
+            // the signed-in account's own UUID. Only an offline start names its player by the
+            // offline profile. So a player is the same player whether they host a world or join
+            // it (their pets, statistics and saved state), as on official Horizon.
+            owner: auth.as_ref().map_or_else(|| offline_uuid(&player), |a| a.uuid),
             player: player.clone(),
             owner_profile: auth.as_ref().map(|a| {
                 let id = a.uuid;
@@ -672,6 +675,12 @@ impl Game<'_> {
                 self.wait_for_next_server_tick(&mut next, true);
                 continue;
             }
+            // A shared world whose host can't reach its storage waits, changing nothing, until
+            // it can again: another player may soon take the world from its last copy.
+            if self.shared_frozen() {
+                self.wait_for_next_server_tick(&mut next, true);
+                continue;
+            }
             let paused = flags.paused.load(Ordering::Relaxed);
             if paused && !was_paused {
                 // IntegratedServer.tickServer: the tick the game pauses saves
@@ -795,6 +804,9 @@ impl Game<'_> {
             })),
             levels: self.level_shapes,
             owner_profile: launch.owner_profile.clone(),
+            // `IntegratedServer.getSingleplayerProfile`: the window's own player logs in
+            // through memory as the account's profile, whatever the hello says.
+            singleplayer_profile: Some((launch.player.clone(), owner)),
             // IntegratedServer.initServer: the MOTD names the owner and the world.
             ..NetConfig::lan(
                 0,

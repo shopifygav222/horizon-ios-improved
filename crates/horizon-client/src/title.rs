@@ -22,6 +22,7 @@ mod create_world;
 mod experiments;
 mod flat;
 mod onboarding;
+mod shared;
 #[cfg(test)]
 mod tests;
 pub mod world_management;
@@ -361,6 +362,8 @@ pub enum Mode {
     Onboarding(Onboarding),
     /// `BanNoticeScreens`: a ConfirmLinkScreen `Gui.addInitialScreens` queued.
     BanNotice(crate::ban_notice::Notice),
+    /// Shared Worlds: worlds this player shares with friends (`title/shared.rs`).
+    Shared(shared::Screen),
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Action {
@@ -395,6 +398,10 @@ pub enum Action {
     DataPacks {
         dir: PathBuf,
         selected: Vec<String>,
+    },
+    /// Shared Worlds' Start or Join: the game takes the world with this id (`game/shared_worlds.rs`).
+    SharedPlay {
+        world: String,
     },
 }
 pub struct Title {
@@ -543,6 +550,11 @@ pub fn list_worlds(saves: &Path) -> Vec<WorldEntry> {
             let file = |name: &str| std::fs::metadata(path.join(name)).ok().filter(|m| m.is_file());
             // getFileModificationTime: level.dat's, else level.dat_old's.
             let file = file("level.dat").or_else(|| file("level.dat_old"))?;
+            // A shared world's copy opens only through Shared Worlds, which brings it up to
+            // the newest copy first.
+            if crate::shared_worlds::is_shared(&path) {
+                return None;
+            }
             let modified = file.modified().unwrap_or(std::time::UNIX_EPOCH);
             let folder = e.file_name().to_string_lossy().into_owned();
             // readLevelSummary reads level.dat alone; when it fails the world is
@@ -729,6 +741,7 @@ impl Mode {
             Self::Onboarding(_) => "onboarding",
             Self::BanNotice(_) => "ban_notice",
             Self::Account(_) => "account",
+            Self::Shared(_) => "shared_worlds",
         }
     }
 }
@@ -1723,9 +1736,9 @@ impl Title {
                         cx - 100.0,
                         y + 48.0,
                         200.0,
-                        &lang::get_or("menu.online", "Minecraft Realms"),
-                        false,
-                        0,
+                        &lang::get_or("horizon.shared.title", "Shared Worlds"),
+                        self.allows_multiplayer,
+                        9,
                     ),
                     b(
                         cx - 100.0,
@@ -2158,6 +2171,11 @@ impl Title {
                 .into_iter()
                 .map(|(x, y, bw, label, enabled, id)| b(x, y, bw, &label, enabled, id))
                 .collect(),
+            Mode::Shared(screen) => screen
+                .buttons(w, h)
+                .into_iter()
+                .map(|(x, y, bw, label, enabled, id)| b(x, y, bw, &label, enabled, id))
+                .collect(),
             Mode::Multiplayer(screen) => screen
                 .buttons(w, h)
                 .into_iter()
@@ -2349,6 +2367,10 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 ),
             ),
             Mode::Account(_) => ScreenInfo::new("account", lang::get("starling.account.title")),
+            Mode::Shared(_) => ScreenInfo::new(
+                "shared_worlds",
+                lang::get_or("horizon.shared.title", "Shared Worlds"),
+            ),
             Mode::Multiplayer(_) => return None,
         };
         Some(info)
@@ -3103,6 +3125,9 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
             Mode::Account(screen) => {
                 screen.draw(atlas, batch, &mut self.caret.borrow_mut(), self.started)
             }
+            Mode::Shared(screen) => {
+                screen.draw(atlas, batch, &mut self.caret.borrow_mut(), self.started)
+            }
             Mode::Multiplayer(screen) => screen.draw(
                 atlas,
                 batch,
@@ -3449,6 +3474,22 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
             }
             (Mode::Main, Some(8)) => {
                 self.mode = Mode::Account(account::Screen::default());
+                Action::None
+            }
+            (Mode::Main, Some(9)) => {
+                self.mode = Mode::Shared(shared::Screen::new());
+                Action::None
+            }
+            (Mode::Shared(screen), Some(id)) => match screen.click(id, h, &self.saves) {
+                shared::Outcome::None => Action::None,
+                shared::Outcome::Close => {
+                    self.mode = Mode::Main;
+                    Action::None
+                }
+                shared::Outcome::Play(world) => Action::SharedPlay { world },
+            },
+            (Mode::Shared(screen), None) => {
+                screen.focus_at((x, y), w);
                 Action::None
             }
             (Mode::Account(screen), Some(id)) => {
@@ -3878,6 +3919,21 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
             edit.shortcut(shortcut, board);
         });
     }
+    /// Shared Worlds, as a shared world's session comes back to the title (its host changes,
+    /// or its last copy uploads).
+    pub fn open_shared(&mut self) {
+        if !matches!(self.mode, Mode::Shared(_)) {
+            self.mode = Mode::Shared(shared::Screen::new());
+        }
+    }
+    /// The focused field hides what is typed in it.
+    fn field_masked(&self) -> bool {
+        match &self.mode {
+            Mode::Account(screen) => screen.password_masked(),
+            Mode::Shared(screen) => screen.password_masked(),
+            _ => false,
+        }
+    }
     pub fn password_focused(&self) -> bool {
         matches!(&self.mode, Mode::Account(screen) if screen.password_focused())
     }
@@ -3944,6 +4000,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
         let x = (w / 2.0).floor() - 100.0;
         match &self.mode {
             Mode::Account(screen) => screen.field_rect(w),
+            Mode::Shared(screen) => screen.field_rect(w),
             Mode::Select { .. } if self.search_focused => Some([x, 21.0, 200.0, 20.0]),
             Mode::Edit { focused: true, .. } => Some([x, edit_top(h) + 39.0, 200.0, 20.0]),
             Mode::Create { focus, options, .. } => create_world::field_rect(w, h, options.tab)
@@ -3975,7 +4032,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
         if !crate::ui::hovered((x, y), fx, fy, fw, fh) {
             return;
         }
-        let secret = matches!(&self.mode, Mode::Account(screen) if screen.password_masked());
+        let secret = self.field_masked();
         if let Some(field) = caret_field(&mut self.mode, self.search_focused, &mut self.search) {
             if secret {
                 self.caret
@@ -3991,7 +4048,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
         if self.rules.get_mut().is_some() {
             return;
         }
-        let secret = matches!(&self.mode, Mode::Account(screen) if screen.password_masked());
+        let secret = self.field_masked();
         if let Some(field) = caret_field(&mut self.mode, self.search_focused, &mut self.search) {
             if secret {
                 self.caret.get_mut().drag_password(atlas, field, x);
@@ -4053,6 +4110,11 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
         {
             return (Action::None, true);
         }
+        if let Mode::Shared(screen) = &mut self.mode
+            && screen.submit(size.1)
+        {
+            return (Action::None, true);
+        }
 
         if matches!(self.mode, Mode::Edit { .. }) && self.focused_button.is_none() {
             self.confirm_edit();
@@ -4110,6 +4172,12 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
     /// Tab navigation through widgets and fields in either forward or reverse order.
     pub fn tab_dir(&mut self, reverse: bool, size: (f32, f32)) {
         if let Mode::Account(screen) = &mut self.mode
+            && screen.tab(reverse)
+        {
+            self.focused_button = None;
+            return;
+        }
+        if let Mode::Shared(screen) = &mut self.mode
             && screen.tab(reverse)
         {
             self.focused_button = None;
@@ -4643,6 +4711,11 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
         {
             return;
         }
+        if let Mode::Shared(screen) = &mut self.mode
+            && screen.back()
+        {
+            return;
+        }
         self.remember_direct_address();
         if let Mode::Multiplayer(screen) = &mut self.mode
             && !screen.escape(&self.saves)
@@ -4732,6 +4805,7 @@ fn caret_field<'a>(
 ) -> Option<(crate::clipboard::FieldId, &'a mut String, usize)> {
     match mode {
         Mode::Account(screen) => screen.field(),
+        Mode::Shared(screen) => screen.field(),
         Mode::Select { .. } if search_focused => Some((SEARCH, search, 50)),
         Mode::Edit {
             name,

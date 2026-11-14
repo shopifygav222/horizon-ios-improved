@@ -138,6 +138,8 @@ pub mod starling_releases;
 pub use horizon_server_files as server;
 pub mod server_packs;
 pub mod shadows;
+pub mod shared_screen;
+pub mod shared_worlds;
 pub mod spear;
 pub mod spectator_menu;
 pub mod sprint;

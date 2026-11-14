@@ -745,6 +745,17 @@ fn serve_login(
         .forwarding_secret
         .as_deref()
         .filter(|_| online.is_none() && !c.is_memory());
+    // `ServerLoginPacketListenerImpl.handleHello`: the integrated server's own player
+    // (the name matches `getSingleplayerProfile`) logs in as that profile, the account's
+    // UUID, never as an offline profile made from the name. Every other memory player
+    // (a splitscreen seat) stays offline; a LAN guest could not own the name in online
+    // mode, and this keeps an offline host's name from being taken over a memory room.
+    let singleplayer = shared
+        .config
+        .singleplayer_profile
+        .as_ref()
+        .filter(|(owner_name, _)| c.is_memory() && hello.name.eq_ignore_ascii_case(owner_name))
+        .map(|(owner_name, uuid)| (owner_name.clone(), *uuid));
     let (uuid, properties) = match (online, forwarding) {
         (Some(online), _) => {
             match authenticate(&mut c, shared, online, &hello.name, address, &user) {
@@ -790,7 +801,19 @@ fn serve_login(
                 return Err(err);
             }
         },
-        (None, None) => (offline_uuid(&hello.name), Vec::new()),
+        (None, None) => match singleplayer {
+            Some((owner_name, owner_uuid)) => {
+                name = owner_name;
+                let properties = shared
+                    .config
+                    .owner_profile
+                    .as_ref()
+                    .map(|profile| profile.properties().to_vec())
+                    .unwrap_or_default();
+                (owner_uuid, properties)
+            }
+            None => (offline_uuid(&hello.name), Vec::new()),
+        },
     };
     // verifyLoginAndFinishConnectionSetup: PlayerList.canPlayerLogin, then
     // duplicates and a full server.

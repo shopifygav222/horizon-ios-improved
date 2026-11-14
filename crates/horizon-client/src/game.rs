@@ -325,6 +325,7 @@ mod server_packs;
 mod server_travel;
 mod setup;
 mod shader_packs;
+mod shared_worlds;
 mod shelf;
 mod shield;
 mod shoulders;
@@ -3035,6 +3036,12 @@ struct Game<'a> {
     serving: Option<integrated::Serving>,
     /// The open world is shared behind an invite code (game/friends.rs).
     friends: Option<friends::Sharing>,
+    /// A shared world this window plays, hosts or waits on (game/shared_worlds.rs).
+    shared: Option<shared_worlds::Shared>,
+    /// A shared world's server thread: its checkpoints and its freeze (game/shared_worlds.rs).
+    shared_host: Option<std::sync::Arc<horizon_shared_worlds::session::Hosting>>,
+    /// A shared world's server thread: guests' messages for the window.
+    shared_inbox: Option<shared_worlds::Inbox>,
     /// The Social Interactions screen and the players whose chat is hidden (game/social.rs).
     social: social::Social,
     world_options: Option<lan_screen::WorldOptions>,
@@ -7465,8 +7472,16 @@ impl Game<'_> {
             serving.set_saving(self.autosaving);
         }
         if self.autosaving {
-            self.save_game_with(false)?;
-            self.ticks_until_autosave = self.next_autosave_interval();
+            // A shared world's host takes a checkpoint instead: saved, copied and uploaded.
+            let soon = match self.shared_host.clone() {
+                Some(hosting) => !self.shared_checkpoint(&hosting)?,
+                None => {
+                    self.save_game_with(false)?;
+                    false
+                }
+            };
+            // A checkpoint put off is tried again in ten seconds.
+            self.ticks_until_autosave = if soon { 200 } else { self.next_autosave_interval() };
             if let Some(serving) = &self.serving {
                 serving.set_saving(false);
             }
@@ -12025,6 +12040,7 @@ impl Game<'_> {
                 let resources = self.vanilla_root();
                 self.ui.options.open_data_packs(dir, selected, resources);
             }
+            Action::SharedPlay { world } => self.shared_play(&world)?,
             Action::None => {}
         }
         Ok(())
@@ -18827,6 +18843,7 @@ impl Game<'_> {
         }
         horizon_client::spans::time("server_packs", || self.tick_server_packs());
         horizon_client::spans::time("control", || self.poll_control(event_loop));
+        self.tick_shared();
         if self.pending_save.is_some() {
             return;
         }
@@ -19388,6 +19405,9 @@ impl<'a> Game<'a> {
             test_highlights: HashMap::new(),
             game_tests: game_tests::GameTests::default(),
             friends: None,
+            shared: None,
+            shared_host: None,
+            shared_inbox: None,
             social: Default::default(),
             debug_keys: Default::default(),
             debug_charts: Default::default(),

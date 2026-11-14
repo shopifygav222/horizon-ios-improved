@@ -189,6 +189,10 @@ impl Game<'_> {
     /// Play with Friends. The world is paused under it in singleplayer, so
     /// new codes and sessions are read while it is drawn.
     pub(super) fn draw_friends_screen(&mut self, batch: &mut HudBatch) {
+        // A shared world has its own: who hosts, Give Host, Ask to Host.
+        if self.shared_active() {
+            return self.draw_shared_screen(batch);
+        }
         self.tick_friends();
         let view = self.friends_view();
         horizon_client::widgets::begin_screen(|| {
@@ -197,6 +201,9 @@ impl Game<'_> {
         friends_screen::draw(batch, &self.gui.atlas, self.cursor, &view, true);
     }
     pub(super) fn friends_screen_click(&mut self) {
+        if self.shared_active() {
+            return self.shared_screen_click();
+        }
         let view = self.friends_view();
         let Some(action) =
             friends_screen::click(&self.gui.atlas, self.gui_size(), self.cursor, &view)

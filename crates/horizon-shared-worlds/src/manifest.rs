@@ -169,9 +169,13 @@ pub fn safe_path(path: &str) -> bool {
 }
 
 /// Paths the world folder holds that are never part of a copy: the lock a running game keeps,
-/// and this crate's own working folder.
+/// the world's picture (each device takes its own, and it is written as it is drawn, so it
+/// could be caught mid-write), and this crate's own working folder.
 pub fn reserved(path: &str) -> bool {
-    path == "session.lock" || path == WORK || path.starts_with(&format!("{WORK}/"))
+    path == "session.lock"
+        || path == "icon.png"
+        || path == WORK
+        || path.starts_with(&format!("{WORK}/"))
 }
 
 /// This crate's working folder inside a world folder (files being rebuilt, the journal).
@@ -419,6 +423,7 @@ mod tests {
             "a/b ",
             "nul\0",
             "session.lock",
+            "icon.png",
             ".shared-world",
             ".shared-world/journal.json",
             "a/b?c",

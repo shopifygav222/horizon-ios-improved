@@ -441,7 +441,7 @@ pub struct Hosting {
     ctx: Arc<Context>,
     lease: Arc<HostLease>,
     uploads: Arc<(Mutex<Uploads>, Condvar)>,
-    heart: Option<JoinHandle<()>>,
+    heart: Mutex<Option<JoinHandle<()>>>,
     epoch: u64,
     /// Where progress made here that never reached the storage was kept, when hosting began on
     /// top of someone else's newer copy.
@@ -518,7 +518,7 @@ pub fn host(
             }),
             Condvar::new(),
         )),
-        heart: Some(heart),
+        heart: Mutex::new(Some(heart)),
         epoch,
         recovered: None,
         fetched: None,
@@ -644,9 +644,11 @@ impl Hosting {
 
     /// A checkpoint. Call it while the world is held still with everything on disk (saved, its
     /// writers idle): it finds the files that changed and copies them aside, which takes a moment,
-    /// and then the world may run on while they upload. False when the last upload is still
-    /// running: nothing was done, try at the next checkpoint.
-    pub fn capture(&self) -> Result<bool> {
+    /// and then the world may run on while they upload. `unchanged` says whether nothing wrote
+    /// to the world's files while they were copied (the game's own count of its writes): when
+    /// something did, the copies are given up. False when nothing was started (the last upload
+    /// still runs, or a write came in between): try at the next checkpoint.
+    pub fn capture(&self, unchanged: &dyn Fn() -> bool) -> Result<bool> {
         if self.fenced() {
             return Err(Error::Fenced);
         }
@@ -658,6 +660,12 @@ impl Hosting {
         let layout = self.ctx.layout();
         let found = changes(&self.ctx.folder, &uploads.index)?;
         stage(&self.ctx.folder, &layout.staging(), &found)?;
+        if !unchanged() {
+            // Staged copies that may be torn stay unused: the index still says these files
+            // differ, so the next checkpoint copies them again.
+            log::warn!("Shared worlds: the world was written to during a checkpoint; it is taken again later");
+            return Ok(false);
+        }
         let index = std::mem::take(&mut uploads.index);
         let previous = uploads.previous.clone();
         let seq = uploads.next_seq;
@@ -683,7 +691,7 @@ impl Hosting {
                     Ok(manifest) => {
                         uploads.previous = Some(manifest);
                         uploads.commits += 1;
-                        tidy = uploads.commits % 20 == 0;
+                        tidy = uploads.commits.is_multiple_of(20);
                         // Every staged file is in the copy just committed.
                         let _ = fs::remove_dir_all(&staging);
                         Ok(id)
@@ -720,7 +728,7 @@ impl Hosting {
     /// The host leaves. Call it once the world is closed and saved: its last copy goes up and
     /// the lease is handed to `successor` (a UUID), or closed. On an error the world is still
     /// this game's; call again, or [`Self::abandon`] to leave it for this device's next start.
-    pub fn leave(&mut self, successor: Option<&str>, progress: Progress<'_>) -> Result<GenId> {
+    pub fn leave(&self, successor: Option<&str>, progress: Progress<'_>) -> Result<GenId> {
         self.wait_idle();
         if self.fenced() {
             return Err(Error::Fenced);
@@ -772,7 +780,7 @@ impl Hosting {
     }
 
     /// The world couldn't be opened after all: give it back as it was.
-    pub fn release(mut self) -> Result<()> {
+    pub fn release(&self) -> Result<()> {
         self.wait_idle();
         let released = self.lease.write(|held| held.release());
         self.stop_heart();
@@ -782,15 +790,20 @@ impl Hosting {
     /// Stops hosting without handing the world on (the app is closing, or the world was taken).
     /// What this device has stays here; while nobody takes the world, the next start on this
     /// device carries on from it.
-    pub fn abandon(mut self) {
+    pub fn abandon(&self) {
         self.stop_heart();
     }
 
-    fn stop_heart(&mut self) {
+    fn stop_heart(&self) {
         self.lease.stop.store(true, Ordering::SeqCst);
-        if let Some(heart) = self.heart.take() {
+        if let Some(heart) = locked(&self.heart).take() {
             let _ = heart.join();
         }
+    }
+
+    /// Whether this game still keeps the lease's heartbeat.
+    pub fn active(&self) -> bool {
+        !self.lease.stop.load(Ordering::SeqCst) && !self.fenced()
     }
 }
 
@@ -958,7 +971,7 @@ mod tests {
                 store.clone(),
                 &invite(),
                 scratch.path("saves/Island"),
-                member(n, n % 2 == 0),
+                member(n, n.is_multiple_of(2)),
                 format!("device{n}"),
             );
             ctx.timing = FAST;
@@ -1012,7 +1025,7 @@ mod tests {
     }
 
     fn checkpoint(hosting: &Hosting) -> GenId {
-        assert!(hosting.capture().unwrap());
+        assert!(hosting.capture(&|| true).unwrap());
         let mut outcome = None;
         wait_for("the upload", || {
             outcome = hosting.poll();
@@ -1044,7 +1057,7 @@ mod tests {
         let alex = new_world(&store);
         let steve = Device::new(&store, 2);
         // Steve opens it first: his device gets the whole world.
-        let mut hosting = steve.host(Start::Free).unwrap();
+        let hosting = steve.host(Start::Free).unwrap();
         assert_eq!(hosting.fetched.unwrap().replaced, 3);
         assert_eq!(steve.tree(), alex.tree());
         hosting.open("CODE-STEVE", false);
@@ -1076,7 +1089,7 @@ mod tests {
         assert_eq!(next_step(Some(&lease), Duration::ZERO, &member(1, false).uuid, &FAST), Next::Host(Claim::Free));
         assert_eq!(next_step(Some(&lease), Duration::ZERO, &member(3, false).uuid, &FAST), Next::Wait);
         drop(hosting);
-        let mut hosting = alex.host(Start::Free).unwrap();
+        let hosting = alex.host(Start::Free).unwrap();
         assert!(hosting.recovered.is_none());
         assert_eq!(alex.tree(), steve.tree());
         assert_eq!(alex.read("level.dat"), b"level 3");
@@ -1087,12 +1100,27 @@ mod tests {
     }
 
     #[test]
+    fn a_checkpoint_the_game_wrote_into_is_given_up() {
+        let store = Arc::new(MemoryStore::new());
+        let alex = new_world(&store);
+        let hosting = alex.host(Start::Free).unwrap();
+        alex.write("level.dat", b"written while copied");
+        assert!(!hosting.capture(&|| false).unwrap());
+        assert!(!hosting.uploading() && hosting.poll().is_none());
+        // The next one takes the file again.
+        let id = checkpoint(&hosting);
+        let manifest = alex.ctx.remote().manifest(id).unwrap();
+        assert_eq!(manifest.file("level.dat").unwrap().size, b"written while copied".len() as u64);
+        hosting.abandon();
+    }
+
+    #[test]
     fn a_checkpoint_is_what_the_world_was_when_it_was_taken() {
         let store = Arc::new(MemoryStore::new());
         let alex = new_world(&store);
         let hosting = alex.host(Start::Free).unwrap();
         alex.write("level.dat", b"at the checkpoint");
-        assert!(hosting.capture().unwrap());
+        assert!(hosting.capture(&|| true).unwrap());
         // The world runs on while the copy uploads.
         alex.write("level.dat", b"after the checkpoint, and longer too");
         let mut outcome = None;
@@ -1119,7 +1147,7 @@ mod tests {
         alex.write("players/data/alex.dat", b"alex, later");
         // The storage fails for a while: the upload fails, and so do heartbeats.
         store.fail_before.store(u32::MAX, Ordering::SeqCst);
-        assert!(hosting.capture().unwrap());
+        assert!(hosting.capture(&|| true).unwrap());
         let mut outcome = None;
         wait_for("the failed upload", || {
             outcome = hosting.poll();
@@ -1150,7 +1178,7 @@ mod tests {
         // Alex's game dies: the heartbeat stops, nothing more is uploaded.
         hosting.abandon();
         let watcher = Watcher::start(steve.ctx.clone()).unwrap();
-        let mut taken = None;
+        let taken = None;
         wait_for("the takeover", || {
             if let Some((Ok(Some(seen)), quiet)) = watcher.latest()
                 && next_step(Some(&seen.lease), quiet, &steve.ctx.me.uuid, &FAST) == Next::Host(Claim::Takeover)
@@ -1159,12 +1187,12 @@ mod tests {
             }
             taken.is_some()
         });
-        let mut hosting = steve.host(Start::Takeover(taken.unwrap())).unwrap();
+        let hosting = steve.host(Start::Takeover(taken.unwrap())).unwrap();
         assert_eq!(steve.read("level.dat"), b"saved in the storage");
         steve.write("level.dat", b"steve's");
         hosting.leave(None, &mut go).unwrap();
         // Alex comes back: the newer copy is Steve's, and Alex's own progress is kept apart.
-        let mut again = alex.host(Start::Free).unwrap();
+        let again = alex.host(Start::Free).unwrap();
         let kept = again.recovered.clone().unwrap();
         assert_eq!(fs::read(kept.join("level.dat")).unwrap(), b"only on alex's device");
         assert!(!kept.join(WORK).exists());
@@ -1177,9 +1205,9 @@ mod tests {
         let store = Arc::new(MemoryStore::new());
         let alex = new_world(&store);
         let steve = Device::new(&store, 2);
-        let mut hosting = alex.host(Start::Free).unwrap();
+        let hosting = alex.host(Start::Free).unwrap();
         // A heartbeat may land between the read and the takeover: then read again.
-        let mut taken = None;
+        let taken = None;
         wait_for("the takeover", || {
             let seen = steve.ctx.status().unwrap().unwrap();
             match steve.host(Start::Takeover(seen)) {
@@ -1189,10 +1217,10 @@ mod tests {
             }
             taken.is_some()
         });
-        let mut taken = taken.unwrap();
+        let taken = taken.unwrap();
         alex.write("level.dat", b"too late");
         wait_for("alex to learn", || {
-            let _ = hosting.capture();
+            let _ = hosting.capture(&|| true);
             matches!(hosting.poll(), Some(Err(Error::Fenced))) || hosting.fenced()
         });
         assert!(hosting.must_freeze());

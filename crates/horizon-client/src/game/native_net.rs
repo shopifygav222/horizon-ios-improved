@@ -65,6 +65,10 @@ impl Game<'_> {
     /// The waiting messages reach the mods, with the hub back in the game.
     pub(super) fn run_native_net(&mut self) {
         for (player, m) in std::mem::take(&mut self.native_net.from_players) {
+            if m.channel == super::shared_worlds::CHANNEL {
+                self.shared_from_guest(player, &m.data);
+                continue;
+            }
             self.native_net_from_client(player, &m.channel, &m.data);
         }
     }
@@ -98,6 +102,7 @@ impl Game<'_> {
     /// A `horizon:mod_net` payload the server sent the window.
     pub(super) fn remote_native_net(&mut self, data: &[u8]) {
         match mod_net::decode(data) {
+            Ok(m) if m.channel == super::shared_worlds::CHANNEL => self.shared_from_host(&m.data),
             Ok(m) => self.native_net_from_server(&m.channel, &m.data),
             Err(e) => log::debug!("Horizon: a bad mod message: {e}"),
         }

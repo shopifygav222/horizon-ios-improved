@@ -117,7 +117,9 @@ impl Game<'_> {
             && self.integrated_starting.is_none()
             && self.pending_entry.is_none()
         {
-            if let Some(server) = &self.integrated {
+            if self.shared_checkpoint_for_background() {
+                log::info!("Horizon: a shared world's checkpoint, the game left the screen");
+            } else if let Some(server) = &self.integrated {
                 log::info!("Horizon: saving the world, the game left the screen");
                 // Out of sight the world waits as saved; the next frame pauses it or not again.
                 if !self.is_published() {

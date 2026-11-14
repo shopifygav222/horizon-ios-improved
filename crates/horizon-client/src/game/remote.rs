@@ -2102,6 +2102,13 @@ impl Game<'_> {
             .unwrap_or_default()
     }
     /// The names in the server's player list, sorted.
+    /// The players the server lists (UUID, name), in no order.
+    pub(super) fn remote_player_list(&self) -> Vec<(u128, String)> {
+        self.remote
+            .as_ref()
+            .map(|r| r.players.iter().map(|(uuid, name)| (*uuid, name.clone())).collect())
+            .unwrap_or_default()
+    }
     pub(super) fn remote_online_names(&self) -> Option<Vec<String>> {
         let r = self.remote.as_ref()?;
         let mut names: Vec<String> = r.players.values().cloned().collect();
@@ -2383,6 +2390,12 @@ impl Game<'_> {
                     if let Some((address, name, cookies)) = transfer {
                         self.leave_server(None)?;
                         self.connect_server_with_cookies(&address, &name, Some(cookies))?;
+                        return Ok(());
+                    }
+                    // A shared world's guest follows the world to its next host instead.
+                    if self.shared_connection_lost() {
+                        self.leave_server(None)?;
+                        self.shared_back_to_list();
                         return Ok(());
                     }
                     let retry = self.reconnect_after(&reason, key.as_deref(), from_server);
