@@ -473,7 +473,8 @@ pub struct Hosting {
     pub recovered: Option<PathBuf>,
     /// The copy this device was brought to before the world opens.
     pub fetched: Option<Fetched>,
-    _lock: FolderLock,
+    /// Held while this game hosts; let go as it stops.
+    lock: Mutex<Option<FolderLock>>,
 }
 
 /// Takes the world to host: the lease, then the newest copy onto this device. When this returns
@@ -555,7 +556,7 @@ pub fn host(
         epoch,
         recovered: None,
         fetched: None,
-        _lock: lock,
+        lock: Mutex::new(Some(lock)),
     };
     match hosting.prepare(resumed, newest, recover_into, progress) {
         Ok(()) => Ok(hosting),
@@ -850,11 +851,13 @@ impl Hosting {
         self.stop_heart();
     }
 
+    /// Stops the heartbeat and lets go of the world's files.
     fn stop_heart(&self) {
         self.lease.stop.store(true, Ordering::SeqCst);
         if let Some(heart) = locked(&self.heart).take() {
             let _ = heart.join();
         }
+        locked(&self.lock).take();
     }
 
     /// Whether this game still keeps the lease's heartbeat.

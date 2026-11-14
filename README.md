@@ -117,6 +117,75 @@ Visuals**, made for phones, comes with the app.
 Metal and compiled, once, as it loads. Big packs take longer and cost more frame rate and battery;
 Starling Visuals and the **Auto** profile are the light options.
 
+## Shared worlds
+
+A shared world belongs to your group, not to one of you. Whoever opens it while nobody is
+playing hosts it on their own phone; friends join them with no server. When the host leaves,
+the world moves to a player who is still in it, and everyone else follows by themselves. The
+title screen's **Shared Worlds** (where Realms was) lists your shared worlds and how many are in
+each one right now.
+
+The world always runs on the host's phone, as single player does, so it plays as fast. A copy
+of it lives in a storage bucket your group owns, which is how the next host gets the newest
+version. Everyone needs a **Microsoft account** signed in: it is how each game knows who you are,
+so your inventory, pets and stats stay yours whoever hosts.
+
+### Set up the storage once (about 10 minutes, on your phone)
+
+The world's copy goes in **Cloudflare R2**: 10 GB free, which holds many worlds. R2 asks for a
+payment card when you turn it on; nothing is charged within the free amounts, and a group's
+playing stays far inside them.
+
+1. Open **dash.cloudflare.com** in your phone's browser and sign up (free).
+2. Go to **R2 Object Storage**, turn it on, then **Create bucket**. Any name (`horizon-worlds`),
+   location Automatic.
+3. In R2, open **Manage API tokens** (API, Manage API tokens) and **Create API token**: permission
+   **Object Read & Write**, applied to that bucket only. Create it, and keep the page open: it shows
+   the **Access Key ID**, the **Secret Access Key** and the **S3 endpoint** (`https://...r2.cloudflarestorage.com`)
+   once.
+4. In the game: **Shared Worlds**, **Share a World...**, pick the world, then paste the endpoint, the
+   bucket's name and the two keys (copy each from the browser, then **Paste** in the game), and
+   **Share World**. The game first checks that the bucket keeps a world safe, then uploads it.
+5. Open the world in the list, **Copy World Invite**, and send it to your friends in a private
+   message. They tap **Add with Invite...**, **Paste**, **Add World**.
+
+The invite holds the bucket's key: anyone who has it can play and change the world. Send it only
+to the friends you play with. A second world can go in the same bucket: the game remembers it.
+
+### Playing
+
+- **Start** when nobody is playing: you host. **Join** when someone is: you join them.
+- **Leaving as the host:** Save and Quit. The world uploads (a moment; keep the app open until it
+  says so) and passes to a player who is still in it. Their game takes it and the others follow.
+- **Give Host:** Game Menu, the Friends button, **Give Host to ...**. **Ask to Host** does the same
+  from a guest's side, and the host answers yes or no.
+- **While you host,** the world's copy updates every 5 minutes, and whenever your app goes to the
+  background, without stopping play.
+- **If the host's phone dies or loses its connection,** the others wait up to about a minute and a
+  half in case it comes back, then one of them takes the world from its last copy (at most 5
+  minutes old). Nothing is damaged. What the old host did after that copy stays on their phone, as
+  a separate singleplayer world named "(my own progress)".
+- **If your phone can't reach the storage while you host,** the world pauses until it can, so
+  nobody can take it over while you keep playing.
+
+### Reaching the host
+
+The game connects friends directly when it can: on the same Wi-Fi or hotspot, through a router
+that opens a port (the game asks it), over IPv6, or over a VPN such as Tailscale. When nothing
+outside the host's network can reach it (most phones on mobile data are behind their carrier's
+shared address), friends join through **bore.pub**, a free public tunnel, and the game tells
+everyone it is in use. The world stays encrypted between the host and each friend; the tunnel
+can be slower, and it is run by volunteers.
+
+### Good to know
+
+- 8 players at most in a world.
+- Removing a world from your list leaves it in the storage for the others; your copy becomes a
+  normal singleplayer world.
+- Old copies are kept for a while (the last 20, and one a day for two weeks), then removed.
+- Playing with friends on PC: they need official Horizon and the Shared Worlds mod (see the
+  releases). Until then, shared worlds are between phones running this app.
+
 ## Native mods
 
 Native mods change the game's code, and iOS only runs code an app shipped with. So a native mod is

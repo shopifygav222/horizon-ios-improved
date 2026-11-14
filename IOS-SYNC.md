@@ -94,6 +94,15 @@ Every change to a file Starling has, in the order they were made.
 | `horizon-client/src/game/native_client_services.rs` | `native_set_mod_key`, `native_client_action_bar`, `native_apply_screen_blur` (false: Options and pause already blur) | dynamiclights' key binding, toggle message and screen |
 | `horizon-client/src/mobs/armor.rs` (new), `mobs.rs` | `mobs::armor::values`: armour and toughness as `hurt_after_armor` sums them | Jade's health-and-armour line |
 | `packaging/android/native_mod_adapt.py` | Rewrites: burning projectiles from `arrow.on_fire()` (no fire time here), `mob_hit()` as a pair, `key_pressed` with one key, a pet's body armour from `extra.head` | dynamiclights and Jade, pinned to newer Horizon |
+| `horizon-client/src/lan/mod.rs`, `lan/conn.rs`, `game/integrated.rs`, `game/dedicated.rs` | The integrated server's own player logs in as the signed-in account's profile (`singleplayer_profile`), as official Horizon 441f49d57e has it | A player is the same player hosting a shared world or joining it (pets, stats, saved state) |
+| `horizon-client/src/save.rs` | `save::writes`: every region, `.dat` and saved-file write counted as it starts and ends | A shared world's checkpoint proves nothing wrote while it copied the files |
+| `horizon-client/src/title.rs`, `title/tests.rs` | Shared Worlds (`Mode::Shared`, `title/shared.rs`) in the main menu where the disabled Realms button was; `Action::SharedPlay`; shared worlds' folders left out of Singleplayer | Shared worlds |
+| `horizon-client/src/game.rs` | The `shared_worlds` module and its fields; a shared world's host takes a checkpoint instead of an autosave; `Action::SharedPlay`; `tick_shared` each frame | Shared worlds |
+| `horizon-client/src/game/integrated.rs` | The server waits while a shared world's host can't reach its storage | No progress is made that a takeover would lose |
+| `horizon-client/src/game/remote.rs` | A shared world's guest follows the world to its next host instead of the Disconnected screen; `remote_player_list` | Shared worlds |
+| `horizon-client/src/game/native_net.rs` | Messages on `shared_worlds:ctl` go to the shared world, not to mods | Ask to Host, reachability |
+| `horizon-client/src/game/friends.rs`, `game/saving.rs`, `game/control.rs` | The Friends screen of a shared world; `friends_start_with` (a public tunnel); a checkpoint when the app leaves the screen; `horizon-ctl shared ...` | Shared worlds |
+| `horizon-friends/src/portmap.rs`, `host.rs`, `horizon-relay/tests/tunnel.rs` | Without a routing table (iOS, Android) the router is asked at its usual addresses and by unicast SSDP; `HostConfig::tunnel` adds a public tunnel's address to the code when nothing else reaches the host | Phones can host friends on other networks |
 
 ## Gate ledger
 

@@ -43,8 +43,8 @@ const STORAGE_CANCEL: u8 = 241;
 const STORAGE_HELP: u8 = 242;
 const TASK_CANCEL: u8 = 250;
 const TASK_OK: u8 = 251;
-const REMOVE_CONFIRM: u8 = 260;
-const REMOVE_CANCEL: u8 = 261;
+const REMOVE_CONFIRM: u8 = 252;
+const REMOVE_CANCEL: u8 = 253;
 
 const INVITE_FIELD: FieldId = ("shared.invite", 0);
 const STORAGE_FIELDS: [(&str, &str, usize); 4] = [

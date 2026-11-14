@@ -441,7 +441,8 @@ impl Game<'_> {
                 .remote_player_list()
                 .into_iter()
                 .find(|(uuid, _)| *uuid == player)
-                .map_or_else(String::new, |(_, n)| n);
+                .map(|(_, n)| n)
+                .unwrap_or_default();
             match data.as_slice() {
                 REQUEST if !host.requests.iter().any(|(u, _)| *u == player) => {
                     host.requests.push((player, name.clone()));
