@@ -516,6 +516,10 @@ impl Game<'_> {
         let (tx, rx) = channel();
         let uploading = tr("uploading_last", "Uploading the world for your friends...");
         working(uploading.clone());
+        // The upload's progress shows on Shared Worlds, where the closed world leaves the title.
+        if let Some(title) = self.title.as_mut() {
+            title.open_shared();
+        }
         let thread_hosting = hosting.clone();
         let thread_successor = successor.clone();
         horizon_client::platform::keep_working("shared-world", &uploading, true);

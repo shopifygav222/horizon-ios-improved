@@ -22,6 +22,7 @@ The players are offline players (HORIZON_SHARED_WORLDS_TEST_PLAYER), as CI has n
 import argparse
 import math
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -62,7 +63,7 @@ class Player:
             '--name', name, '--control-socket', str(self.endpoint), '--timeout-seconds', '1800',
         ] + Player.extra, cwd=self.home,
             env={**game_environment(env, self.home), 'HORIZON_HOME': str(self.home)},
-            stdout=self.log, stderr=subprocess.STDOUT)
+            stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True)
         self.wait('screen', lambda v: v['screen'] == 'title', 120, f'{name}: the title')
 
     def __call__(self, line, check=True):
@@ -105,7 +106,9 @@ class Player:
                   120, what)
 
     def kill(self):
-        self.process.kill()
+        """The game dies at once, as a phone that runs out of battery: the whole process group,
+        not only xvfb-run around it."""
+        os.killpg(self.process.pid, signal.SIGKILL)
         self.process.wait(timeout=20)
 
     def stop(self):
