@@ -183,8 +183,8 @@ can be slower, and it is run by volunteers.
 - Removing a world from your list leaves it in the storage for the others; your copy becomes a
   normal singleplayer world.
 - Old copies are kept for a while (the last 20, and one a day for two weeks), then removed.
-- Playing with friends on PC: they need official Horizon and the Shared Worlds mod (see the
-  releases). Until then, shared worlds are between phones running this app.
+- Shared worlds are between phones running this app. Friends on PC (official Horizon) are planned
+  for later.
 
 ## Native mods
 
